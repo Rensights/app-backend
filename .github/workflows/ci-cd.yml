@@ -357,14 +357,17 @@ jobs:
           
           # Check for stuck Helm releases and clean them up
           echo "Checking for stuck Helm releases..."
-          if helm list -n ${DEV_NAMESPACE} | grep -q "^backend"; then
+          if helm list -n ${DEV_NAMESPACE} -q | grep -q "^backend$"; then
             STATUS=$(helm status backend -n ${DEV_NAMESPACE} -o json 2>/dev/null | jq -r '.info.status' 2>/dev/null || echo "unknown")
             echo "Current release status: $STATUS"
             
             if [ "$STATUS" = "pending-install" ] || [ "$STATUS" = "pending-upgrade" ] || [ "$STATUS" = "pending-rollback" ]; then
               echo "⚠️  Release is stuck in pending state, cleaning up..."
-              helm rollback backend -n ${DEV_NAMESPACE} --force 2>&1 || true
               helm delete backend -n ${DEV_NAMESPACE} --no-hooks 2>&1 || true
+              # Also clean up any resources that might have been created
+              kubectl delete deployment backend -n ${DEV_NAMESPACE} --ignore-not-found=true
+              kubectl delete svc backend -n ${DEV_NAMESPACE} --ignore-not-found=true
+              kubectl delete ingress backend -n ${DEV_NAMESPACE} --ignore-not-found=true
               sleep 3
             fi
           else
