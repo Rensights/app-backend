@@ -717,12 +717,13 @@ jobs:
       - name: Deploy backend to prod
         run: |
           export KUBECONFIG=/tmp/kubeconfig
-          IMAGE_TAG="${IMAGE_TAG:-latest}"
+          IMAGE_TAG="${{ needs.build.outputs.image_tag }}"
+          if [ -z "$IMAGE_TAG" ]; then
+            # Fallback: use pipeline run number
+            IMAGE_TAG="${{ github.run_number }}"
+          fi
           if [ -n "${{ github.event.inputs.image_tag }}" ]; then
             IMAGE_TAG="${{ github.event.inputs.image_tag }}"
-          else
-            SHA=$(echo "${{ github.sha }}" | cut -c1-7)
-            IMAGE_TAG="sha-${SHA}"
           fi
           echo "🚀 Deploying to PRODUCTION with tag: ${IMAGE_TAG}"
           helm upgrade --install backend ./charts \
