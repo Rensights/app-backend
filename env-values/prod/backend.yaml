@@ -52,3 +52,5 @@ extraEnv:
   SERVER_PORT: "8080"
   CORS_ORIGINS: "https://72.62.40.154.nip.io,http://72.62.40.154.nip.io:31416"
   OTEL_SERVICE_NAME: "backend-prod"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://signoz-otel-collector.platform.svc.cluster.local:4318"
+  OTEL_EXPORTER_OTLP_PROTOCOL: "http/protobuf"
