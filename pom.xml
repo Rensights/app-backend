@@ -184,6 +184,9 @@
                             <sourceDirectory>${project.basedir}/../schemas/avro</sourceDirectory>
                             <outputDirectory>${project.build.directory}/generated-sources/avro</outputDirectory>
                             <stringType>String</stringType>
+                            <includes>
+                                <include>**/*.avsc</include>
+                            </includes>
                         </configuration>
                     </execution>
                 </executions>

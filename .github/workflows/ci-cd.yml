@@ -63,6 +63,15 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.CONTAINER_TOKEN }}
 
+      - name: Verify avro-schemas image is available
+        run: |
+          echo "🔍 Verifying avro-schemas image is available..."
+          docker pull ghcr.io/rensights/avro-schemas:latest || {
+            echo "⚠️  Warning: avro-schemas:latest not found, will try to build anyway"
+            echo "   Make sure avro-schemas repository has been built and pushed"
+          }
+          echo "✅ Avro schemas image check completed"
+
       - name: Set image repository (lowercase)
         id: image-repo
         run: |
