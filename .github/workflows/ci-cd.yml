@@ -194,9 +194,18 @@ jobs:
           echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> $GITHUB_ENV
           echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> $GITHUB_ENV
           
-          # Write private key to file
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          # Write private key to file (use cat with heredoc to preserve formatting)
+          cat > ~/.ssh/id_ed25519 << 'KEYFILE'
+          ${{ secrets.SSH_PRIVATE_KEY }}
+          KEYFILE
           chmod 600 ~/.ssh/id_ed25519
+          
+          # Verify file was created
+          if [ ! -f ~/.ssh/id_ed25519 ]; then
+            echo "❌ Error: SSH key file was not created"
+            exit 1
+          fi
+          echo "✅ SSH key file created: $(ls -lh ~/.ssh/id_ed25519)"
           
           # Install expect if not available
           sudo apt-get update -qq && sudo apt-get install -y -qq expect || true
@@ -340,9 +349,18 @@ jobs:
           echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> $GITHUB_ENV
           echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> $GITHUB_ENV
           
-          # Write private key to file
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          # Write private key to file (use cat with heredoc to preserve formatting)
+          cat > ~/.ssh/id_ed25519 << 'KEYFILE'
+          ${{ secrets.SSH_PRIVATE_KEY }}
+          KEYFILE
           chmod 600 ~/.ssh/id_ed25519
+          
+          # Verify file was created
+          if [ ! -f ~/.ssh/id_ed25519 ]; then
+            echo "❌ Error: SSH key file was not created"
+            exit 1
+          fi
+          echo "✅ SSH key file created: $(ls -lh ~/.ssh/id_ed25519)"
           
           # Install expect if not available
           sudo apt-get update -qq && sudo apt-get install -y -qq expect || true
