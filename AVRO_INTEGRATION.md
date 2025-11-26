@@ -86,15 +86,41 @@ byte[] avroBytes = out.toByteArray();
 
 ## Versioning
 
-The backend uses the `latest` tag of `avro-schemas` by default. For production, consider:
+The backend uses the `latest` tag of `avro-schemas` by default, but supports version pinning via build argument.
 
-1. **Using a specific version tag:**
+### Current Release
+- **v0.0.1** - First release (Nov 26, 2025)
+  - Available at: `ghcr.io/rensights/avro-schemas:v0.0.1`
+  - See: https://github.com/Rensights/avro-schemas/releases/tag/v0.0.1
+
+### Using Versioned Tags
+
+1. **Via Dockerfile build argument:**
    ```dockerfile
-   FROM ghcr.io/rensights/avro-schemas:v1.0.0 AS schemas
+   # Pin to specific version
+   ARG AVRO_SCHEMAS_VERSION=v0.0.1
+   FROM ghcr.io/rensights/avro-schemas:${AVRO_SCHEMAS_VERSION} AS schemas
    ```
 
-2. **Pinning in CI/CD:**
-   Update the Dockerfile to use a specific version tag for stability.
+2. **Via Docker build:**
+   ```bash
+   docker build --build-arg AVRO_SCHEMAS_VERSION=v0.0.1 .
+   ```
+
+3. **Via CI/CD (GitHub Actions):**
+   ```yaml
+   - name: Build Docker image
+     uses: docker/build-push-action@v5
+     with:
+       build-args: |
+         AVRO_SCHEMAS_VERSION=v0.0.1
+   ```
+
+### Recommended Approach
+
+- **Development:** Use `latest` for latest schemas
+- **Production:** Pin to specific version (e.g., `v0.0.1`) for stability
+- **Updates:** Test new versions in dev, then update production tag
 
 ## Updating Schemas
 

@@ -1,5 +1,7 @@
 # Stage 1: Copy Avro schemas from avro-schemas image
-FROM ghcr.io/rensights/avro-schemas:latest AS schemas
+# Use build arg to allow version pinning (default: latest)
+ARG AVRO_SCHEMAS_VERSION=latest
+FROM ghcr.io/rensights/avro-schemas:${AVRO_SCHEMAS_VERSION} AS schemas
 
 # Stage 2: Build the application
 FROM maven:3.9-eclipse-temurin-17 AS builder
