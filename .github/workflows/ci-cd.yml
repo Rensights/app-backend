@@ -104,9 +104,9 @@ jobs:
         id: image-tag
         run: |
           SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
-          echo "tag=${SHORT_SHA}" >> $GITHUB_OUTPUT
+          echo "tag=sha-${SHORT_SHA}" >> $GITHUB_OUTPUT
           echo "Full SHA: ${{ github.sha }}"
-          echo "Short SHA (tag): ${SHORT_SHA}"
+          echo "Short SHA (tag): sha-${SHORT_SHA}"
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -153,12 +153,12 @@ jobs:
       - name: Output image info
         run: |
           echo "✅ Image pushed:"
-          echo "   ghcr.io/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }}:sha-${{ github.sha }}"
+          echo "   ghcr.io/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }}:${{ steps.image-tag.outputs.tag }}"
           echo "   ghcr.io/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }}:latest"
           
       - name: Verify image was pushed
         run: |
-          IMAGE="ghcr.io/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }}:latest"
+          IMAGE="ghcr.io/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }}:${{ steps.image-tag.outputs.tag }}"
           echo "🔍 Verifying pushed image: ${IMAGE}"
           # Wait a moment for image to be available
           sleep 5
