@@ -357,7 +357,7 @@ jobs:
           
           # Check for stuck Helm releases and clean them up
           echo "Checking for stuck Helm releases..."
-          if helm status backend -n ${DEV_NAMESPACE} &>/dev/null; then
+          if helm list -n ${DEV_NAMESPACE} | grep -q "^backend"; then
             STATUS=$(helm status backend -n ${DEV_NAMESPACE} -o json 2>/dev/null | jq -r '.info.status' 2>/dev/null || echo "unknown")
             echo "Current release status: $STATUS"
             
@@ -366,6 +366,17 @@ jobs:
               helm rollback backend -n ${DEV_NAMESPACE} --force 2>&1 || true
               helm delete backend -n ${DEV_NAMESPACE} --no-hooks 2>&1 || true
               sleep 3
+            fi
+          else
+            echo "No existing backend release found in Helm"
+            # Check if there are orphaned resources (deployment exists but no helm release)
+            if kubectl get deployment backend -n ${DEV_NAMESPACE} &>/dev/null; then
+              echo "⚠️  Found orphaned backend deployment (exists but no Helm release)"
+              echo "Deleting orphaned resources..."
+              kubectl delete deployment backend -n ${DEV_NAMESPACE} --ignore-not-found=true
+              kubectl delete svc backend -n ${DEV_NAMESPACE} --ignore-not-found=true
+              kubectl delete ingress backend -n ${DEV_NAMESPACE} --ignore-not-found=true
+              sleep 2
             fi
           fi
           
