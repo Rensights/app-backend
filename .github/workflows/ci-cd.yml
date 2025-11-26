@@ -183,16 +183,31 @@ jobs:
         with:
           version: 'latest'
 
+      - name: Set up SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
       - name: Set image repository (lowercase)
         id: image-repo
         run: |
           REPO_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          REPO_NAME=$(echo "${{ github.event.repository.name }}" | tr '[:upper:]' '[:lower:]')
           echo "repo_owner=${REPO_OWNER}" >> $GITHUB_OUTPUT
+          echo "repo_name=${REPO_NAME}" >> $GITHUB_OUTPUT
+
+      - name: Setup SSH Tunnel to Kubernetes API
+        run: |
+          echo "Setting up SSH tunnel to Kubernetes API server..."
+          ssh -f -N -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -L 6443:127.0.0.1:6443 root@72.62.40.154
+          sleep 3
+          echo "✅ SSH tunnel established"
 
       - name: Configure kubectl
         run: |
           echo "${{ secrets.DEV_KUBECONFIG }}" | base64 -d > /tmp/kubeconfig
-          sed -i 's|server: https://127.0.0.1:6443|server: https://72.62.40.154:6443|g' /tmp/kubeconfig
+          # Use localhost since we're tunneling through SSH
+          sed -i 's|server: https://.*:6443|server: https://127.0.0.1:6443|g' /tmp/kubeconfig
           export KUBECONFIG=/tmp/kubeconfig
           kubectl cluster-info
 
@@ -272,6 +287,11 @@ jobs:
         with:
           version: 'latest'
 
+      - name: Set up SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
       - name: Set image repository (lowercase)
         id: image-repo
         run: |
@@ -280,10 +300,18 @@ jobs:
           echo "repo_owner=${REPO_OWNER}" >> $GITHUB_OUTPUT
           echo "repo_name=${REPO_NAME}" >> $GITHUB_OUTPUT
 
+      - name: Setup SSH Tunnel to Kubernetes API
+        run: |
+          echo "Setting up SSH tunnel to Kubernetes API server..."
+          ssh -f -N -o StrictHostKeyChecking=no -L 6443:127.0.0.1:6443 root@72.62.40.154
+          sleep 3
+          echo "✅ SSH tunnel established"
+
       - name: Configure kubectl
         run: |
           echo "${{ secrets.PROD_KUBECONFIG }}" | base64 -d > /tmp/kubeconfig
-          sed -i 's|server: https://127.0.0.1:6443|server: https://72.62.40.154:6443|g' /tmp/kubeconfig
+          # Use localhost since we're tunneling
+          sed -i 's|server: https://.*:6443|server: https://127.0.0.1:6443|g' /tmp/kubeconfig
           export KUBECONFIG=/tmp/kubeconfig
           kubectl cluster-info
 
