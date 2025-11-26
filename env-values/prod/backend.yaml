@@ -11,7 +11,7 @@ service:
   port: 8080
 
 database:
-  host: postgres-backend-postgresql.prod.svc.cluster.local
+  host: postgres-backend-postgresql
   port: 5432
   name: backend_db_prod
   usernameSecret: backend-db-user

@@ -74,7 +74,7 @@ spec:
                   name: {{ .Values.secrets.dbCredentials }}
                   key: postgres-password
             - name: DATABASE_URL
-              value: "jdbc:postgresql://{{ `{{` }} env "POSTGRES_HOST" {{ `}}` }}:{{ `{{` }} env "POSTGRES_PORT" {{ `}}` }}/{{ `{{` }} env "POSTGRES_DATABASE" {{ `}}` }}"
+              value: "jdbc:postgresql://{{ .Values.database.host }}:{{ .Values.database.port }}/{{ .Values.database.name }}"
             - name: DATABASE_USER
               valueFrom:
                 secretKeyRef:
