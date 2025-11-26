@@ -194,10 +194,8 @@ jobs:
           echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> $GITHUB_ENV
           echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> $GITHUB_ENV
           
-          # Write private key to file (use cat with heredoc to preserve formatting)
-          cat > ~/.ssh/id_ed25519 << 'KEYFILE'
-          ${{ secrets.SSH_PRIVATE_KEY }}
-          KEYFILE
+          # Write private key to file (use printf to handle newlines correctly)
+          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           
           # Verify file was created
@@ -349,10 +347,8 @@ jobs:
           echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> $GITHUB_ENV
           echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> $GITHUB_ENV
           
-          # Write private key to file (use cat with heredoc to preserve formatting)
-          cat > ~/.ssh/id_ed25519 << 'KEYFILE'
-          ${{ secrets.SSH_PRIVATE_KEY }}
-          KEYFILE
+          # Write private key to file (use printf to handle newlines correctly)
+          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           
           # Verify file was created
