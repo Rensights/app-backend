@@ -183,10 +183,40 @@ jobs:
         with:
           version: 'latest'
 
-      - name: Set up SSH
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+      - name: Set up SSH with Passphrase
+        run: |
+          echo "Setting up SSH with passphrase..."
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          
+          # Write private key to file
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          
+          # Create expect script to handle passphrase
+          cat > /tmp/ssh-add.exp << 'EXPECT_SCRIPT'
+          #!/usr/bin/expect -f
+          set timeout 10
+          spawn ssh-add ~/.ssh/id_ed25519
+          expect "Enter passphrase"
+          send "$env(SSH_PASSPHRASE)\r"
+          expect eof
+          EXPECT_SCRIPT
+          
+          chmod +x /tmp/ssh-add.exp
+          
+          # Install expect if not available
+          sudo apt-get update -qq && sudo apt-get install -y -qq expect || true
+          
+          # Add key with passphrase
+          export SSH_PASSPHRASE="${{ secrets.SSH_PASSPHRASE }}"
+          /tmp/ssh-add.exp
+          
+          # Verify key was added
+          ssh-add -l
+          
+          # Test connection
+          ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@72.62.40.154 "echo 'SSH connection successful'"
 
       - name: Set image repository (lowercase)
         id: image-repo
@@ -287,10 +317,40 @@ jobs:
         with:
           version: 'latest'
 
-      - name: Set up SSH
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+      - name: Set up SSH with Passphrase
+        run: |
+          echo "Setting up SSH with passphrase..."
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          
+          # Write private key to file
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          
+          # Create expect script to handle passphrase
+          cat > /tmp/ssh-add.exp << 'EXPECT_SCRIPT'
+          #!/usr/bin/expect -f
+          set timeout 10
+          spawn ssh-add ~/.ssh/id_ed25519
+          expect "Enter passphrase"
+          send "$env(SSH_PASSPHRASE)\r"
+          expect eof
+          EXPECT_SCRIPT
+          
+          chmod +x /tmp/ssh-add.exp
+          
+          # Install expect if not available
+          sudo apt-get update -qq && sudo apt-get install -y -qq expect || true
+          
+          # Add key with passphrase
+          export SSH_PASSPHRASE="${{ secrets.SSH_PASSPHRASE }}"
+          /tmp/ssh-add.exp
+          
+          # Verify key was added
+          ssh-add -l
+          
+          # Test connection
+          ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@72.62.40.154 "echo 'SSH connection successful'"
 
       - name: Set image repository (lowercase)
         id: image-repo
