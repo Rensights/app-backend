@@ -52,7 +52,7 @@ jobs:
           docker pull ghcr.io/rensights/avro-schemas:latest || {
             echo "⚠️  Warning: Could not pull avro-schemas:latest"
             echo "   Directory exists but empty - will skip Avro generation"
-            echo "skip.avro=true" >> $GITHUB_ENV
+            echo "SKIP_AVRO=true" >> $GITHUB_ENV
             exit 0
           }
           
@@ -61,7 +61,7 @@ jobs:
           docker cp temp-schemas:/schemas/schemas/. schemas/avro/ || {
             echo "⚠️  Warning: Could not extract schemas from image"
             echo "   Directory exists but empty - will skip Avro generation"
-            echo "skip.avro=true" >> $GITHUB_ENV
+            echo "SKIP_AVRO=true" >> $GITHUB_ENV
             docker rm temp-schemas
             exit 0
           }
@@ -71,15 +71,18 @@ jobs:
           if [ -n "$(ls -A schemas/avro/*.avsc 2>/dev/null)" ]; then
             echo "✅ Avro schemas downloaded successfully:"
             ls -la schemas/avro/
-            echo "skip.avro=false" >> $GITHUB_ENV
+            echo "SKIP_AVRO=false" >> $GITHUB_ENV
           else
             echo "⚠️  No .avsc files found - skipping Avro generation"
-            echo "skip.avro=true" >> $GITHUB_ENV
+            echo "SKIP_AVRO=true" >> $GITHUB_ENV
           fi
 
       - name: Build backend
         working-directory: src
-        run: mvn clean package -DskipTests -Dskip.avro=${skip.avro:-false}
+        run: |
+          SKIP_AVRO_VALUE="${SKIP_AVRO:-false}"
+          echo "Building with skip.avro=${SKIP_AVRO_VALUE}"
+          mvn clean package -DskipTests -Dskip.avro=${SKIP_AVRO_VALUE}
 
       - name: Run tests
         working-directory: src
