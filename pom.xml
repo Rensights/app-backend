@@ -176,6 +176,7 @@
                 <version>1.11.3</version>
                 <executions>
                     <execution>
+                        <id>generate-avro-classes</id>
                         <phase>generate-sources</phase>
                         <goals>
                             <goal>schema</goal>
@@ -187,8 +188,8 @@
                             <includes>
                                 <include>**/*.avsc</include>
                             </includes>
-                            <!-- Skip if directory doesn't exist or is empty -->
-                            <skipIfNoSchemaFiles>true</skipIfNoSchemaFiles>
+                            <!-- Skip if skip.avro property is set -->
+                            <skip>${skip.avro}</skip>
                         </configuration>
                     </execution>
                 </executions>
