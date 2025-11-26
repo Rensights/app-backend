@@ -144,7 +144,7 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }}:sha-${{ github.sha }}
+            ghcr.io/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }}:${{ steps.image-tag.outputs.tag }}
             ghcr.io/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }}:latest
           platforms: linux/amd64
           cache-from: type=registry,ref=ghcr.io/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }}:latest
