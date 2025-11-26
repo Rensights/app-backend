@@ -1,0 +1,33 @@
+# Global configuration for dev environment
+global:
+  registry: 72.62.40.154:30500  # Harbor registry (Docker push/pull)
+  domain: 72.62.40.154.nip.io  # Your server domain
+  env: dev
+  certIssuer: letsencrypt-staging
+  
+  # General DB configuration (shared between dev and prod)
+  generalDb:
+    host: postgres-general.platform.svc.cluster.local
+    port: 5432
+    db: postgres
+    sslmode: require
+    usernameSecret: general-dev-user
+    passwordSecret: general-dev-password
+    schema: dev_general
+  
+  # Public database (dev-specific)
+  publicDb:
+    host: postgres-public.dev.svc.cluster.local
+    port: 5432
+    name: public_db_dev
+    usernameSecret: public-db-user
+    passwordSecret: public-db-password
+  
+  # Admin database (dev-specific)
+  adminDb:
+    host: postgres-admin.dev.svc.cluster.local
+    port: 5432
+    name: admin_db_dev
+    usernameSecret: admin-db-user
+    passwordSecret: admin-db-password
+

@@ -1,0 +1,44 @@
+# Dev environment overrides for backend
+replicaCount: 1
+
+image:
+  repository: ghcr.io/rensights/app-backend
+  tag: "latest"
+  pullPolicy: Always
+
+service:
+  type: ClusterIP
+  port: 8080
+
+database:
+  host: postgres-backend.dev.svc.cluster.local
+  port: 5432
+  name: backend_db_dev
+  usernameSecret: backend-db-user
+  passwordSecret: backend-db-password
+
+resources:
+  requests:
+    cpu: "250m"
+    memory: "512Mi"
+  limits:
+    cpu: "500m"
+    memory: "1Gi"
+
+ingress:
+  enabled: true
+  className: "kong"
+  hosts:
+    - host: dev-api.72.62.40.154.nip.io
+      paths:
+        - path: /
+          pathType: Prefix
+  annotations:
+    konghq.com/strip-path: "true"
+    konghq.com/protocols: "http"
+
+extraEnv:
+  SPRING_PROFILES_ACTIVE: "dev"
+  SERVER_PORT: "8080"
+  CORS_ORIGINS: "http://dev.72.62.40.154.nip.io:31416"
+  OTEL_SERVICE_NAME: "backend-dev"

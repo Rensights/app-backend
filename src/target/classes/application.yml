@@ -1,0 +1,56 @@
+spring:
+  application:
+    name: rensights-backend
+  
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/rensights}
+    username: ${DATABASE_USER:rensights}
+    password: ${DATABASE_PASSWORD:password}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 30000
+  
+  jpa:
+    hibernate:
+      ddl-auto: create
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+
+server:
+  port: ${SERVER_PORT:8080}
+
+jwt:
+  secret: ${JWT_SECRET:dev-secret-key-change-in-production-minimum-32-characters-long}
+  expiration: ${JWT_EXPIRATION:86400000}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    export:
+      otlp:
+        enabled: true
+        url: ${MANAGEMENT_OTLP_METRICS_EXPORT_URL:http://signoz-otel-collector.platform.svc.cluster.local:4318/v1/metrics}
+        step: 30s
+  tracing:
+    sampling:
+      probability: 1.0
+  otlp:
+    tracing:
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://signoz-otel-collector.platform.svc.cluster.local:4318/v1/traces}
+
+logging:
+  level:
+    root: INFO
+    com.rensights: DEBUG
+    org.hibernate.SQL: DEBUG

@@ -1,0 +1,293 @@
+name: CI/CD Pipeline
+
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+  push:
+    branches:
+      - main
+      - develop
+  workflow_dispatch: # For manual prod deployment
+
+env:
+  REGISTRY: ghcr.io
+  DEV_NAMESPACE: dev
+  PROD_NAMESPACE: prod
+
+jobs:
+  # Step 1: Test
+  test:
+    name: 1️⃣ Run Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build admin backend
+        working-directory: src/src
+        run: mvn clean package -DskipTests
+
+      - name: Run tests
+        working-directory: src/src
+        run: mvn test
+
+  # Step 2: Build Docker Image
+  build:
+    name: 2️⃣ Build Docker Image
+    runs-on: ubuntu-latest
+    needs: test
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.test.result == 'success'
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.CONTAINER_TOKEN }}
+
+      - name: Set image repository (lowercase)
+        id: image-repo
+        run: |
+          REPO_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          REPO_NAME=$(echo "${{ github.event.repository.name }}" | tr '[:upper:]' '[:lower:]')
+          echo "repo_owner=${REPO_OWNER}" >> $GITHUB_OUTPUT
+          echo "repo_name=${REPO_NAME}" >> $GITHUB_OUTPUT
+          echo "Image will be: ghcr.io/${REPO_OWNER}/${REPO_NAME}"
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }}:sha-${{ github.sha }}
+            ghcr.io/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }}:latest
+          platforms: linux/amd64
+          cache-from: type=registry,ref=ghcr.io/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }}:latest
+          cache-to: type=inline
+
+      - name: Output image info
+        run: |
+          echo "✅ Image pushed:"
+          echo "   ghcr.io/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }}:sha-${{ github.sha }}"
+          echo "   ghcr.io/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }}:latest"
+          
+      - name: Verify image was pushed
+        run: |
+          IMAGE="ghcr.io/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }}:latest"
+          echo "🔍 Verifying pushed image: ${IMAGE}"
+          # Wait a moment for image to be available
+          sleep 5
+          docker pull ${IMAGE} || {
+            echo "⚠️  Warning: Image might not be immediately available, but build completed"
+            echo "   Will retry in deploy step"
+          }
+          echo "✅ Build job completed successfully"
+
+  # Step 3: Deploy to Dev
+  deploy-dev:
+    name: 3️⃣ Deploy to Dev
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'push' && needs.build.result == 'success'
+    environment: dev
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: 'latest'
+
+      - name: Set image repository (lowercase)
+        id: image-repo
+        run: |
+          REPO_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "repo_owner=${REPO_OWNER}" >> $GITHUB_OUTPUT
+
+      - name: Configure kubectl
+        run: |
+          echo "${{ secrets.DEV_KUBECONFIG }}" | base64 -d > /tmp/kubeconfig
+          sed -i 's|server: https://127.0.0.1:6443|server: https://72.62.40.154:6443|g' /tmp/kubeconfig
+          export KUBECONFIG=/tmp/kubeconfig
+          kubectl cluster-info
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.CONTAINER_TOKEN }}
+
+      - name: Verify image exists (using latest tag)
+        run: |
+          IMAGE="${REGISTRY}/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }}:latest"
+          echo "🔍 Verifying image exists: ${IMAGE}"
+          # Try to pull image metadata (this will fail if image doesn't exist)
+          docker pull ${IMAGE} || {
+            echo "❌ Error: Image ${IMAGE} not found!"
+            echo "   Make sure the build job completed successfully."
+            exit 1
+          }
+          echo "✅ Image verified: ${IMAGE}"
+
+      - name: Configure image pull secrets for GHCR
+        run: |
+          export KUBECONFIG=/tmp/kubeconfig
+          kubectl create secret docker-registry ghcr-secret \
+            --docker-server=ghcr.io \
+            --docker-username=${{ github.actor }} \
+            --docker-password=${{ secrets.CONTAINER_TOKEN }} \
+            --namespace ${DEV_NAMESPACE} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Deploy backend to dev
+        run: |
+          export KUBECONFIG=/tmp/kubeconfig
+          echo "🚀 Deploying to DEV with tag: latest"
+          helm upgrade --install backend ./charts \
+            --namespace ${DEV_NAMESPACE} \
+            --create-namespace \
+            -f env-values/dev/global.yaml \
+            -f env-values/dev/backend.yaml \
+            --set image.tag=latest \
+            --set image.repository=${REGISTRY}/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }} \
+            --set imagePullSecrets[0].name=ghcr-secret \
+            --wait --timeout=5m
+
+      - name: Verify deployment
+        run: |
+          export KUBECONFIG=/tmp/kubeconfig
+          echo "✅ Dev Deployment Status:"
+          kubectl get pods -n ${DEV_NAMESPACE} -l app=backend
+          kubectl get svc -n ${DEV_NAMESPACE} -l app=backend
+
+  # Step 4: Deploy to Prod (requires approval)
+  deploy-prod:
+    name: 4️⃣ Deploy to Prod (Requires Approval)
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'workflow_dispatch'
+    environment: 
+      name: production
+      # Add required reviewers in GitHub repository settings → Environments → production
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: 'latest'
+
+      - name: Set image repository (lowercase)
+        id: image-repo
+        run: |
+          REPO_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "repo_owner=${REPO_OWNER}" >> $GITHUB_OUTPUT
+
+      - name: Configure kubectl
+        run: |
+          echo "${{ secrets.PROD_KUBECONFIG }}" | base64 -d > /tmp/kubeconfig
+          sed -i 's|server: https://127.0.0.1:6443|server: https://72.62.40.154:6443|g' /tmp/kubeconfig
+          export KUBECONFIG=/tmp/kubeconfig
+          kubectl cluster-info
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.CONTAINER_TOKEN }}
+
+      - name: Verify image exists
+        run: |
+          IMAGE_TAG="${IMAGE_TAG:-latest}"
+          if [ -n "${{ github.event.inputs.image_tag }}" ]; then
+            IMAGE_TAG="${{ github.event.inputs.image_tag }}"
+          else
+            SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+            IMAGE_TAG="sha-${SHA}"
+          fi
+          IMAGE="${REGISTRY}/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }}:${IMAGE_TAG}"
+          echo "🔍 Verifying image exists: ${IMAGE}"
+          docker pull ${IMAGE} || {
+            echo "❌ Error: Image ${IMAGE} not found!"
+            echo "   Make sure the build job completed successfully."
+            exit 1
+          }
+          echo "✅ Image verified: ${IMAGE}"
+
+      - name: Configure image pull secrets for GHCR
+        run: |
+          export KUBECONFIG=/tmp/kubeconfig
+          kubectl create secret docker-registry ghcr-secret \
+            --docker-server=ghcr.io \
+            --docker-username=${{ github.actor }} \
+            --docker-password=${{ secrets.CONTAINER_TOKEN }} \
+            --namespace ${PROD_NAMESPACE} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Deploy backend to prod
+        run: |
+          export KUBECONFIG=/tmp/kubeconfig
+          IMAGE_TAG="${IMAGE_TAG:-latest}"
+          if [ -n "${{ github.event.inputs.image_tag }}" ]; then
+            IMAGE_TAG="${{ github.event.inputs.image_tag }}"
+          else
+            SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+            IMAGE_TAG="sha-${SHA}"
+          fi
+          echo "🚀 Deploying to PRODUCTION with tag: ${IMAGE_TAG}"
+          helm upgrade --install backend ./charts \
+            --namespace ${PROD_NAMESPACE} \
+            --create-namespace \
+            -f env-values/prod/global.yaml \
+            -f env-values/prod/backend.yaml \
+            --set image.tag=${IMAGE_TAG} \
+            --set image.repository=${REGISTRY}/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }} \
+            --set imagePullSecrets[0].name=ghcr-secret \
+            --wait --timeout=5m
+
+      - name: Verify deployment
+        run: |
+          export KUBECONFIG=/tmp/kubeconfig
+          echo "✅ Production Deployment Status:"
+          kubectl get pods -n ${PROD_NAMESPACE} -l app=backend
+          kubectl get svc -n ${PROD_NAMESPACE} -l app=backend
+

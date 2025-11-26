@@ -1,0 +1,54 @@
+# Production environment overrides for backend
+replicaCount: 2
+
+image:
+  repository: ghcr.io/rensights/app-backend
+  tag: "latest"
+  pullPolicy: Always
+
+service:
+  type: ClusterIP
+  port: 8080
+
+database:
+  host: postgres-backend.prod.svc.cluster.local
+  port: 5432
+  name: backend_db_prod
+  usernameSecret: backend-db-user
+  passwordSecret: backend-db-password
+
+resources:
+  requests:
+    cpu: "300m"
+    memory: "512Mi"
+  limits:
+    cpu: "1"
+    memory: "1Gi"
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 4
+  targetCPUUtilizationPercentage: 80
+
+ingress:
+  enabled: true
+  className: "kong"
+  hosts:
+    - host: api.72.62.40.154.nip.io
+      paths:
+        - path: /
+          pathType: Prefix
+  annotations:
+    konghq.com/strip-path: "true"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  tls:
+    - secretName: api-72-62-40-154-nip-io-tls
+      hosts:
+        - api.72.62.40.154.nip.io
+
+extraEnv:
+  SPRING_PROFILES_ACTIVE: "prod"
+  SERVER_PORT: "8080"
+  CORS_ORIGINS: "https://72.62.40.154.nip.io,http://72.62.40.154.nip.io:31416"
+  OTEL_SERVICE_NAME: "backend-prod"

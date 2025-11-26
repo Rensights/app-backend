@@ -1,0 +1,252 @@
+package com.rensights.service;
+
+import com.rensights.dto.AuthResponse;
+import com.rensights.dto.LoginRequest;
+import com.rensights.dto.RegisterRequest;
+import com.rensights.model.User;
+import com.rensights.repository.UserRepository;
+
+import java.time.LocalDateTime;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+public class AuthService {
+    
+    private static final Logger logger = LoggerFactory.getLogger(AuthService.class);
+    
+    @Autowired
+    private UserRepository userRepository;
+    
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+    
+    @Autowired
+    private JwtService jwtService;
+    
+    @Autowired
+    private EmailService emailService;
+    
+    @Autowired
+    private VerificationCodeService verificationCodeService;
+    
+    @Autowired
+    private DeviceService deviceService;
+    
+    @org.springframework.beans.factory.annotation.Value("${app.email-verification-required:true}")
+    private boolean emailVerificationRequired;
+    
+    /**
+     * Register user - requires email verification before access (unless disabled)
+     */
+    @Transactional
+    public AuthResponse register(RegisterRequest request, String deviceFingerprint, jakarta.servlet.http.HttpServletRequest httpRequest) {
+        if (userRepository.existsByEmail(request.getEmail())) {
+            throw new RuntimeException("Email already exists");
+        }
+        
+        // Optimized: Generate customer ID using method chaining
+        String customerId = java.util.UUID.randomUUID()
+                .toString()
+                .substring(0, 8)
+                .toUpperCase();
+        customerId = "CUST-" + customerId;
+        
+        User user = User.builder()
+                .email(request.getEmail())
+                .passwordHash(passwordEncoder.encode(request.getPassword()))
+                .firstName(request.getFirstName())
+                .lastName(request.getLastName())
+                .customerId(customerId)
+                .isActive(true)
+                .createdAt(LocalDateTime.now())
+                .emailVerified(!emailVerificationRequired) // Auto-verify if verification is disabled
+                .build();
+        
+        User savedUser = userRepository.save(user);
+        
+        if (emailVerificationRequired) {
+            // Send verification code
+            String code = verificationCodeService.generateCode(savedUser.getEmail());
+            emailService.sendVerificationCode(savedUser.getEmail(), code);
+            return null; // Return null to indicate verification is required
+        } else {
+            // Auto-verify and login
+            logger.info("Email verification disabled - auto-verifying user: {}", savedUser.getEmail());
+            
+            // Optimized: Use Optional for cleaner null/empty checks
+            final User finalUser = savedUser;
+            java.util.Optional.ofNullable(deviceFingerprint)
+                    .filter(fp -> !fp.isEmpty())
+                    .ifPresent(fp -> deviceService.registerDevice(finalUser.getId(), fp, httpRequest));
+            
+            // Generate token
+            String token = jwtService.generateToken(savedUser.getId(), savedUser.getEmail());
+            
+            // Optimized: Use method references in builder
+            return AuthResponse.builder()
+                    .token(token)
+                    .email(savedUser.getEmail())
+                    .firstName(savedUser.getFirstName())
+                    .lastName(savedUser.getLastName())
+                    .build();
+        }
+    }
+    
+    /**
+     * Verify email after registration - also registers the device
+     */
+    @Transactional
+    public AuthResponse verifyEmailAndLogin(String email, String code, String deviceFingerprint, jakarta.servlet.http.HttpServletRequest httpRequest) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        
+        if (!verificationCodeService.verifyCode(email, code)) {
+            throw new RuntimeException("Invalid or expired verification code");
+        }
+        
+        // Mark email as verified
+        user.setEmailVerified(true);
+        User savedUser = userRepository.save(user);
+        
+        // Optimized: Use Optional for cleaner null/empty checks
+        final User finalUser = savedUser;
+        java.util.Optional.ofNullable(deviceFingerprint)
+                .filter(fp -> !fp.isEmpty())
+                .ifPresent(fp -> deviceService.registerDevice(finalUser.getId(), fp, httpRequest));
+        
+        // Generate token
+        String token = jwtService.generateToken(savedUser.getId(), savedUser.getEmail());
+        
+        return AuthResponse.builder()
+                .token(token)
+                .email(savedUser.getEmail())
+                .firstName(savedUser.getFirstName())
+                .lastName(savedUser.getLastName())
+                .build();
+    }
+    
+    /**
+     * Login - checks device and requires verification for new devices
+     * Optimized: Reduced database queries and improved flow
+     */
+    public LoginResponse login(LoginRequest request, String deviceFingerprint, jakarta.servlet.http.HttpServletRequest httpRequest) {
+        User user = userRepository.findByEmail(request.getEmail())
+                .orElseThrow(() -> new RuntimeException("Invalid email or password"));
+        
+        // Optimized: Validate password early to fail fast (before any other operations)
+        if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
+            throw new RuntimeException("Invalid email or password");
+        }
+        
+        if (!user.getIsActive()) {
+            throw new RuntimeException("Account is deactivated");
+        }
+        
+        // Optimized: Use Optional for cleaner null/empty checks and method chaining
+        boolean isKnownDevice = java.util.Optional.ofNullable(deviceFingerprint)
+                .filter(fp -> !fp.isEmpty())
+                .map(fp -> deviceService.isDeviceKnown(user.getId(), fp))
+                .orElse(false);
+        
+        User finalUser = user;
+        if (!user.getEmailVerified()) {
+            if (!emailVerificationRequired) {
+                // Auto-verify if verification is disabled
+                logger.info("Email verification disabled - auto-verifying user: {}", user.getEmail());
+                user.setEmailVerified(true);
+                finalUser = userRepository.save(user);
+            } else {
+                // If email is not verified, send a new code and require verification
+                String code = verificationCodeService.generateCode(user.getEmail());
+                emailService.sendVerificationCode(user.getEmail(), code);
+                logger.info("User {} email not verified. Sent new verification code.", user.getEmail());
+                return LoginResponse.builder()
+                        .requiresVerification(true)
+                        .email(user.getEmail())
+                        .deviceFingerprint(deviceFingerprint)
+                        .build();
+            }
+        }
+        
+        if (isKnownDevice || !emailVerificationRequired) {
+            // Optimized: Use Optional for cleaner conditional logic
+            final User userForLambda = finalUser;
+            if (isKnownDevice) {
+                deviceService.updateDeviceLastUsed(userForLambda.getId(), deviceFingerprint);
+            } else {
+                java.util.Optional.ofNullable(deviceFingerprint)
+                        .filter(fp -> !fp.isEmpty())
+                        .ifPresent(fp -> deviceService.registerDevice(userForLambda.getId(), fp, httpRequest));
+            }
+            
+            String token = jwtService.generateToken(userForLambda.getId(), userForLambda.getEmail());
+            
+            return LoginResponse.builder()
+                    .requiresVerification(false)
+                    .token(token)
+                    .email(userForLambda.getEmail())
+                    .firstName(userForLambda.getFirstName())
+                    .lastName(userForLambda.getLastName())
+                    .build();
+        } else {
+            // New device - send verification code
+            String code = verificationCodeService.generateCode(finalUser.getEmail());
+            emailService.sendVerificationCode(finalUser.getEmail(), code);
+            
+            return LoginResponse.builder()
+                    .requiresVerification(true)
+                    .email(finalUser.getEmail())
+                    .build();
+        }
+    }
+    
+    /**
+     * Verify code for login (new device)
+     */
+    @Transactional
+    public AuthResponse verifyDeviceAndLogin(String email, String code, String deviceFingerprint, jakarta.servlet.http.HttpServletRequest httpRequest) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        
+        if (!verificationCodeService.verifyCode(email, code)) {
+            throw new RuntimeException("Invalid or expired verification code");
+        }
+        
+        // Register the new device
+        deviceService.registerDevice(user.getId(), deviceFingerprint, httpRequest);
+        
+        // Generate token
+        String token = jwtService.generateToken(user.getId(), user.getEmail());
+        
+        return AuthResponse.builder()
+                .token(token)
+                .email(user.getEmail())
+                .firstName(user.getFirstName())
+                .lastName(user.getLastName())
+                .build();
+    }
+    
+    public void validateUserExists(String email) {
+        if (!userRepository.existsByEmail(email)) {
+            throw new RuntimeException("User not found");
+        }
+    }
+    
+    // Response classes
+    @lombok.Data
+    @lombok.Builder
+    public static class LoginResponse {
+        private boolean requiresVerification;
+        private String token;
+        private String email;
+        private String firstName;
+        private String lastName;
+        private String deviceFingerprint;
+    }
+}
