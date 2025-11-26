@@ -211,25 +211,53 @@ jobs:
           sudo apt-get update -qq && sudo apt-get install -y -qq expect || true
           
           # Create expect script to handle passphrase (use absolute path)
-          cat > /tmp/ssh-add.exp << EXPECT_SCRIPT
+          cat > /tmp/ssh-add.exp << 'EXPECT_SCRIPT'
           #!/usr/bin/expect -f
-          set timeout 10
+          set timeout 30
           set key_path "$env(HOME)/.ssh/id_ed25519"
-          puts "Attempting to add key from: \$key_path"
-          if {![file exists \$key_path]} {
-            puts "ERROR: Key file does not exist at \$key_path"
+          puts "Attempting to add key from: $key_path"
+          puts "HOME env var: $env(HOME)"
+          
+          if {![file exists $key_path]} {
+            puts "ERROR: Key file does not exist at $key_path"
+            puts "Listing directory: [exec ls -la $env(HOME)/.ssh/]"
             exit 1
           }
-          spawn ssh-add "\$key_path"
+          
+          puts "Key file exists, size: [exec stat -c%s $key_path] bytes"
+          
+          spawn ssh-add "$key_path"
           expect {
             "Enter passphrase" {
+              puts "Passphrase prompt detected, sending passphrase..."
               send "$env(SSH_PASSPHRASE)\r"
               exp_continue
             }
             "Identity added" {
+              puts "✅ Identity added successfully"
               expect eof
             }
-            eof
+            "Bad passphrase" {
+              puts "❌ ERROR: Bad passphrase"
+              exit 1
+            }
+            "Permission denied" {
+              puts "❌ ERROR: Permission denied"
+              exit 1
+            }
+            timeout {
+              puts "❌ ERROR: Timeout waiting for response"
+              exit 1
+            }
+            eof {
+              puts "Process ended"
+            }
+          }
+          catch wait result
+          set exit_code [lindex $result 3]
+          if {$exit_code != 0} {
+            puts "❌ ssh-add exited with code: $exit_code"
+            exit $exit_code
           }
           EXPECT_SCRIPT
           
@@ -240,9 +268,17 @@ jobs:
           export HOME="$HOME"
           echo "HOME=$HOME" >> $GITHUB_ENV
           echo "SSH_PASSPHRASE is set: $(test -n "$SSH_PASSPHRASE" && echo 'YES' || echo 'NO')"
+          echo "Key file path: $SSH_KEY_PATH"
+          echo "Key file content preview (first 50 chars): $(head -c 50 "$SSH_KEY_PATH")"
           
-          # Run expect script
-          /tmp/ssh-add.exp
+          # Run expect script with output
+          echo "Running expect script..."
+          /tmp/ssh-add.exp || {
+            echo "❌ Expect script failed with exit code: $?"
+            echo "Checking ssh-add directly..."
+            echo "$SSH_PASSPHRASE" | ssh-add "$SSH_KEY_PATH" || echo "Direct ssh-add also failed"
+            exit 1
+          }
           
           # Verify key was added
           ssh-add -l
@@ -377,25 +413,53 @@ jobs:
           sudo apt-get update -qq && sudo apt-get install -y -qq expect || true
           
           # Create expect script to handle passphrase (use absolute path)
-          cat > /tmp/ssh-add.exp << EXPECT_SCRIPT
+          cat > /tmp/ssh-add.exp << 'EXPECT_SCRIPT'
           #!/usr/bin/expect -f
-          set timeout 10
+          set timeout 30
           set key_path "$env(HOME)/.ssh/id_ed25519"
-          puts "Attempting to add key from: \$key_path"
-          if {![file exists \$key_path]} {
-            puts "ERROR: Key file does not exist at \$key_path"
+          puts "Attempting to add key from: $key_path"
+          puts "HOME env var: $env(HOME)"
+          
+          if {![file exists $key_path]} {
+            puts "ERROR: Key file does not exist at $key_path"
+            puts "Listing directory: [exec ls -la $env(HOME)/.ssh/]"
             exit 1
           }
-          spawn ssh-add "\$key_path"
+          
+          puts "Key file exists, size: [exec stat -c%s $key_path] bytes"
+          
+          spawn ssh-add "$key_path"
           expect {
             "Enter passphrase" {
+              puts "Passphrase prompt detected, sending passphrase..."
               send "$env(SSH_PASSPHRASE)\r"
               exp_continue
             }
             "Identity added" {
+              puts "✅ Identity added successfully"
               expect eof
             }
-            eof
+            "Bad passphrase" {
+              puts "❌ ERROR: Bad passphrase"
+              exit 1
+            }
+            "Permission denied" {
+              puts "❌ ERROR: Permission denied"
+              exit 1
+            }
+            timeout {
+              puts "❌ ERROR: Timeout waiting for response"
+              exit 1
+            }
+            eof {
+              puts "Process ended"
+            }
+          }
+          catch wait result
+          set exit_code [lindex $result 3]
+          if {$exit_code != 0} {
+            puts "❌ ssh-add exited with code: $exit_code"
+            exit $exit_code
           }
           EXPECT_SCRIPT
           
@@ -406,9 +470,17 @@ jobs:
           export HOME="$HOME"
           echo "HOME=$HOME" >> $GITHUB_ENV
           echo "SSH_PASSPHRASE is set: $(test -n "$SSH_PASSPHRASE" && echo 'YES' || echo 'NO')"
+          echo "Key file path: $SSH_KEY_PATH"
+          echo "Key file content preview (first 50 chars): $(head -c 50 "$SSH_KEY_PATH")"
           
-          # Run expect script
-          /tmp/ssh-add.exp
+          # Run expect script with output
+          echo "Running expect script..."
+          /tmp/ssh-add.exp || {
+            echo "❌ Expect script failed with exit code: $?"
+            echo "Checking ssh-add directly..."
+            echo "$SSH_PASSPHRASE" | ssh-add "$SSH_KEY_PATH" || echo "Direct ssh-add also failed"
+            exit 1
+          }
           
           # Verify key was added
           ssh-add -l
