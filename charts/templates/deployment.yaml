@@ -41,6 +41,11 @@ spec:
             - name: http
               containerPort: {{ .Values.service.port }}
               protocol: TCP
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              export DATABASE_URL="jdbc:postgresql://${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DATABASE}"
+              exec java -Xshare:off -javaagent:/app/opentelemetry-javaagent.jar -jar app.jar
           env:
             - name: SPRING_PROFILES_ACTIVE
               value: {{ .Values.extraEnv.SPRING_PROFILES_ACTIVE | quote }}
@@ -74,7 +79,7 @@ spec:
                   name: {{ .Values.secrets.dbCredentials }}
                   key: postgres-password
             - name: DATABASE_URL
-              value: "jdbc:postgresql://{{ .Values.database.host }}:{{ .Values.database.port }}/{{ .Values.database.name }}"
+              value: "jdbc:postgresql://$(POSTGRES_HOST):$(POSTGRES_PORT)/$(POSTGRES_DATABASE)"
             - name: DATABASE_USER
               valueFrom:
                 secretKeyRef:
