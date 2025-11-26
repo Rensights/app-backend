@@ -11,7 +11,7 @@ service:
   port: 8080
 
 database:
-  host: postgres-backend-postgresql
+  host: ""  # Will be set from service IP in CI/CD
   port: 5432
   name: backend_db_dev
   usernameSecret: backend-db-user

@@ -343,40 +343,28 @@ jobs:
           export KUBECONFIG=/tmp/kubeconfig
           echo "🚀 Deploying to DEV with tag: latest"
           
-          # Check if backend-db-credentials secret exists, create if not
-          if ! kubectl get secret backend-db-credentials -n ${DEV_NAMESPACE} &>/dev/null; then
-            echo "⚠️  backend-db-credentials secret not found"
-            echo "Getting credentials from postgres-backend-postgresql..."
-            if kubectl get svc postgres-backend-postgresql -n ${DEV_NAMESPACE} &>/dev/null; then
-              DB_PASSWORD=$(kubectl get secret --namespace ${DEV_NAMESPACE} postgres-backend-postgresql -o jsonpath="{.data.password}" | base64 -d)
-              kubectl create secret generic backend-db-credentials \
-                --from-literal=postgres-host="postgres-backend-postgresql" \
-                --from-literal=postgres-port="5432" \
-                --from-literal=postgres-database="backend_db_dev" \
-                --from-literal=postgres-username="backend_user" \
-                --from-literal=postgres-password="$DB_PASSWORD" \
-                --namespace ${DEV_NAMESPACE} || echo "Secret creation failed, continuing..."
-            else
-              echo "⚠️  postgres-backend-postgresql service not found. PostgreSQL may not be installed."
-            fi
+          # Check if backend-db-credentials secret exists, create/update with IP:port
+          echo "Setting up database credentials with IP:port..."
+          if kubectl get svc postgres-backend-postgresql -n ${DEV_NAMESPACE} &>/dev/null; then
+            DB_IP=$(kubectl get svc postgres-backend-postgresql -n ${DEV_NAMESPACE} -o jsonpath='{.spec.clusterIP}')
+            DB_PORT=$(kubectl get svc postgres-backend-postgresql -n ${DEV_NAMESPACE} -o jsonpath='{.spec.ports[0].port}')
+            DB_PASSWORD=$(kubectl get secret --namespace ${DEV_NAMESPACE} postgres-backend-postgresql -o jsonpath="{.data.password}" | base64 -d)
+            
+            echo "PostgreSQL IP: $DB_IP"
+            echo "PostgreSQL Port: $DB_PORT"
+            
+            kubectl create secret generic backend-db-credentials \
+              --from-literal=postgres-host="$DB_IP" \
+              --from-literal=postgres-port="$DB_PORT" \
+              --from-literal=postgres-database="backend_db_dev" \
+              --from-literal=postgres-username="backend_user" \
+              --from-literal=postgres-password="$DB_PASSWORD" \
+              --namespace ${DEV_NAMESPACE} \
+              --dry-run=client -o yaml | kubectl apply -f -
+            
+            echo "✅ Database credentials secret updated with IP:port"
           else
-            # Update secret with service name (more reliable than IP)
-            if kubectl get svc postgres-backend-postgresql -n ${DEV_NAMESPACE} &>/dev/null; then
-              CORRECT_HOST="postgres-backend-postgresql"
-              CURRENT_HOST=$(kubectl get secret backend-db-credentials -n ${DEV_NAMESPACE} -o jsonpath='{.data.postgres-host}' | base64 -d)
-              if [ "$CURRENT_HOST" != "$CORRECT_HOST" ]; then
-                echo "⚠️  Updating backend-db-credentials secret with service name..."
-                DB_PASSWORD=$(kubectl get secret --namespace ${DEV_NAMESPACE} postgres-backend-postgresql -o jsonpath="{.data.password}" | base64 -d)
-                kubectl create secret generic backend-db-credentials \
-                  --from-literal=postgres-host="$CORRECT_HOST" \
-                  --from-literal=postgres-port="5432" \
-                  --from-literal=postgres-database="backend_db_dev" \
-                  --from-literal=postgres-username="backend_user" \
-                  --from-literal=postgres-password="$DB_PASSWORD" \
-                  --namespace ${DEV_NAMESPACE} \
-                  --dry-run=client -o yaml | kubectl apply -f -
-              fi
-            fi
+            echo "⚠️  postgres-backend-postgresql service not found. PostgreSQL may not be installed."
           fi
           
           # Check for stuck Helm releases and clean them up
@@ -480,8 +468,8 @@ jobs:
                 -f env-values/dev/backend.yaml \
                 --set image.tag=latest \
                 --set image.repository=${REGISTRY}/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }} \
-                --set imagePullSecrets[0].name=ghcr-secret \
-                --wait --timeout=5m
+            --set imagePullSecrets[0].name=ghcr-secret \
+            --wait --timeout=5m
             else
               echo "❌ Deployment failed for unknown reason:"
               echo "$DEPLOY_OUTPUT"
