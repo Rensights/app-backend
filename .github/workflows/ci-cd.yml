@@ -687,7 +687,7 @@ jobs:
             echo "PostgreSQL Port: $DB_PORT"
             
             kubectl create secret generic backend-db-credentials \
-              --from-literal=postgres-host="postgres-backend-postgresql" \
+              --from-literal=postgres-host="postgres-backend-postgresql.${PROD_NAMESPACE}.svc.cluster.local" \
               --from-literal=postgres-port="$DB_PORT" \
               --from-literal=postgres-database="backend_db_prod" \
               --from-literal=postgres-username="backend_user" \
@@ -695,7 +695,7 @@ jobs:
               --namespace ${PROD_NAMESPACE} \
               --dry-run=client -o yaml | kubectl apply -f -
             
-            echo "✅ Database credentials secret updated with service name"
+            echo "✅ Database credentials secret updated with FQDN"
           else
             echo "⚠️  postgres-backend-postgresql service not found. PostgreSQL may not be installed."
           fi
