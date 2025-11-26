@@ -350,7 +350,7 @@ jobs:
             if kubectl get svc postgres-backend-postgresql -n ${DEV_NAMESPACE} &>/dev/null; then
               DB_PASSWORD=$(kubectl get secret --namespace ${DEV_NAMESPACE} postgres-backend-postgresql -o jsonpath="{.data.password}" | base64 -d)
               kubectl create secret generic backend-db-credentials \
-                --from-literal=postgres-host="postgres-backend-postgresql.${DEV_NAMESPACE}.svc.cluster.local" \
+                --from-literal=postgres-host="postgres-backend-postgresql" \
                 --from-literal=postgres-port="5432" \
                 --from-literal=postgres-database="backend_db_dev" \
                 --from-literal=postgres-username="backend_user" \
@@ -362,7 +362,7 @@ jobs:
           else
             # Update secret with service name (more reliable than IP)
             if kubectl get svc postgres-backend-postgresql -n ${DEV_NAMESPACE} &>/dev/null; then
-              CORRECT_HOST="postgres-backend-postgresql.${DEV_NAMESPACE}.svc.cluster.local"
+              CORRECT_HOST="postgres-backend-postgresql"
               CURRENT_HOST=$(kubectl get secret backend-db-credentials -n ${DEV_NAMESPACE} -o jsonpath='{.data.postgres-host}' | base64 -d)
               if [ "$CURRENT_HOST" != "$CORRECT_HOST" ]; then
                 echo "⚠️  Updating backend-db-credentials secret with service name..."
@@ -708,7 +708,7 @@ jobs:
           else
             # Update secret with service name (more reliable than IP)
             if kubectl get svc postgres-backend-postgresql -n ${PROD_NAMESPACE} &>/dev/null; then
-              CORRECT_HOST="postgres-backend-postgresql.${PROD_NAMESPACE}.svc.cluster.local"
+              CORRECT_HOST="postgres-backend-postgresql"
               CURRENT_HOST=$(kubectl get secret backend-db-credentials -n ${PROD_NAMESPACE} -o jsonpath='{.data.postgres-host}' | base64 -d)
               if [ "$CURRENT_HOST" != "$CORRECT_HOST" ]; then
                 echo "⚠️  Updating backend-db-credentials secret with service name..."
