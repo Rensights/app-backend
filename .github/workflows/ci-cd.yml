@@ -677,18 +677,17 @@ jobs:
       - name: Setup backend-db-credentials secret for prod
         run: |
           export KUBECONFIG=/tmp/kubeconfig
-          # Setup database credentials with ClusterIP (for internal cluster connections)
-          echo "Setting up database credentials with ClusterIP..."
+          # Setup database credentials with service name (most reliable for Kubernetes)
+          echo "Setting up database credentials with service name..."
           if kubectl get svc postgres-backend-postgresql -n ${PROD_NAMESPACE} &>/dev/null; then
-            DB_CLUSTER_IP=$(kubectl get svc postgres-backend-postgresql -n ${PROD_NAMESPACE} -o jsonpath='{.spec.clusterIP}')
             DB_PORT=$(kubectl get svc postgres-backend-postgresql -n ${PROD_NAMESPACE} -o jsonpath='{.spec.ports[0].port}')
             DB_PASSWORD=$(kubectl get secret --namespace ${PROD_NAMESPACE} postgres-backend-postgresql -o jsonpath="{.data.password}" | base64 -d)
             
-            echo "PostgreSQL ClusterIP: $DB_CLUSTER_IP"
+            echo "PostgreSQL Service: postgres-backend-postgresql"
             echo "PostgreSQL Port: $DB_PORT"
             
             kubectl create secret generic backend-db-credentials \
-              --from-literal=postgres-host="$DB_CLUSTER_IP" \
+              --from-literal=postgres-host="postgres-backend-postgresql" \
               --from-literal=postgres-port="$DB_PORT" \
               --from-literal=postgres-database="backend_db_prod" \
               --from-literal=postgres-username="backend_user" \
@@ -696,7 +695,7 @@ jobs:
               --namespace ${PROD_NAMESPACE} \
               --dry-run=client -o yaml | kubectl apply -f -
             
-            echo "✅ Database credentials secret updated with ClusterIP"
+            echo "✅ Database credentials secret updated with service name"
           else
             echo "⚠️  postgres-backend-postgresql service not found. PostgreSQL may not be installed."
           fi
