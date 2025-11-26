@@ -194,25 +194,33 @@ jobs:
           echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> $GITHUB_ENV
           echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> $GITHUB_ENV
           
-          # Write private key to file (use printf to handle newlines correctly)
-          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
+          # Write private key to file (use absolute path)
+          SSH_KEY_PATH="$HOME/.ssh/id_ed25519"
+          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > "$SSH_KEY_PATH"
+          chmod 600 "$SSH_KEY_PATH"
           
           # Verify file was created
-          if [ ! -f ~/.ssh/id_ed25519 ]; then
-            echo "❌ Error: SSH key file was not created"
+          if [ ! -f "$SSH_KEY_PATH" ]; then
+            echo "❌ Error: SSH key file was not created at $SSH_KEY_PATH"
             exit 1
           fi
-          echo "✅ SSH key file created: $(ls -lh ~/.ssh/id_ed25519)"
+          echo "✅ SSH key file created: $(ls -lh "$SSH_KEY_PATH")"
+          echo "File exists check: $(test -f "$SSH_KEY_PATH" && echo 'YES' || echo 'NO')"
           
           # Install expect if not available
           sudo apt-get update -qq && sudo apt-get install -y -qq expect || true
           
-          # Create expect script to handle passphrase
-          cat > /tmp/ssh-add.exp << 'EXPECT_SCRIPT'
+          # Create expect script to handle passphrase (use absolute path)
+          cat > /tmp/ssh-add.exp << EXPECT_SCRIPT
           #!/usr/bin/expect -f
           set timeout 10
-          spawn ssh-add ~/.ssh/id_ed25519
+          set key_path "$env(HOME)/.ssh/id_ed25519"
+          puts "Attempting to add key from: \$key_path"
+          if {![file exists \$key_path]} {
+            puts "ERROR: Key file does not exist at \$key_path"
+            exit 1
+          }
+          spawn ssh-add "\$key_path"
           expect {
             "Enter passphrase" {
               send "$env(SSH_PASSPHRASE)\r"
@@ -227,8 +235,13 @@ jobs:
           
           chmod +x /tmp/ssh-add.exp
           
-          # Add key with passphrase
+          # Add key with passphrase (export variables for expect)
           export SSH_PASSPHRASE="${{ secrets.SSH_PASSPHRASE }}"
+          export HOME="$HOME"
+          echo "HOME=$HOME" >> $GITHUB_ENV
+          echo "SSH_PASSPHRASE is set: $(test -n "$SSH_PASSPHRASE" && echo 'YES' || echo 'NO')"
+          
+          # Run expect script
           /tmp/ssh-add.exp
           
           # Verify key was added
@@ -347,25 +360,33 @@ jobs:
           echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> $GITHUB_ENV
           echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> $GITHUB_ENV
           
-          # Write private key to file (use printf to handle newlines correctly)
-          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
+          # Write private key to file (use absolute path)
+          SSH_KEY_PATH="$HOME/.ssh/id_ed25519"
+          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > "$SSH_KEY_PATH"
+          chmod 600 "$SSH_KEY_PATH"
           
           # Verify file was created
-          if [ ! -f ~/.ssh/id_ed25519 ]; then
-            echo "❌ Error: SSH key file was not created"
+          if [ ! -f "$SSH_KEY_PATH" ]; then
+            echo "❌ Error: SSH key file was not created at $SSH_KEY_PATH"
             exit 1
           fi
-          echo "✅ SSH key file created: $(ls -lh ~/.ssh/id_ed25519)"
+          echo "✅ SSH key file created: $(ls -lh "$SSH_KEY_PATH")"
+          echo "File exists check: $(test -f "$SSH_KEY_PATH" && echo 'YES' || echo 'NO')"
           
           # Install expect if not available
           sudo apt-get update -qq && sudo apt-get install -y -qq expect || true
           
-          # Create expect script to handle passphrase
-          cat > /tmp/ssh-add.exp << 'EXPECT_SCRIPT'
+          # Create expect script to handle passphrase (use absolute path)
+          cat > /tmp/ssh-add.exp << EXPECT_SCRIPT
           #!/usr/bin/expect -f
           set timeout 10
-          spawn ssh-add ~/.ssh/id_ed25519
+          set key_path "$env(HOME)/.ssh/id_ed25519"
+          puts "Attempting to add key from: \$key_path"
+          if {![file exists \$key_path]} {
+            puts "ERROR: Key file does not exist at \$key_path"
+            exit 1
+          }
+          spawn ssh-add "\$key_path"
           expect {
             "Enter passphrase" {
               send "$env(SSH_PASSPHRASE)\r"
@@ -380,8 +401,13 @@ jobs:
           
           chmod +x /tmp/ssh-add.exp
           
-          # Add key with passphrase
+          # Add key with passphrase (export variables for expect)
           export SSH_PASSPHRASE="${{ secrets.SSH_PASSPHRASE }}"
+          export HOME="$HOME"
+          echo "HOME=$HOME" >> $GITHUB_ENV
+          echo "SSH_PASSPHRASE is set: $(test -n "$SSH_PASSPHRASE" && echo 'YES' || echo 'NO')"
+          
+          # Run expect script
           /tmp/ssh-add.exp
           
           # Verify key was added
