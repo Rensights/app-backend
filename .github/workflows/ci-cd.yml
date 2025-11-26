@@ -97,7 +97,16 @@ jobs:
     permissions:
       contents: read
       packages: write
+    outputs:
+      image_tag: ${{ steps.image-tag.outputs.tag }}
     steps:
+      - name: Set image tag (commit SHA)
+        id: image-tag
+        run: |
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          echo "tag=${SHORT_SHA}" >> $GITHUB_OUTPUT
+          echo "Full SHA: ${{ github.sha }}"
+          echo "Short SHA (tag): ${SHORT_SHA}"
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -341,7 +350,13 @@ jobs:
       - name: Deploy backend to dev
         run: |
           export KUBECONFIG=/tmp/kubeconfig
-          echo "🚀 Deploying to DEV with tag: latest"
+          IMAGE_TAG="${{ needs.build.outputs.image_tag }}"
+          if [ -z "$IMAGE_TAG" ]; then
+            # Fallback: calculate from commit SHA
+            SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+            IMAGE_TAG="sha-${SHA}"
+          fi
+          echo "🚀 Deploying to DEV with tag: ${IMAGE_TAG}"
           
           # Check if backend-db-credentials secret exists, create/update with IP:port
           echo "Setting up database credentials with IP:port..."
@@ -420,7 +435,7 @@ jobs:
             --create-namespace \
             -f env-values/dev/global.yaml \
             -f env-values/dev/backend.yaml \
-            --set image.tag=latest \
+            --set image.tag=${IMAGE_TAG} \
             --set image.repository=${REGISTRY}/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }} \
             --set imagePullSecrets[0].name=ghcr-secret \
             --wait --timeout=5m 2>&1)
@@ -460,16 +475,16 @@ jobs:
                 kubectl get secret -n ${DEV_NAMESPACE} -l owner=helm | grep backend || echo "No backend Helm secrets found"
               fi
               
-              echo "🔄 Retrying deployment after cleanup..."
-              helm upgrade --install backend ./charts \
-                --namespace ${DEV_NAMESPACE} \
-                --create-namespace \
-                -f env-values/dev/global.yaml \
-                -f env-values/dev/backend.yaml \
-                --set image.tag=latest \
-                --set image.repository=${REGISTRY}/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }} \
-            --set imagePullSecrets[0].name=ghcr-secret \
-            --wait --timeout=5m
+                      echo "🔄 Retrying deployment after cleanup..."
+                      helm upgrade --install backend ./charts \
+                        --namespace ${DEV_NAMESPACE} \
+                        --create-namespace \
+                        -f env-values/dev/global.yaml \
+                        -f env-values/dev/backend.yaml \
+                        --set image.tag=${IMAGE_TAG} \
+                        --set image.repository=${REGISTRY}/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }} \
+                        --set imagePullSecrets[0].name=ghcr-secret \
+                        --wait --timeout=5m
             else
               echo "❌ Deployment failed for unknown reason:"
               echo "$DEPLOY_OUTPUT"
