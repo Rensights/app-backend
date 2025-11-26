@@ -342,6 +342,19 @@ jobs:
         run: |
           export KUBECONFIG=/tmp/kubeconfig
           echo "🚀 Deploying to DEV with tag: latest"
+          
+          # Check if backend-db-credentials secret exists, create if not
+          if ! kubectl get secret backend-db-credentials -n ${DEV_NAMESPACE} &>/dev/null; then
+            echo "⚠️  backend-db-credentials secret not found, creating it..."
+            kubectl create secret generic backend-db-credentials \
+              --from-literal=postgres-host="postgres-admin.${DEV_NAMESPACE}.svc.cluster.local" \
+              --from-literal=postgres-port="5432" \
+              --from-literal=postgres-database="backend_db_dev" \
+              --from-literal=postgres-username="backend_user" \
+              --from-literal=postgres-password="$(openssl rand -base64 32)" \
+              --namespace ${DEV_NAMESPACE} || echo "Secret creation failed, continuing..."
+          fi
+          
           helm upgrade --install backend ./charts \
             --namespace ${DEV_NAMESPACE} \
             --create-namespace \
@@ -350,7 +363,7 @@ jobs:
             --set image.tag=latest \
             --set image.repository=${REGISTRY}/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }} \
             --set imagePullSecrets[0].name=ghcr-secret \
-            --wait --timeout=5m
+            --wait --timeout=10m
 
       - name: Verify deployment
         run: |
