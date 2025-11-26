@@ -677,26 +677,25 @@ jobs:
       - name: Setup backend-db-credentials secret for prod
         run: |
           export KUBECONFIG=/tmp/kubeconfig
-          # Setup database credentials with IP:port
-          echo "Setting up database credentials with IP:port..."
+          # Setup database credentials with external IP:NodePort
+          echo "Setting up database credentials with external IP:NodePort..."
           if kubectl get svc postgres-backend-postgresql -n ${PROD_NAMESPACE} &>/dev/null; then
-            DB_IP=$(kubectl get svc postgres-backend-postgresql -n ${PROD_NAMESPACE} -o jsonpath='{.spec.clusterIP}')
-            DB_PORT=$(kubectl get svc postgres-backend-postgresql -n ${PROD_NAMESPACE} -o jsonpath='{.spec.ports[0].port}')
+            DB_NODE_PORT=$(kubectl get svc postgres-backend-postgresql -n ${PROD_NAMESPACE} -o jsonpath='{.spec.ports[0].nodePort}')
             DB_PASSWORD=$(kubectl get secret --namespace ${PROD_NAMESPACE} postgres-backend-postgresql -o jsonpath="{.data.password}" | base64 -d)
             
-            echo "PostgreSQL IP: $DB_IP"
-            echo "PostgreSQL Port: $DB_PORT"
+            echo "PostgreSQL External Host: 72.62.40.154"
+            echo "PostgreSQL NodePort: $DB_NODE_PORT"
             
             kubectl create secret generic backend-db-credentials \
-              --from-literal=postgres-host="$DB_IP" \
-              --from-literal=postgres-port="$DB_PORT" \
+              --from-literal=postgres-host="72.62.40.154" \
+              --from-literal=postgres-port="$DB_NODE_PORT" \
               --from-literal=postgres-database="backend_db_prod" \
               --from-literal=postgres-username="backend_user" \
               --from-literal=postgres-password="$DB_PASSWORD" \
               --namespace ${PROD_NAMESPACE} \
               --dry-run=client -o yaml | kubectl apply -f -
             
-            echo "✅ Database credentials secret updated with IP:port"
+            echo "✅ Database credentials secret updated with external IP:NodePort"
           else
             echo "⚠️  postgres-backend-postgresql service not found. PostgreSQL may not be installed."
           fi
