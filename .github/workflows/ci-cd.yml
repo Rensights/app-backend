@@ -379,23 +379,35 @@ jobs:
             fi
           fi
           
-          # Check for stuck Helm releases (only if truly stuck)
+          # Check for stuck Helm releases and clean them up
           echo "Checking for stuck Helm releases..."
           if helm list -n ${DEV_NAMESPACE} -q | grep -q "^backend$"; then
             STATUS=$(helm status backend -n ${DEV_NAMESPACE} -o json 2>/dev/null | jq -r '.info.status' 2>/dev/null || echo "unknown")
             echo "Current release status: $STATUS"
             
-            # Only clean up if truly stuck in pending state
+            # Clean up if stuck in pending state
             if [ "$STATUS" = "pending-install" ] || [ "$STATUS" = "pending-upgrade" ] || [ "$STATUS" = "pending-rollback" ]; then
-              echo "⚠️  Release is stuck in pending state, attempting rollback..."
+              echo "⚠️  Release is stuck in pending state, attempting cleanup..."
+              # Try rollback first
               helm rollback backend -n ${DEV_NAMESPACE} --force 2>&1 || true
-              sleep 2
+              sleep 3
+              # Check if still stuck
+              STATUS=$(helm status backend -n ${DEV_NAMESPACE} -o json 2>/dev/null | jq -r '.info.status' 2>/dev/null || echo "unknown")
+              if [ "$STATUS" = "pending-install" ] || [ "$STATUS" = "pending-upgrade" ] || [ "$STATUS" = "pending-rollback" ]; then
+                echo "⚠️  Still stuck, deleting release..."
+                helm delete backend -n ${DEV_NAMESPACE} 2>&1 || true
+                sleep 3
+                echo "✅ Stuck release cleaned up"
+              fi
             fi
           fi
           
+          # Additional check: if helm upgrade fails with "operation in progress", force cleanup
+          echo "Pre-deployment check complete"
+          
           # Deploy new version - Helm will handle the upgrade automatically
           echo "🚀 Deploying new version..."
-          helm upgrade --install backend ./charts \
+          if ! helm upgrade --install backend ./charts \
             --namespace ${DEV_NAMESPACE} \
             --create-namespace \
             -f env-values/dev/global.yaml \
@@ -403,7 +415,35 @@ jobs:
             --set image.tag=latest \
             --set image.repository=${REGISTRY}/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }} \
             --set imagePullSecrets[0].name=ghcr-secret \
-            --wait --timeout=10m
+            --wait --timeout=10m 2>&1; then
+            echo "⚠️  Helm upgrade failed, checking for stuck release..."
+            # If upgrade fails with "operation in progress", force cleanup
+            if helm list -n ${DEV_NAMESPACE} -q | grep -q "^backend$"; then
+              STATUS=$(helm status backend -n ${DEV_NAMESPACE} -o json 2>/dev/null | jq -r '.info.status' 2>/dev/null || echo "unknown")
+              echo "Release status after failure: $STATUS"
+              if [ "$STATUS" = "pending-install" ] || [ "$STATUS" = "pending-upgrade" ] || [ "$STATUS" = "pending-rollback" ]; then
+                echo "⚠️  Force deleting stuck release..."
+                helm delete backend -n ${DEV_NAMESPACE} 2>&1 || true
+                sleep 3
+                echo "🔄 Retrying deployment..."
+                helm upgrade --install backend ./charts \
+                  --namespace ${DEV_NAMESPACE} \
+                  --create-namespace \
+                  -f env-values/dev/global.yaml \
+                  -f env-values/dev/backend.yaml \
+                  --set image.tag=latest \
+                  --set image.repository=${REGISTRY}/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }} \
+                  --set imagePullSecrets[0].name=ghcr-secret \
+                  --wait --timeout=10m
+              else
+                echo "❌ Deployment failed for unknown reason"
+                exit 1
+              fi
+            else
+              echo "❌ Deployment failed and no release found"
+              exit 1
+            fi
+          fi
 
       - name: Verify deployment
         run: |
