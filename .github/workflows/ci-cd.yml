@@ -370,35 +370,22 @@ jobs:
             fi
           fi
           
-          # Check for stuck Helm releases and clean them up
+          # Check for stuck Helm releases (only if truly stuck)
           echo "Checking for stuck Helm releases..."
           if helm list -n ${DEV_NAMESPACE} -q | grep -q "^backend$"; then
             STATUS=$(helm status backend -n ${DEV_NAMESPACE} -o json 2>/dev/null | jq -r '.info.status' 2>/dev/null || echo "unknown")
             echo "Current release status: $STATUS"
             
+            # Only clean up if truly stuck in pending state
             if [ "$STATUS" = "pending-install" ] || [ "$STATUS" = "pending-upgrade" ] || [ "$STATUS" = "pending-rollback" ]; then
-              echo "⚠️  Release is stuck in pending state, cleaning up..."
-              helm delete backend -n ${DEV_NAMESPACE} --no-hooks 2>&1 || true
-              # Also clean up any resources that might have been created
-              kubectl delete deployment backend -n ${DEV_NAMESPACE} --ignore-not-found=true
-              kubectl delete svc backend -n ${DEV_NAMESPACE} --ignore-not-found=true
-              kubectl delete ingress backend -n ${DEV_NAMESPACE} --ignore-not-found=true
-              sleep 3
-            fi
-          else
-            echo "No existing backend release found in Helm"
-            # Check if there are orphaned resources (deployment exists but no helm release)
-            if kubectl get deployment backend -n ${DEV_NAMESPACE} &>/dev/null; then
-              echo "⚠️  Found orphaned backend deployment (exists but no Helm release)"
-              echo "Deleting orphaned resources..."
-              kubectl delete deployment backend -n ${DEV_NAMESPACE} --ignore-not-found=true
-              kubectl delete svc backend -n ${DEV_NAMESPACE} --ignore-not-found=true
-              kubectl delete ingress backend -n ${DEV_NAMESPACE} --ignore-not-found=true
+              echo "⚠️  Release is stuck in pending state, attempting rollback..."
+              helm rollback backend -n ${DEV_NAMESPACE} --force 2>&1 || true
               sleep 2
             fi
           fi
           
-          # Deploy with --force flag to handle any remaining issues
+          # Deploy new version - Helm will handle the upgrade automatically
+          echo "🚀 Deploying new version..."
           helm upgrade --install backend ./charts \
             --namespace ${DEV_NAMESPACE} \
             --create-namespace \
@@ -407,7 +394,6 @@ jobs:
             --set image.tag=latest \
             --set image.repository=${REGISTRY}/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }} \
             --set imagePullSecrets[0].name=ghcr-secret \
-            --force \
             --wait --timeout=10m
 
       - name: Verify deployment
