@@ -100,13 +100,13 @@ jobs:
     outputs:
       image_tag: ${{ steps.image-tag.outputs.tag }}
     steps:
-      - name: Set image tag (commit SHA)
+      - name: Set image tag (pipeline number)
         id: image-tag
         run: |
-          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
-          echo "tag=sha-${SHORT_SHA}" >> $GITHUB_OUTPUT
-          echo "Full SHA: ${{ github.sha }}"
-          echo "Short SHA (tag): sha-${SHORT_SHA}"
+          RUN_NUMBER="${{ github.run_number }}"
+          echo "tag=${RUN_NUMBER}" >> $GITHUB_OUTPUT
+          echo "Pipeline run number: ${RUN_NUMBER}"
+          echo "Image tag: ${RUN_NUMBER}"
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -352,9 +352,8 @@ jobs:
           export KUBECONFIG=/tmp/kubeconfig
           IMAGE_TAG="${{ needs.build.outputs.image_tag }}"
           if [ -z "$IMAGE_TAG" ]; then
-            # Fallback: calculate from commit SHA
-            SHA=$(echo "${{ github.sha }}" | cut -c1-7)
-            IMAGE_TAG="sha-${SHA}"
+            # Fallback: use pipeline run number
+            IMAGE_TAG="${{ github.run_number }}"
           fi
           echo "🚀 Deploying to DEV with tag: ${IMAGE_TAG}"
           
