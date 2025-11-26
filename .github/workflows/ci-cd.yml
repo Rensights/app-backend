@@ -435,7 +435,7 @@ jobs:
             --set image.tag=latest \
             --set image.repository=${REGISTRY}/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }} \
             --set imagePullSecrets[0].name=ghcr-secret \
-            --wait --timeout=10m 2>&1)
+            --wait --timeout=5m 2>&1)
           DEPLOY_EXIT=$?
           
           if [ $DEPLOY_EXIT -ne 0 ]; then
@@ -481,7 +481,7 @@ jobs:
                 --set image.tag=latest \
                 --set image.repository=${REGISTRY}/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }} \
                 --set imagePullSecrets[0].name=ghcr-secret \
-                --wait --timeout=10m
+                --wait --timeout=5m
             else
               echo "❌ Deployment failed for unknown reason:"
               echo "$DEPLOY_OUTPUT"
