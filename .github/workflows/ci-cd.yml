@@ -32,12 +32,12 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
-      - name: Build admin backend
-        working-directory: src/src
+      - name: Build backend
+        working-directory: src
         run: mvn clean package -DskipTests
 
       - name: Run tests
-        working-directory: src/src
+        working-directory: src
         run: mvn test
 
   # Step 2: Build Docker Image
