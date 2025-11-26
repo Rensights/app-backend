@@ -3,7 +3,7 @@ replicaCount: 2
 
 image:
   repository: ghcr.io/rensights/app-backend
-  tag: "latest"
+  tag: ""  # Will be set by CI/CD with pipeline run number
   pullPolicy: Always
 
 service:
