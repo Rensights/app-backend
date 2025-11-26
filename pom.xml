@@ -187,6 +187,8 @@
                             <includes>
                                 <include>**/*.avsc</include>
                             </includes>
+                            <!-- Skip if directory doesn't exist or is empty -->
+                            <skipIfNoSchemaFiles>true</skipIfNoSchemaFiles>
                         </configuration>
                     </execution>
                 </executions>
