@@ -346,30 +346,33 @@ jobs:
           # Check if backend-db-credentials secret exists, create if not
           if ! kubectl get secret backend-db-credentials -n ${DEV_NAMESPACE} &>/dev/null; then
             echo "⚠️  backend-db-credentials secret not found"
-            echo "Getting credentials from postgres-backend-postgresql secret..."
-            if kubectl get secret postgres-backend-postgresql -n ${DEV_NAMESPACE} &>/dev/null; then
+            echo "Getting credentials from postgres-backend-postgresql..."
+            if kubectl get svc postgres-backend-postgresql -n ${DEV_NAMESPACE} &>/dev/null; then
+              DB_IP=$(kubectl get svc postgres-backend-postgresql -n ${DEV_NAMESPACE} -o jsonpath='{.spec.clusterIP}')
+              DB_PORT=$(kubectl get svc postgres-backend-postgresql -n ${DEV_NAMESPACE} -o jsonpath='{.spec.ports[0].port}')
               DB_PASSWORD=$(kubectl get secret --namespace ${DEV_NAMESPACE} postgres-backend-postgresql -o jsonpath="{.data.password}" | base64 -d)
               kubectl create secret generic backend-db-credentials \
-                --from-literal=postgres-host="postgres-backend-postgresql.${DEV_NAMESPACE}.svc.cluster.local" \
-                --from-literal=postgres-port="5432" \
+                --from-literal=postgres-host="$DB_IP" \
+                --from-literal=postgres-port="$DB_PORT" \
                 --from-literal=postgres-database="backend_db_dev" \
                 --from-literal=postgres-username="backend_user" \
                 --from-literal=postgres-password="$DB_PASSWORD" \
                 --namespace ${DEV_NAMESPACE} || echo "Secret creation failed, continuing..."
             else
-              echo "⚠️  postgres-backend-postgresql secret not found. PostgreSQL may not be installed."
+              echo "⚠️  postgres-backend-postgresql service not found. PostgreSQL may not be installed."
             fi
           else
-            # Update secret with correct hostname if it exists but has wrong host
-            CURRENT_HOST=$(kubectl get secret backend-db-credentials -n ${DEV_NAMESPACE} -o jsonpath='{.data.postgres-host}' | base64 -d)
-            CORRECT_HOST="postgres-backend-postgresql.${DEV_NAMESPACE}.svc.cluster.local"
-            if [ "$CURRENT_HOST" != "$CORRECT_HOST" ]; then
-              echo "⚠️  Updating backend-db-credentials secret with correct hostname..."
-              if kubectl get secret postgres-backend-postgresql -n ${DEV_NAMESPACE} &>/dev/null; then
+            # Update secret with IP:port if service exists
+            if kubectl get svc postgres-backend-postgresql -n ${DEV_NAMESPACE} &>/dev/null; then
+              DB_IP=$(kubectl get svc postgres-backend-postgresql -n ${DEV_NAMESPACE} -o jsonpath='{.spec.clusterIP}')
+              DB_PORT=$(kubectl get svc postgres-backend-postgresql -n ${DEV_NAMESPACE} -o jsonpath='{.spec.ports[0].port}')
+              CURRENT_HOST=$(kubectl get secret backend-db-credentials -n ${DEV_NAMESPACE} -o jsonpath='{.data.postgres-host}' | base64 -d)
+              if [ "$CURRENT_HOST" != "$DB_IP" ]; then
+                echo "⚠️  Updating backend-db-credentials secret with IP:port..."
                 DB_PASSWORD=$(kubectl get secret --namespace ${DEV_NAMESPACE} postgres-backend-postgresql -o jsonpath="{.data.password}" | base64 -d)
                 kubectl create secret generic backend-db-credentials \
-                  --from-literal=postgres-host="$CORRECT_HOST" \
-                  --from-literal=postgres-port="5432" \
+                  --from-literal=postgres-host="$DB_IP" \
+                  --from-literal=postgres-port="$DB_PORT" \
                   --from-literal=postgres-database="backend_db_dev" \
                   --from-literal=postgres-username="backend_user" \
                   --from-literal=postgres-password="$DB_PASSWORD" \
@@ -598,6 +601,48 @@ jobs:
             --docker-password=${{ secrets.CONTAINER_TOKEN }} \
             --namespace ${PROD_NAMESPACE} \
             --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Setup backend-db-credentials secret for prod
+        run: |
+          export KUBECONFIG=/tmp/kubeconfig
+          # Check if backend-db-credentials secret exists, create if not
+          if ! kubectl get secret backend-db-credentials -n ${PROD_NAMESPACE} &>/dev/null; then
+            echo "⚠️  backend-db-credentials secret not found"
+            echo "Getting credentials from postgres-backend-postgresql..."
+            if kubectl get svc postgres-backend-postgresql -n ${PROD_NAMESPACE} &>/dev/null; then
+              DB_IP=$(kubectl get svc postgres-backend-postgresql -n ${PROD_NAMESPACE} -o jsonpath='{.spec.clusterIP}')
+              DB_PORT=$(kubectl get svc postgres-backend-postgresql -n ${PROD_NAMESPACE} -o jsonpath='{.spec.ports[0].port}')
+              DB_PASSWORD=$(kubectl get secret --namespace ${PROD_NAMESPACE} postgres-backend-postgresql -o jsonpath="{.data.password}" | base64 -d)
+              kubectl create secret generic backend-db-credentials \
+                --from-literal=postgres-host="$DB_IP" \
+                --from-literal=postgres-port="$DB_PORT" \
+                --from-literal=postgres-database="backend_db_prod" \
+                --from-literal=postgres-username="backend_user" \
+                --from-literal=postgres-password="$DB_PASSWORD" \
+                --namespace ${PROD_NAMESPACE} || echo "Secret creation failed, continuing..."
+            else
+              echo "⚠️  postgres-backend-postgresql service not found. PostgreSQL may not be installed."
+            fi
+          else
+            # Update secret with IP:port if service exists
+            if kubectl get svc postgres-backend-postgresql -n ${PROD_NAMESPACE} &>/dev/null; then
+              DB_IP=$(kubectl get svc postgres-backend-postgresql -n ${PROD_NAMESPACE} -o jsonpath='{.spec.clusterIP}')
+              DB_PORT=$(kubectl get svc postgres-backend-postgresql -n ${PROD_NAMESPACE} -o jsonpath='{.spec.ports[0].port}')
+              CURRENT_HOST=$(kubectl get secret backend-db-credentials -n ${PROD_NAMESPACE} -o jsonpath='{.data.postgres-host}' | base64 -d)
+              if [ "$CURRENT_HOST" != "$DB_IP" ]; then
+                echo "⚠️  Updating backend-db-credentials secret with IP:port..."
+                DB_PASSWORD=$(kubectl get secret --namespace ${PROD_NAMESPACE} postgres-backend-postgresql -o jsonpath="{.data.password}" | base64 -d)
+                kubectl create secret generic backend-db-credentials \
+                  --from-literal=postgres-host="$DB_IP" \
+                  --from-literal=postgres-port="$DB_PORT" \
+                  --from-literal=postgres-database="backend_db_prod" \
+                  --from-literal=postgres-username="backend_user" \
+                  --from-literal=postgres-password="$DB_PASSWORD" \
+                  --namespace ${PROD_NAMESPACE} \
+                  --dry-run=client -o yaml | kubectl apply -f -
+              fi
+            fi
+          fi
 
       - name: Deploy backend to prod
         run: |
