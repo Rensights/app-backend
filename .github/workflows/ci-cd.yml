@@ -355,6 +355,21 @@ jobs:
               --namespace ${DEV_NAMESPACE} || echo "Secret creation failed, continuing..."
           fi
           
+          # Check for stuck Helm releases and clean them up
+          echo "Checking for stuck Helm releases..."
+          if helm status backend -n ${DEV_NAMESPACE} &>/dev/null; then
+            STATUS=$(helm status backend -n ${DEV_NAMESPACE} -o json 2>/dev/null | jq -r '.info.status' 2>/dev/null || echo "unknown")
+            echo "Current release status: $STATUS"
+            
+            if [ "$STATUS" = "pending-install" ] || [ "$STATUS" = "pending-upgrade" ] || [ "$STATUS" = "pending-rollback" ]; then
+              echo "⚠️  Release is stuck in pending state, cleaning up..."
+              helm rollback backend -n ${DEV_NAMESPACE} --force 2>&1 || true
+              helm delete backend -n ${DEV_NAMESPACE} --no-hooks 2>&1 || true
+              sleep 3
+            fi
+          fi
+          
+          # Deploy with --force flag to handle any remaining issues
           helm upgrade --install backend ./charts \
             --namespace ${DEV_NAMESPACE} \
             --create-namespace \
@@ -363,6 +378,7 @@ jobs:
             --set image.tag=latest \
             --set image.repository=${REGISTRY}/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }} \
             --set imagePullSecrets[0].name=ghcr-secret \
+            --force \
             --wait --timeout=10m
 
       - name: Verify deployment
