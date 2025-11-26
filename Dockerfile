@@ -32,4 +32,5 @@ COPY --from=builder /app/src/target/*.jar app.jar
 EXPOSE 8080
 
 # Run with OpenTelemetry Java agent for auto-instrumentation
-ENTRYPOINT ["java", "-javaagent:/app/opentelemetry-javaagent.jar", "-jar", "app.jar"]
+# Suppress class sharing warning (harmless but noisy)
+ENTRYPOINT ["java", "-Xshare:off", "-javaagent:/app/opentelemetry-javaagent.jar", "-jar", "app.jar"]
