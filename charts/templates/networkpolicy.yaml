@@ -38,6 +38,11 @@ spec:
     ports:
     - protocol: TCP
       port: 587  # SMTP submission port (TLS/STARTTLS)
+  # Allow egress to external HTTPS APIs (e.g., Stripe API)
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443  # HTTPS for external APIs like Stripe
   {{- if .Values.networkPolicy.allowIngress }}
   ingress:
   - from:
