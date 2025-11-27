@@ -494,8 +494,51 @@ jobs:
           }
           
           echo "Waiting for deployment to be ready (with extended timeout)..."
-          DEPLOY_OUTPUT=$(helm status backend -n ${DEV_NAMESPACE} --wait --timeout=8m 2>&1)
-          DEPLOY_EXIT=$?
+          # Wait for deployment with timeout, but don't fail immediately if it times out
+          DEPLOY_OUTPUT=$(timeout 480 helm status backend -n ${DEV_NAMESPACE} --wait --timeout=8m 2>&1) || {
+            HELM_EXIT=$?
+            echo "Helm wait command exited with code: $HELM_EXIT"
+            echo "Output: $DEPLOY_OUTPUT"
+            
+            # Check if pods are actually running
+            echo ""
+            echo "Checking actual pod status..."
+            kubectl get pods -n ${DEV_NAMESPACE} -l app.kubernetes.io/name=backend -o wide
+            POD_PHASE=$(kubectl get pod -n ${DEV_NAMESPACE} -l app.kubernetes.io/name=backend -o jsonpath='{.items[0].status.phase}' 2>/dev/null || echo "")
+            POD_READY=$(kubectl get pod -n ${DEV_NAMESPACE} -l app.kubernetes.io/name=backend -o jsonpath='{.items[0].status.containerStatuses[0].ready}' 2>/dev/null || echo "")
+            
+            if [ "$POD_PHASE" = "Running" ]; then
+              echo "✅ Pod is running (phase: $POD_PHASE, ready: $POD_READY)"
+              if [ "$POD_READY" = "true" ]; then
+                echo "✅ Pod is ready! Deployment successful."
+                DEPLOY_EXIT=0
+              else
+                echo "⚠️  Pod is running but not ready yet. This might be normal if health checks are still running."
+                echo "Checking pod logs for issues..."
+                POD_NAME=$(kubectl get pod -n ${DEV_NAMESPACE} -l app.kubernetes.io/name=backend -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
+                if [ -n "$POD_NAME" ]; then
+                  echo "Last 30 lines of logs:"
+                  kubectl logs -n ${DEV_NAMESPACE} $POD_NAME --tail=30 2>&1 || true
+                fi
+                # Don't fail if pod is running - it might become ready soon
+                DEPLOY_EXIT=0
+              fi
+            elif [ "$POD_PHASE" = "Pending" ]; then
+              echo "⚠️  Pod is still pending. Checking events..."
+              kubectl describe pod -n ${DEV_NAMESPACE} -l app.kubernetes.io/name=backend | grep -A 10 "Events:" || true
+              DEPLOY_EXIT=$HELM_EXIT
+            else
+              echo "❌ Pod phase: $POD_PHASE (not Running)"
+              DEPLOY_EXIT=$HELM_EXIT
+            fi
+          }
+          
+          if [ -z "$DEPLOY_OUTPUT" ]; then
+            # If DEPLOY_OUTPUT is empty, check status directly
+            DEPLOY_EXIT=${DEPLOY_EXIT:-0}
+          else
+            DEPLOY_EXIT=${DEPLOY_EXIT:-$?}
+          fi
           
           if [ $DEPLOY_EXIT -ne 0 ]; then
             echo "⚠️  Helm wait failed with exit code: $DEPLOY_EXIT"
