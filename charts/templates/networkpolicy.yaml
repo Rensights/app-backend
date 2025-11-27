@@ -16,6 +16,7 @@ spec:
   - Ingress
   {{- end }}
   egress:
+  # Allow egress to PostgreSQL database
   - to:
     - podSelector:
         matchLabels:
@@ -24,6 +25,19 @@ spec:
     ports:
     - protocol: TCP
       port: {{ .Values.networkPolicy.databasePort | default 5432 }}
+  # Allow DNS resolution (required for external hostname resolution like smtp.gmail.com)
+  # Allow DNS to any destination (cluster DNS and external DNS if needed)
+  - to: []
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+  # Allow egress to external SMTP servers (e.g., Gmail SMTP)
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 587  # SMTP submission port (TLS/STARTTLS)
   {{- if .Values.networkPolicy.allowIngress }}
   ingress:
   - from:
