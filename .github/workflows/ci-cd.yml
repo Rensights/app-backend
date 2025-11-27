@@ -357,14 +357,16 @@ jobs:
           fi
           echo "🚀 Deploying to DEV with tag: ${IMAGE_TAG}"
           
-          # Check if backend-db-credentials secret exists, create/update with IP:port
-          echo "Setting up database credentials with IP:port..."
+          # Check if backend-db-credentials secret exists, create/update with ClusterIP
+          # Note: Using ClusterIP instead of DNS name due to Java DNS resolution issues in Kubernetes pods
+          # The ClusterIP is stable and resolves reliably for Java applications
+          echo "Setting up database credentials with ClusterIP..."
           if kubectl get svc postgres-backend-postgresql -n ${DEV_NAMESPACE} &>/dev/null; then
             DB_IP=$(kubectl get svc postgres-backend-postgresql -n ${DEV_NAMESPACE} -o jsonpath='{.spec.clusterIP}')
             DB_PORT=$(kubectl get svc postgres-backend-postgresql -n ${DEV_NAMESPACE} -o jsonpath='{.spec.ports[0].port}')
             DB_PASSWORD=$(kubectl get secret --namespace ${DEV_NAMESPACE} postgres-backend-postgresql -o jsonpath="{.data.password}" | base64 -d)
             
-            echo "PostgreSQL IP: $DB_IP"
+            echo "PostgreSQL ClusterIP: $DB_IP"
             echo "PostgreSQL Port: $DB_PORT"
             
             kubectl create secret generic backend-db-credentials \
@@ -376,7 +378,7 @@ jobs:
               --namespace ${DEV_NAMESPACE} \
               --dry-run=client -o yaml | kubectl apply -f -
             
-            echo "✅ Database credentials secret updated with IP:port"
+            echo "✅ Database credentials secret updated with ClusterIP"
           else
             echo "⚠️  postgres-backend-postgresql service not found. PostgreSQL may not be installed."
           fi
