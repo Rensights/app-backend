@@ -63,3 +63,6 @@ extraEnv:
   SMTP_USERNAME: "ihakhverdiyev2021@gmail.com"
   SMTP_PASSWORD: "qdzoirtoasmiujgr"
   SPRING_MAIL_FROM: "ihakhverdiyev2021@gmail.com"
+  # Stripe configuration (Test Mode)
+  STRIPE_PREMIUM_PRICE_ID: "price_1SWcGHCasMqex534TMdpIqAA"
+  # STRIPE_ENTERPRISE_PRICE_ID: ""  # Add when enterprise price is created
