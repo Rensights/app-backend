@@ -61,6 +61,9 @@ management:
   endpoint:
     health:
       show-details: when-authorized
+  health:
+    mail:
+      enabled: ${EMAIL_ENABLED:false}
   metrics:
     export:
       otlp:
