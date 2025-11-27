@@ -393,19 +393,25 @@ jobs:
               STATUS=$(helm status backend -n ${DEV_NAMESPACE} -o json 2>/dev/null | jq -r '.info.status' 2>/dev/null || echo "unknown")
               echo "Current release status: $STATUS"
               
-              # Clean up if stuck in pending state
-              if [ "$STATUS" = "pending-install" ] || [ "$STATUS" = "pending-upgrade" ] || [ "$STATUS" = "pending-rollback" ]; then
-                echo "⚠️  Release is stuck in pending state (attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)"
+              # Clean up if stuck in pending state or failed state
+              if [ "$STATUS" = "pending-install" ] || [ "$STATUS" = "pending-upgrade" ] || [ "$STATUS" = "pending-rollback" ] || [ "$STATUS" = "failed" ]; then
+                if [ "$STATUS" = "failed" ]; then
+                  echo "⚠️  Release is in failed state (attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)"
+                  echo "Cleaning up failed release..."
+                else
+                  echo "⚠️  Release is stuck in pending state (attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)"
+                fi
+                
                 # Try rollback first
                 helm rollback backend -n ${DEV_NAMESPACE} --force 2>&1 || true
                 sleep 5
-                # Check if still stuck
+                # Check if still stuck/failed
                 STATUS=$(helm status backend -n ${DEV_NAMESPACE} -o json 2>/dev/null | jq -r '.info.status' 2>/dev/null || echo "unknown")
-                if [ "$STATUS" = "pending-install" ] || [ "$STATUS" = "pending-upgrade" ] || [ "$STATUS" = "pending-rollback" ]; then
-                  echo "⚠️  Still stuck, deleting release..."
+                if [ "$STATUS" = "pending-install" ] || [ "$STATUS" = "pending-upgrade" ] || [ "$STATUS" = "pending-rollback" ] || [ "$STATUS" = "failed" ]; then
+                  echo "⚠️  Still in bad state ($STATUS), deleting release..."
                   helm delete backend -n ${DEV_NAMESPACE} 2>&1 || true
                   sleep 5
-                  echo "✅ Stuck release cleaned up"
+                  echo "✅ Failed/stuck release cleaned up"
                   break
                 else
                   echo "✅ Release unstuck, status: $STATUS"
@@ -431,6 +437,10 @@ jobs:
           
           # Deploy new version - Helm will handle the upgrade automatically
           echo "🚀 Deploying new version..."
+          echo "Deployment configuration:"
+          echo "  Image: ${REGISTRY}/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }}:${IMAGE_TAG}"
+          echo "  Namespace: ${DEV_NAMESPACE}"
+          
           DEPLOY_OUTPUT=$(helm upgrade --install backend ./charts \
             --namespace ${DEV_NAMESPACE} \
             --create-namespace \
@@ -444,7 +454,19 @@ jobs:
           
           if [ $DEPLOY_EXIT -ne 0 ]; then
             echo "⚠️  Helm upgrade failed with exit code: $DEPLOY_EXIT"
-            echo "Output: $DEPLOY_OUTPUT"
+            echo "Full output:"
+            echo "$DEPLOY_OUTPUT"
+            echo ""
+            echo "Checking pod status..."
+            kubectl get pods -n ${DEV_NAMESPACE} -l app.kubernetes.io/name=backend 2>&1 || true
+            echo ""
+            echo "Checking pod logs..."
+            POD_NAME=$(kubectl get pod -n ${DEV_NAMESPACE} -l app.kubernetes.io/name=backend -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
+            if [ -n "$POD_NAME" ]; then
+              echo "Pod: $POD_NAME"
+              kubectl logs -n ${DEV_NAMESPACE} $POD_NAME --tail=50 2>&1 || true
+              kubectl describe pod -n ${DEV_NAMESPACE} $POD_NAME | tail -50 2>&1 || true
+            fi
             
             # Check if error is "operation in progress"
             if echo "$DEPLOY_OUTPUT" | grep -q "another operation.*is in progress"; then
