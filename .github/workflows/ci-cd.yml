@@ -399,7 +399,7 @@ jobs:
                   echo "⚠️  Release is in failed state (attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)"
                   echo "Cleaning up failed release..."
                 else
-                  echo "⚠️  Release is stuck in pending state (attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)"
+                echo "⚠️  Release is stuck in pending state (attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)"
                 fi
                 
                 # Try rollback first
@@ -441,8 +441,26 @@ jobs:
           echo "  Image: ${REGISTRY}/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }}:${IMAGE_TAG}"
           echo "  Namespace: ${DEV_NAMESPACE}"
           
+          # Verify image exists before deploying
+          echo "Verifying image exists: ${FULL_IMAGE}"
+          if ! docker manifest inspect ${FULL_IMAGE} >/dev/null 2>&1; then
+            echo "❌ ERROR: Image ${FULL_IMAGE} does not exist!"
+            echo "Available tags for ${REGISTRY}/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }}:"
+            echo "Checking if latest exists as fallback..."
+            if docker manifest inspect ${REGISTRY}/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }}:latest >/dev/null 2>&1; then
+              echo "⚠️  WARNING: Tag ${IMAGE_TAG} not found, but 'latest' exists."
+              echo "This might cause the deployment to use 'latest' instead of ${IMAGE_TAG}"
+              echo "Please ensure the build job completed successfully and pushed tag ${IMAGE_TAG}"
+            else
+              echo "❌ ERROR: Neither tag ${IMAGE_TAG} nor 'latest' found!"
+              exit 1
+            fi
+          else
+            echo "✅ Image verified: ${FULL_IMAGE}"
+          fi
+          
           # Deploy without waiting first to see if deployment succeeds
-          echo "Deploying without wait first..."
+          echo "Deploying with explicit image tag: ${IMAGE_TAG}"
           helm upgrade --install backend ./charts \
             --namespace ${DEV_NAMESPACE} \
             --create-namespace \
@@ -451,7 +469,7 @@ jobs:
             --set image.tag=${IMAGE_TAG} \
             --set image.repository=${REGISTRY}/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }} \
             --set imagePullSecrets[0].name=ghcr-secret \
-            2>&1 || {
+            --debug 2>&1 | head -100 || {
             echo "❌ Helm upgrade command failed"
             exit 1
           }
@@ -563,7 +581,7 @@ jobs:
                 echo "This might be due to health check timeout. Pod may become ready soon."
                 DEPLOY_EXIT=0
               else
-                exit 1
+              exit 1
               fi
             fi
           else
