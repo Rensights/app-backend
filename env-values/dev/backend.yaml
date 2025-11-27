@@ -41,6 +41,8 @@ ingress:
     konghq.com/read-timeout: "60000"
     konghq.com/retries: "5"
     konghq.com/preserve-host: "false"
+    konghq.com/upstream-keepalive-requests: "1000"
+    konghq.com/upstream-keepalive-timeout: "60"
 
 extraEnv:
   SPRING_PROFILES_ACTIVE: "dev"
