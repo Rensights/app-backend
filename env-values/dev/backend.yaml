@@ -58,3 +58,8 @@ extraEnv:
   OTEL_LOGS_EXPORTER: "none"
   OTEL_METRICS_EXPORTER: "none"
   OTEL_TRACES_EXPORTER: "none"
+  # Email configuration (Gmail SMTP)
+  EMAIL_ENABLED: "true"
+  SMTP_USERNAME: "ihakhverdiyev2021@gmail.com"
+  SMTP_PASSWORD: "qdzoirtoasmiujgr"
+  SPRING_MAIL_FROM: "ihakhverdiyev2021@gmail.com"
