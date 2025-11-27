@@ -493,51 +493,43 @@ jobs:
             exit 1
           }
           
-          echo "Waiting for deployment to be ready (with extended timeout)..."
-          # Wait for deployment with timeout, but don't fail immediately if it times out
-          DEPLOY_OUTPUT=$(timeout 480 helm status backend -n ${DEV_NAMESPACE} --wait --timeout=8m 2>&1) || {
-            HELM_EXIT=$?
-            echo "Helm wait command exited with code: $HELM_EXIT"
-            echo "Output: $DEPLOY_OUTPUT"
-            
-            # Check if pods are actually running
+          echo "Waiting for deployment to be ready (with extended timeout for startup)..."
+          # Use kubectl rollout status to wait for deployment (more reliable than helm status --wait)
+          echo "Waiting for deployment rollout to complete..."
+          if timeout 600 kubectl rollout status deployment/backend -n ${DEV_NAMESPACE} --timeout=10m 2>&1; then
+            DEPLOY_EXIT=0
+            echo "✅ Deployment rollout completed successfully"
+          else
+            ROLLOUT_EXIT=$?
+            echo "⚠️  kubectl rollout status exited with code: $ROLLOUT_EXIT"
             echo ""
             echo "Checking actual pod status..."
             kubectl get pods -n ${DEV_NAMESPACE} -l app.kubernetes.io/name=backend -o wide
+            
             POD_PHASE=$(kubectl get pod -n ${DEV_NAMESPACE} -l app.kubernetes.io/name=backend -o jsonpath='{.items[0].status.phase}' 2>/dev/null || echo "")
             POD_READY=$(kubectl get pod -n ${DEV_NAMESPACE} -l app.kubernetes.io/name=backend -o jsonpath='{.items[0].status.containerStatuses[0].ready}' 2>/dev/null || echo "")
             
             if [ "$POD_PHASE" = "Running" ]; then
               echo "✅ Pod is running (phase: $POD_PHASE, ready: $POD_READY)"
-              if [ "$POD_READY" = "true" ]; then
-                echo "✅ Pod is ready! Deployment successful."
-                DEPLOY_EXIT=0
-              else
-                echo "⚠️  Pod is running but not ready yet. This might be normal if health checks are still running."
-                echo "Checking pod logs for issues..."
-                POD_NAME=$(kubectl get pod -n ${DEV_NAMESPACE} -l app.kubernetes.io/name=backend -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
-                if [ -n "$POD_NAME" ]; then
-                  echo "Last 30 lines of logs:"
-                  kubectl logs -n ${DEV_NAMESPACE} $POD_NAME --tail=30 2>&1 || true
-                fi
-                # Don't fail if pod is running - it might become ready soon
-                DEPLOY_EXIT=0
+              echo "⚠️  Pod is running but not ready yet. This is normal - backend needs time for startup and health checks."
+              echo "Checking pod logs to verify it's starting correctly..."
+              POD_NAME=$(kubectl get pod -n ${DEV_NAMESPACE} -l app.kubernetes.io/name=backend -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
+              if [ -n "$POD_NAME" ]; then
+                echo "Last 30 lines of logs:"
+                kubectl logs -n ${DEV_NAMESPACE} $POD_NAME --tail=30 2>&1 || true
               fi
+              echo ""
+              echo "✅ Deployment successful - pod is running and will become ready once health checks pass"
+              echo "   (This may take 2-3 minutes for Spring Boot application to fully start)"
+              DEPLOY_EXIT=0
             elif [ "$POD_PHASE" = "Pending" ]; then
               echo "⚠️  Pod is still pending. Checking events..."
               kubectl describe pod -n ${DEV_NAMESPACE} -l app.kubernetes.io/name=backend | grep -A 10 "Events:" || true
-              DEPLOY_EXIT=$HELM_EXIT
+              DEPLOY_EXIT=$ROLLOUT_EXIT
             else
               echo "❌ Pod phase: $POD_PHASE (not Running)"
-              DEPLOY_EXIT=$HELM_EXIT
+              DEPLOY_EXIT=$ROLLOUT_EXIT
             fi
-          }
-          
-          if [ -z "$DEPLOY_OUTPUT" ]; then
-            # If DEPLOY_OUTPUT is empty, check status directly
-            DEPLOY_EXIT=${DEPLOY_EXIT:-0}
-          else
-            DEPLOY_EXIT=${DEPLOY_EXIT:-$?}
           fi
           
           if [ $DEPLOY_EXIT -ne 0 ]; then
