@@ -25,6 +25,10 @@ resources:
     cpu: "500m"
     memory: "1Gi"
 
+networkPolicy:
+  enabled: true
+  allowIngress: true  # Allow Kong to reach backend
+
 ingress:
   enabled: true
   className: "kong"
@@ -34,7 +38,7 @@ ingress:
         - path: /
           pathType: Prefix
   annotations:
-    konghq.com/strip-path: "true"
+    konghq.com/strip-path: "false"
     konghq.com/protocols: "http"
     konghq.com/connect-timeout: "60000"
     konghq.com/send-timeout: "60000"
