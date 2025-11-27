@@ -66,3 +66,5 @@ extraEnv:
   # Stripe configuration (Test Mode)
   STRIPE_PREMIUM_PRICE_ID: "price_1SWcGHCasMqex534TMdpIqAA"
   # STRIPE_ENTERPRISE_PRICE_ID: ""  # Add when enterprise price is created
+  # Frontend URL (for Stripe redirect URLs)
+  APP_FRONTEND_URL: "http://dev.72.62.40.154.nip.io:31416"
