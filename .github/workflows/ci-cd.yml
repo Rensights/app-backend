@@ -435,10 +435,29 @@ jobs:
           
           echo "Pre-deployment check complete"
           
+          # Clean up manually created NetworkPolicy if it exists (from previous manual fixes)
+          echo "Checking for manually created NetworkPolicy..."
+          if kubectl get networkpolicy backend-allow-db -n ${DEV_NAMESPACE} &>/dev/null; then
+            # Check if it's managed by Helm
+            MANAGED_BY=$(kubectl get networkpolicy backend-allow-db -n ${DEV_NAMESPACE} -o jsonpath='{.metadata.labels.app\.kubernetes\.io/managed-by}' 2>/dev/null || echo "")
+            if [ "$MANAGED_BY" != "Helm" ]; then
+              echo "⚠️  Found manually created NetworkPolicy (not managed by Helm)"
+              echo "Deleting it so Helm can manage it properly..."
+              kubectl delete networkpolicy backend-allow-db -n ${DEV_NAMESPACE} || true
+              sleep 2
+              echo "✅ Manual NetworkPolicy cleaned up"
+            else
+              echo "✅ NetworkPolicy is already managed by Helm"
+            fi
+          else
+            echo "✅ No existing NetworkPolicy found, Helm will create it"
+          fi
+          
           # Deploy new version - Helm will handle the upgrade automatically
           echo "🚀 Deploying new version..."
+          FULL_IMAGE="${REGISTRY}/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }}:${IMAGE_TAG}"
           echo "Deployment configuration:"
-          echo "  Image: ${REGISTRY}/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }}:${IMAGE_TAG}"
+          echo "  Image: ${FULL_IMAGE}"
           echo "  Namespace: ${DEV_NAMESPACE}"
           
           # Verify image exists before deploying
