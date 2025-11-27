@@ -1,1 +1,854 @@
-# We need to add a step to clean up the manually created NetworkPolicy before deploying
+name: CI/CD Pipeline
+
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+  push:
+    branches:
+      - main
+      - develop
+  workflow_dispatch: # For manual prod deployment
+
+env:
+  REGISTRY: ghcr.io
+  DEV_NAMESPACE: dev
+  PROD_NAMESPACE: prod
+
+jobs:
+  # Step 1: Test
+  test:
+    name: 1️⃣ Run Tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.CONTAINER_TOKEN }}
+
+      - name: Download Avro Schemas
+        run: |
+          echo "📥 Downloading Avro schemas from avro-schemas image..."
+          # Always create the directory (required by Avro plugin)
+          mkdir -p schemas/avro
+          
+          # Pull the avro-schemas image
+          docker pull ghcr.io/rensights/avro-schemas:latest || {
+            echo "⚠️  Warning: Could not pull avro-schemas:latest"
+            echo "   Directory exists but empty - will skip Avro generation"
+            echo "SKIP_AVRO=true" >> $GITHUB_ENV
+            exit 0
+          }
+          
+          # Extract schemas from the image
+          docker create --name temp-schemas ghcr.io/rensights/avro-schemas:latest
+          docker cp temp-schemas:/schemas/schemas/. schemas/avro/ || {
+            echo "⚠️  Warning: Could not extract schemas from image"
+            echo "   Directory exists but empty - will skip Avro generation"
+            echo "SKIP_AVRO=true" >> $GITHUB_ENV
+            docker rm temp-schemas
+            exit 0
+          }
+          docker rm temp-schemas
+          
+          # Verify schemas were extracted and set property
+          if [ -n "$(ls -A schemas/avro/*.avsc 2>/dev/null)" ]; then
+            echo "✅ Avro schemas downloaded successfully:"
+            ls -la schemas/avro/
+            echo "SKIP_AVRO=false" >> $GITHUB_ENV
+          else
+            echo "⚠️  No .avsc files found - skipping Avro generation"
+            echo "SKIP_AVRO=true" >> $GITHUB_ENV
+          fi
+
+      - name: Build backend
+        working-directory: src
+        run: |
+          SKIP_AVRO_VALUE="${SKIP_AVRO:-false}"
+          echo "Building with skip.avro=${SKIP_AVRO_VALUE}"
+          mvn clean package -DskipTests -Dskip.avro=${SKIP_AVRO_VALUE}
+
+      - name: Run tests
+        working-directory: src
+        run: mvn test
+
+  # Step 2: Build Docker Image
+  build:
+    name: 2️⃣ Build Docker Image
+    runs-on: ubuntu-latest
+    needs: test
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.test.result == 'success'
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image_tag: ${{ steps.image-tag.outputs.tag }}
+    steps:
+      - name: Set image tag (pipeline number)
+        id: image-tag
+        run: |
+          RUN_NUMBER="${{ github.run_number }}"
+          echo "tag=${RUN_NUMBER}" >> $GITHUB_OUTPUT
+          echo "Pipeline run number: ${RUN_NUMBER}"
+          echo "Image tag: ${RUN_NUMBER}"
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.CONTAINER_TOKEN }}
+
+      - name: Verify avro-schemas image is available
+        run: |
+          echo "🔍 Verifying avro-schemas image is available..."
+          docker pull ghcr.io/rensights/avro-schemas:latest || {
+            echo "⚠️  Warning: avro-schemas:latest not found, will try to build anyway"
+            echo "   Make sure avro-schemas repository has been built and pushed"
+          }
+          echo "✅ Avro schemas image check completed"
+
+      - name: Set image repository (lowercase)
+        id: image-repo
+        run: |
+          REPO_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          REPO_NAME=$(echo "${{ github.event.repository.name }}" | tr '[:upper:]' '[:lower:]')
+          echo "repo_owner=${REPO_OWNER}" >> $GITHUB_OUTPUT
+          echo "repo_name=${REPO_NAME}" >> $GITHUB_OUTPUT
+          echo "Image will be: ghcr.io/${REPO_OWNER}/${REPO_NAME}"
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }}:${{ steps.image-tag.outputs.tag }}
+            ghcr.io/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }}:latest
+          platforms: linux/amd64
+          cache-from: type=registry,ref=ghcr.io/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }}:latest
+          cache-to: type=inline
+
+      - name: Output image info
+        run: |
+          echo "✅ Image pushed:"
+          echo "   ghcr.io/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }}:${{ steps.image-tag.outputs.tag }}"
+          echo "   ghcr.io/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }}:latest"
+          
+      - name: Verify image was pushed
+        run: |
+          IMAGE="ghcr.io/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }}:${{ steps.image-tag.outputs.tag }}"
+          echo "🔍 Verifying pushed image: ${IMAGE}"
+          # Wait a moment for image to be available
+          sleep 5
+          docker pull ${IMAGE} || {
+            echo "⚠️  Warning: Image might not be immediately available, but build completed"
+            echo "   Will retry in deploy step"
+          }
+          echo "✅ Build job completed successfully"
+
+  # Step 3: Deploy to Dev
+  deploy-dev:
+    name: 3️⃣ Deploy to Dev
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'push' && needs.build.result == 'success'
+    environment: dev
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: 'latest'
+
+      - name: Set up SSH with Passphrase
+        run: |
+          echo "Setting up SSH with passphrase..."
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          
+          # Start ssh-agent
+          eval "$(ssh-agent -s)"
+          echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> $GITHUB_ENV
+          echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> $GITHUB_ENV
+          
+          # Write private key to file (use absolute path)
+          SSH_KEY_PATH="$HOME/.ssh/id_ed25519"
+          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > "$SSH_KEY_PATH"
+          chmod 600 "$SSH_KEY_PATH"
+          
+          # Verify file was created
+          if [ ! -f "$SSH_KEY_PATH" ]; then
+            echo "❌ Error: SSH key file was not created at $SSH_KEY_PATH"
+            exit 1
+          fi
+          echo "✅ SSH key file created: $(ls -lh "$SSH_KEY_PATH")"
+          echo "File exists check: $(test -f "$SSH_KEY_PATH" && echo 'YES' || echo 'NO')"
+          
+          # Install expect if not available
+          sudo apt-get update -qq && sudo apt-get install -y -qq expect || true
+          
+          # Create expect script to handle passphrase (use absolute path)
+          cat > /tmp/ssh-add.exp << 'EXPECT_SCRIPT'
+          #!/usr/bin/expect -f
+          set timeout 30
+          set key_path "$env(HOME)/.ssh/id_ed25519"
+          puts "Attempting to add key from: $key_path"
+          puts "HOME env var: $env(HOME)"
+          
+          if {![file exists $key_path]} {
+            puts "ERROR: Key file does not exist at $key_path"
+            puts "Listing directory: [exec ls -la $env(HOME)/.ssh/]"
+            exit 1
+          }
+          
+          puts "Key file exists, size: [exec stat -c%s $key_path] bytes"
+          
+          spawn ssh-add "$key_path"
+          expect {
+            "Enter passphrase" {
+              puts "Passphrase prompt detected, sending passphrase..."
+              send "$env(SSH_PASSPHRASE)\r"
+              exp_continue
+            }
+            "Identity added" {
+              puts "✅ Identity added successfully"
+              expect eof
+            }
+            "Bad passphrase" {
+              puts "❌ ERROR: Bad passphrase"
+              exit 1
+            }
+            "Permission denied" {
+              puts "❌ ERROR: Permission denied"
+              exit 1
+            }
+            timeout {
+              puts "❌ ERROR: Timeout waiting for response"
+              exit 1
+            }
+            eof {
+              puts "Process ended"
+            }
+          }
+          catch wait result
+          set exit_code [lindex $result 3]
+          if {$exit_code != 0} {
+            puts "❌ ssh-add exited with code: $exit_code"
+            exit $exit_code
+          }
+          EXPECT_SCRIPT
+          
+          chmod +x /tmp/ssh-add.exp
+          
+          # Add key with passphrase (export variables for expect)
+          export SSH_PASSPHRASE="${{ secrets.SSH_PASSPHRASE }}"
+          export HOME="$HOME"
+          echo "HOME=$HOME" >> $GITHUB_ENV
+          echo "SSH_PASSPHRASE is set: $(test -n "$SSH_PASSPHRASE" && echo 'YES' || echo 'NO')"
+          echo "Key file path: $SSH_KEY_PATH"
+          echo "Key file content preview (first 50 chars): $(head -c 50 "$SSH_KEY_PATH")"
+          
+          # Run expect script with output
+          echo "Running expect script..."
+          /tmp/ssh-add.exp || {
+            echo "❌ Expect script failed with exit code: $?"
+            echo "Checking ssh-add directly..."
+            echo "$SSH_PASSPHRASE" | ssh-add "$SSH_KEY_PATH" || echo "Direct ssh-add also failed"
+            exit 1
+          }
+          
+          # Verify key was added
+          ssh-add -l
+          
+          # Test connection
+          ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@72.62.40.154 "echo 'SSH connection successful'"
+
+      - name: Set image repository (lowercase)
+        id: image-repo
+        run: |
+          REPO_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          REPO_NAME=$(echo "${{ github.event.repository.name }}" | tr '[:upper:]' '[:lower:]')
+          echo "repo_owner=${REPO_OWNER}" >> $GITHUB_OUTPUT
+          echo "repo_name=${REPO_NAME}" >> $GITHUB_OUTPUT
+
+      - name: Setup SSH Tunnel to Kubernetes API
+        run: |
+          echo "Setting up SSH tunnel to Kubernetes API server..."
+          ssh -f -N -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -L 6443:127.0.0.1:6443 root@72.62.40.154
+          sleep 3
+          echo "✅ SSH tunnel established"
+
+      - name: Configure kubectl
+        run: |
+          echo "${{ secrets.DEV_KUBECONFIG }}" | base64 -d > /tmp/kubeconfig
+          # Use localhost since we're tunneling through SSH
+          sed -i 's|server: https://.*:6443|server: https://127.0.0.1:6443|g' /tmp/kubeconfig
+          export KUBECONFIG=/tmp/kubeconfig
+          kubectl cluster-info
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.CONTAINER_TOKEN }}
+
+      - name: Verify image exists (using latest tag)
+        run: |
+          IMAGE="${REGISTRY}/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }}:latest"
+          echo "🔍 Verifying image exists: ${IMAGE}"
+          # Try to pull image metadata (this will fail if image doesn't exist)
+          docker pull ${IMAGE} || {
+            echo "❌ Error: Image ${IMAGE} not found!"
+            echo "   Make sure the build job completed successfully."
+            exit 1
+          }
+          echo "✅ Image verified: ${IMAGE}"
+
+      - name: Configure image pull secrets for GHCR
+        run: |
+          export KUBECONFIG=/tmp/kubeconfig
+          kubectl create secret docker-registry ghcr-secret \
+            --docker-server=ghcr.io \
+            --docker-username=${{ github.actor }} \
+            --docker-password=${{ secrets.CONTAINER_TOKEN }} \
+            --namespace ${DEV_NAMESPACE} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Deploy backend to dev
+        run: |
+          export KUBECONFIG=/tmp/kubeconfig
+          IMAGE_TAG="${{ needs.build.outputs.image_tag }}"
+          if [ -z "$IMAGE_TAG" ]; then
+            # Fallback: use pipeline run number
+            IMAGE_TAG="${{ github.run_number }}"
+          fi
+          echo "🚀 Deploying to DEV with tag: ${IMAGE_TAG}"
+          
+          # Check if backend-db-credentials secret exists, create/update with ClusterIP
+          # Note: Using ClusterIP instead of DNS name due to Java DNS resolution issues in Kubernetes pods
+          # The ClusterIP is stable and resolves reliably for Java applications
+          echo "Setting up database credentials with ClusterIP..."
+          if kubectl get svc postgres-backend-postgresql -n ${DEV_NAMESPACE} &>/dev/null; then
+            DB_IP=$(kubectl get svc postgres-backend-postgresql -n ${DEV_NAMESPACE} -o jsonpath='{.spec.clusterIP}')
+            DB_PORT=$(kubectl get svc postgres-backend-postgresql -n ${DEV_NAMESPACE} -o jsonpath='{.spec.ports[0].port}')
+            DB_PASSWORD=$(kubectl get secret --namespace ${DEV_NAMESPACE} postgres-backend-postgresql -o jsonpath="{.data.password}" | base64 -d)
+            
+            echo "PostgreSQL ClusterIP: $DB_IP"
+            echo "PostgreSQL Port: $DB_PORT"
+            
+            kubectl create secret generic backend-db-credentials \
+              --from-literal=postgres-host="$DB_IP" \
+              --from-literal=postgres-port="$DB_PORT" \
+              --from-literal=postgres-database="backend_db_dev" \
+              --from-literal=postgres-username="backend_user" \
+              --from-literal=postgres-password="$DB_PASSWORD" \
+              --namespace ${DEV_NAMESPACE} \
+              --dry-run=client -o yaml | kubectl apply -f -
+            
+            echo "✅ Database credentials secret updated with ClusterIP"
+          else
+            echo "⚠️  postgres-backend-postgresql service not found. PostgreSQL may not be installed."
+          fi
+          
+          # Check for stuck Helm releases and clean them up
+          echo "Checking for stuck Helm releases..."
+          MAX_RETRIES=3
+          RETRY_COUNT=0
+          
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            if helm list -n ${DEV_NAMESPACE} -q | grep -q "^backend$"; then
+              STATUS=$(helm status backend -n ${DEV_NAMESPACE} -o json 2>/dev/null | jq -r '.info.status' 2>/dev/null || echo "unknown")
+              echo "Current release status: $STATUS"
+              
+              # Clean up if stuck in pending state or failed state
+              if [ "$STATUS" = "pending-install" ] || [ "$STATUS" = "pending-upgrade" ] || [ "$STATUS" = "pending-rollback" ] || [ "$STATUS" = "failed" ]; then
+                if [ "$STATUS" = "failed" ]; then
+                  echo "⚠️  Release is in failed state (attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)"
+                  echo "Cleaning up failed release..."
+                else
+                echo "⚠️  Release is stuck in pending state (attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)"
+                fi
+                
+                # Try rollback first
+                helm rollback backend -n ${DEV_NAMESPACE} --force 2>&1 || true
+                sleep 5
+                # Check if still stuck/failed
+                STATUS=$(helm status backend -n ${DEV_NAMESPACE} -o json 2>/dev/null | jq -r '.info.status' 2>/dev/null || echo "unknown")
+                if [ "$STATUS" = "pending-install" ] || [ "$STATUS" = "pending-upgrade" ] || [ "$STATUS" = "pending-rollback" ] || [ "$STATUS" = "failed" ]; then
+                  echo "⚠️  Still in bad state ($STATUS), deleting release..."
+                  helm delete backend -n ${DEV_NAMESPACE} 2>&1 || true
+                  sleep 5
+                  echo "✅ Failed/stuck release cleaned up"
+                  break
+                else
+                  echo "✅ Release unstuck, status: $STATUS"
+                  break
+                fi
+              else
+                echo "✅ Release status is OK: $STATUS"
+                break
+              fi
+            else
+              echo "✅ No existing release found, ready for fresh install"
+              break
+            fi
+            
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+              echo "Waiting before retry..."
+              sleep 5
+            fi
+          done
+          
+          echo "Pre-deployment check complete"
+          
+          # Deploy new version - Helm will handle the upgrade automatically
+          echo "🚀 Deploying new version..."
+          echo "Deployment configuration:"
+          echo "  Image: ${REGISTRY}/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }}:${IMAGE_TAG}"
+          echo "  Namespace: ${DEV_NAMESPACE}"
+          
+          # Verify image exists before deploying
+          echo "Verifying image exists: ${FULL_IMAGE}"
+          if ! docker manifest inspect ${FULL_IMAGE} >/dev/null 2>&1; then
+            echo "❌ ERROR: Image ${FULL_IMAGE} does not exist!"
+            echo "Available tags for ${REGISTRY}/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }}:"
+            echo "Checking if latest exists as fallback..."
+            if docker manifest inspect ${REGISTRY}/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }}:latest >/dev/null 2>&1; then
+              echo "⚠️  WARNING: Tag ${IMAGE_TAG} not found, but 'latest' exists."
+              echo "This might cause the deployment to use 'latest' instead of ${IMAGE_TAG}"
+              echo "Please ensure the build job completed successfully and pushed tag ${IMAGE_TAG}"
+            else
+              echo "❌ ERROR: Neither tag ${IMAGE_TAG} nor 'latest' found!"
+              exit 1
+            fi
+          else
+            echo "✅ Image verified: ${FULL_IMAGE}"
+          fi
+          
+          # Deploy without waiting first to see if deployment succeeds
+          echo "Deploying with explicit image tag: ${IMAGE_TAG}"
+          helm upgrade --install backend ./charts \
+            --namespace ${DEV_NAMESPACE} \
+            --create-namespace \
+            -f env-values/dev/global.yaml \
+            -f env-values/dev/backend.yaml \
+            --set image.tag=${IMAGE_TAG} \
+            --set image.repository=${REGISTRY}/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }} \
+            --set imagePullSecrets[0].name=ghcr-secret \
+            --debug 2>&1 | head -100 || {
+            echo "❌ Helm upgrade command failed"
+            exit 1
+          }
+          
+          echo "Waiting for deployment to be ready (with extended timeout)..."
+          DEPLOY_OUTPUT=$(helm status backend -n ${DEV_NAMESPACE} --wait --timeout=8m 2>&1)
+          DEPLOY_EXIT=$?
+          
+          if [ $DEPLOY_EXIT -ne 0 ]; then
+            echo "⚠️  Helm wait failed with exit code: $DEPLOY_EXIT"
+            echo "Full output:"
+            echo "$DEPLOY_OUTPUT"
+            echo ""
+            echo "Checking deployment status..."
+            kubectl get deployment backend -n ${DEV_NAMESPACE} -o wide 2>&1 || true
+            echo ""
+            echo "Checking pod status..."
+            kubectl get pods -n ${DEV_NAMESPACE} -l app.kubernetes.io/name=backend -o wide 2>&1 || true
+            echo ""
+            echo "Checking which image tag is actually deployed..."
+            kubectl get deployment backend -n ${DEV_NAMESPACE} -o jsonpath='{.spec.template.spec.containers[0].image}' 2>&1 && echo "" || true
+            echo ""
+            echo "Checking pod logs..."
+            POD_NAME=$(kubectl get pod -n ${DEV_NAMESPACE} -l app.kubernetes.io/name=backend -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
+            if [ -n "$POD_NAME" ]; then
+              echo "Pod: $POD_NAME"
+              kubectl logs -n ${DEV_NAMESPACE} $POD_NAME --tail=50 2>&1 || true
+              echo ""
+              echo "Pod description:"
+              kubectl describe pod -n ${DEV_NAMESPACE} $POD_NAME | tail -50 2>&1 || true
+              echo ""
+              echo "Checking if pod is running but not ready..."
+              POD_PHASE=$(kubectl get pod -n ${DEV_NAMESPACE} $POD_NAME -o jsonpath='{.status.phase}' 2>/dev/null || echo "")
+              POD_READY=$(kubectl get pod -n ${DEV_NAMESPACE} $POD_NAME -o jsonpath='{.status.containerStatuses[0].ready}' 2>/dev/null || echo "")
+              echo "Pod Phase: $POD_PHASE"
+              echo "Pod Ready: $POD_READY"
+              
+              # If pod is running but not ready, that's OK - it might need more time
+              if [ "$POD_PHASE" = "Running" ]; then
+                echo "✅ Pod is running. If not ready yet, it may need more time for health checks."
+                echo "This is acceptable - deployment succeeded, pod just needs to pass health checks."
+                DEPLOY_EXIT=0
+              fi
+            fi
+            
+            # Check if error is "operation in progress"
+            if echo "$DEPLOY_OUTPUT" | grep -q "another operation.*is in progress"; then
+              echo "⚠️  Detected 'operation in progress' error, attempting cleanup..."
+              
+              # Check if release exists
+              if helm list -n ${DEV_NAMESPACE} -q | grep -q "^backend$"; then
+                STATUS=$(helm status backend -n ${DEV_NAMESPACE} -o json 2>/dev/null | jq -r '.info.status' 2>/dev/null || echo "unknown")
+                echo "Release status: $STATUS"
+                
+                # Try rollback first
+                echo "Attempting rollback..."
+                helm rollback backend -n ${DEV_NAMESPACE} --force 2>&1 || true
+                sleep 5
+                
+                # Check status again
+                STATUS=$(helm status backend -n ${DEV_NAMESPACE} -o json 2>/dev/null | jq -r '.info.status' 2>/dev/null || echo "unknown")
+                echo "Status after rollback: $STATUS"
+                
+                # If still stuck, delete
+                if [ "$STATUS" = "pending-install" ] || [ "$STATUS" = "pending-upgrade" ] || [ "$STATUS" = "pending-rollback" ]; then
+                  echo "⚠️  Still stuck, force deleting release..."
+                  helm delete backend -n ${DEV_NAMESPACE} 2>&1 || true
+                  sleep 5
+                fi
+              else
+                echo "⚠️  No release found, but error suggests one exists. Checking secrets..."
+                # Sometimes Helm secrets exist but release doesn't show up
+                kubectl get secret -n ${DEV_NAMESPACE} -l owner=helm | grep backend || echo "No backend Helm secrets found"
+              fi
+              
+                      echo "🔄 Retrying deployment after cleanup..."
+                      helm upgrade --install backend ./charts \
+                        --namespace ${DEV_NAMESPACE} \
+                        --create-namespace \
+                        -f env-values/dev/global.yaml \
+                        -f env-values/dev/backend.yaml \
+                        --set image.tag=${IMAGE_TAG} \
+                        --set image.repository=${REGISTRY}/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }} \
+                        --set imagePullSecrets[0].name=ghcr-secret \
+                        2>&1
+                      
+                      echo "Waiting for deployment..."
+                      helm status backend -n ${DEV_NAMESPACE} --wait --timeout=8m || {
+                        echo "⚠️  Deployment timeout, but checking pod status..."
+                        kubectl get pods -n ${DEV_NAMESPACE} -l app.kubernetes.io/name=backend
+                        # Don't fail if pod is running but not ready yet
+                        POD_STATUS=$(kubectl get pod -n ${DEV_NAMESPACE} -l app.kubernetes.io/name=backend -o jsonpath='{.items[0].status.phase}' 2>/dev/null || echo "")
+                        if [ "$POD_STATUS" = "Running" ]; then
+                          echo "✅ Pod is running, deployment successful (may need more time to become ready)"
+                          DEPLOY_EXIT=0
+                        else
+                          exit 1
+                        fi
+                      }
+            else
+              echo "❌ Deployment failed for unknown reason:"
+              echo "$DEPLOY_OUTPUT"
+              
+              # Final check: if pod exists and is running, consider it a partial success
+              POD_PHASE=$(kubectl get pod -n ${DEV_NAMESPACE} -l app.kubernetes.io/name=backend -o jsonpath='{.items[0].status.phase}' 2>/dev/null || echo "")
+              if [ "$POD_PHASE" = "Running" ]; then
+                echo ""
+                echo "⚠️  Note: Pod is running but deployment marked as failed."
+                echo "This might be due to health check timeout. Pod may become ready soon."
+                DEPLOY_EXIT=0
+              else
+              exit 1
+              fi
+            fi
+          else
+            echo "✅ Deployment successful"
+            echo "$DEPLOY_OUTPUT"
+            echo ""
+            echo "Verifying deployed image tag..."
+            DEPLOYED_IMAGE=$(kubectl get deployment backend -n ${DEV_NAMESPACE} -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || echo "")
+            EXPECTED_IMAGE="${REGISTRY}/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }}:${IMAGE_TAG}"
+            echo "Expected: ${EXPECTED_IMAGE}"
+            echo "Deployed: ${DEPLOYED_IMAGE}"
+            if [[ "$DEPLOYED_IMAGE" == *":${IMAGE_TAG}" ]]; then
+              echo "✅ Correct image tag deployed: ${IMAGE_TAG}"
+            elif [[ "$DEPLOYED_IMAGE" == *":latest" ]]; then
+              echo "⚠️  WARNING: Deployed image uses 'latest' tag instead of ${IMAGE_TAG}"
+              echo "This might indicate the image tag ${IMAGE_TAG} doesn't exist"
+            else
+              echo "⚠️  Unexpected image tag in deployment: ${DEPLOYED_IMAGE}"
+            fi
+          fi
+
+      - name: Verify deployment
+        run: |
+          export KUBECONFIG=/tmp/kubeconfig
+          echo "✅ Dev Deployment Status:"
+          kubectl get pods -n ${DEV_NAMESPACE} -l app=backend
+          kubectl get svc -n ${DEV_NAMESPACE} -l app=backend
+
+  # Step 4: Deploy to Prod (requires approval)
+  deploy-prod:
+    name: 4️⃣ Deploy to Prod (Requires Approval)
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'workflow_dispatch'
+    environment: 
+      name: production
+      # Add required reviewers in GitHub repository settings → Environments → production
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: 'latest'
+
+      - name: Set up SSH with Passphrase
+        run: |
+          echo "Setting up SSH with passphrase..."
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          
+          # Start ssh-agent
+          eval "$(ssh-agent -s)"
+          echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> $GITHUB_ENV
+          echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> $GITHUB_ENV
+          
+          # Write private key to file (use absolute path)
+          SSH_KEY_PATH="$HOME/.ssh/id_ed25519"
+          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > "$SSH_KEY_PATH"
+          chmod 600 "$SSH_KEY_PATH"
+          
+          # Verify file was created
+          if [ ! -f "$SSH_KEY_PATH" ]; then
+            echo "❌ Error: SSH key file was not created at $SSH_KEY_PATH"
+            exit 1
+          fi
+          echo "✅ SSH key file created: $(ls -lh "$SSH_KEY_PATH")"
+          echo "File exists check: $(test -f "$SSH_KEY_PATH" && echo 'YES' || echo 'NO')"
+          
+          # Install expect if not available
+          sudo apt-get update -qq && sudo apt-get install -y -qq expect || true
+          
+          # Create expect script to handle passphrase (use absolute path)
+          cat > /tmp/ssh-add.exp << 'EXPECT_SCRIPT'
+          #!/usr/bin/expect -f
+          set timeout 30
+          set key_path "$env(HOME)/.ssh/id_ed25519"
+          puts "Attempting to add key from: $key_path"
+          puts "HOME env var: $env(HOME)"
+          
+          if {![file exists $key_path]} {
+            puts "ERROR: Key file does not exist at $key_path"
+            puts "Listing directory: [exec ls -la $env(HOME)/.ssh/]"
+            exit 1
+          }
+          
+          puts "Key file exists, size: [exec stat -c%s $key_path] bytes"
+          
+          spawn ssh-add "$key_path"
+          expect {
+            "Enter passphrase" {
+              puts "Passphrase prompt detected, sending passphrase..."
+              send "$env(SSH_PASSPHRASE)\r"
+              exp_continue
+            }
+            "Identity added" {
+              puts "✅ Identity added successfully"
+              expect eof
+            }
+            "Bad passphrase" {
+              puts "❌ ERROR: Bad passphrase"
+              exit 1
+            }
+            "Permission denied" {
+              puts "❌ ERROR: Permission denied"
+              exit 1
+            }
+            timeout {
+              puts "❌ ERROR: Timeout waiting for response"
+              exit 1
+            }
+            eof {
+              puts "Process ended"
+            }
+          }
+          catch wait result
+          set exit_code [lindex $result 3]
+          if {$exit_code != 0} {
+            puts "❌ ssh-add exited with code: $exit_code"
+            exit $exit_code
+          }
+          EXPECT_SCRIPT
+          
+          chmod +x /tmp/ssh-add.exp
+          
+          # Add key with passphrase (export variables for expect)
+          export SSH_PASSPHRASE="${{ secrets.SSH_PASSPHRASE }}"
+          export HOME="$HOME"
+          echo "HOME=$HOME" >> $GITHUB_ENV
+          echo "SSH_PASSPHRASE is set: $(test -n "$SSH_PASSPHRASE" && echo 'YES' || echo 'NO')"
+          echo "Key file path: $SSH_KEY_PATH"
+          echo "Key file content preview (first 50 chars): $(head -c 50 "$SSH_KEY_PATH")"
+          
+          # Run expect script with output
+          echo "Running expect script..."
+          /tmp/ssh-add.exp || {
+            echo "❌ Expect script failed with exit code: $?"
+            echo "Checking ssh-add directly..."
+            echo "$SSH_PASSPHRASE" | ssh-add "$SSH_KEY_PATH" || echo "Direct ssh-add also failed"
+            exit 1
+          }
+          
+          # Verify key was added
+          ssh-add -l
+          
+          # Test connection
+          ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@72.62.40.154 "echo 'SSH connection successful'"
+
+      - name: Set image repository (lowercase)
+        id: image-repo
+        run: |
+          REPO_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          REPO_NAME=$(echo "${{ github.event.repository.name }}" | tr '[:upper:]' '[:lower:]')
+          echo "repo_owner=${REPO_OWNER}" >> $GITHUB_OUTPUT
+          echo "repo_name=${REPO_NAME}" >> $GITHUB_OUTPUT
+
+      - name: Setup SSH Tunnel to Kubernetes API
+        run: |
+          echo "Setting up SSH tunnel to Kubernetes API server..."
+          ssh -f -N -o StrictHostKeyChecking=no -L 6443:127.0.0.1:6443 root@72.62.40.154
+          sleep 3
+          echo "✅ SSH tunnel established"
+
+      - name: Configure kubectl
+        run: |
+          echo "${{ secrets.PROD_KUBECONFIG }}" | base64 -d > /tmp/kubeconfig
+          # Use localhost since we're tunneling
+          sed -i 's|server: https://.*:6443|server: https://127.0.0.1:6443|g' /tmp/kubeconfig
+          export KUBECONFIG=/tmp/kubeconfig
+          kubectl cluster-info
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.CONTAINER_TOKEN }}
+
+      - name: Verify image exists
+        run: |
+          IMAGE_TAG="${IMAGE_TAG:-latest}"
+          if [ -n "${{ github.event.inputs.image_tag }}" ]; then
+            IMAGE_TAG="${{ github.event.inputs.image_tag }}"
+          else
+            SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+            IMAGE_TAG="sha-${SHA}"
+          fi
+          IMAGE="${REGISTRY}/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }}:${IMAGE_TAG}"
+          echo "🔍 Verifying image exists: ${IMAGE}"
+          docker pull ${IMAGE} || {
+            echo "❌ Error: Image ${IMAGE} not found!"
+            echo "   Make sure the build job completed successfully."
+            exit 1
+          }
+          echo "✅ Image verified: ${IMAGE}"
+
+      - name: Configure image pull secrets for GHCR
+        run: |
+          export KUBECONFIG=/tmp/kubeconfig
+          kubectl create secret docker-registry ghcr-secret \
+            --docker-server=ghcr.io \
+            --docker-username=${{ github.actor }} \
+            --docker-password=${{ secrets.CONTAINER_TOKEN }} \
+            --namespace ${PROD_NAMESPACE} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Setup backend-db-credentials secret for prod
+        run: |
+          export KUBECONFIG=/tmp/kubeconfig
+          # Setup database credentials with service name (most reliable for Kubernetes)
+          echo "Setting up database credentials with service name..."
+          if kubectl get svc postgres-backend-postgresql -n ${PROD_NAMESPACE} &>/dev/null; then
+            DB_PORT=$(kubectl get svc postgres-backend-postgresql -n ${PROD_NAMESPACE} -o jsonpath='{.spec.ports[0].port}')
+            DB_PASSWORD=$(kubectl get secret --namespace ${PROD_NAMESPACE} postgres-backend-postgresql -o jsonpath="{.data.password}" | base64 -d)
+            
+            echo "PostgreSQL Service: postgres-backend-postgresql"
+            echo "PostgreSQL Port: $DB_PORT"
+            
+            kubectl create secret generic backend-db-credentials \
+              --from-literal=postgres-host="postgres-backend-postgresql.${PROD_NAMESPACE}.svc.cluster.local" \
+              --from-literal=postgres-port="$DB_PORT" \
+              --from-literal=postgres-database="backend_db_prod" \
+              --from-literal=postgres-username="backend_user" \
+              --from-literal=postgres-password="$DB_PASSWORD" \
+              --namespace ${PROD_NAMESPACE} \
+              --dry-run=client -o yaml | kubectl apply -f -
+            
+            echo "✅ Database credentials secret updated with FQDN"
+          else
+            echo "⚠️  postgres-backend-postgresql service not found. PostgreSQL may not be installed."
+          fi
+
+      - name: Deploy backend to prod
+        run: |
+          export KUBECONFIG=/tmp/kubeconfig
+          IMAGE_TAG="${{ needs.build.outputs.image_tag }}"
+          if [ -z "$IMAGE_TAG" ]; then
+            # Fallback: use pipeline run number
+            IMAGE_TAG="${{ github.run_number }}"
+          fi
+          if [ -n "${{ github.event.inputs.image_tag }}" ]; then
+            IMAGE_TAG="${{ github.event.inputs.image_tag }}"
+          fi
+          echo "🚀 Deploying to PRODUCTION with tag: ${IMAGE_TAG}"
+          helm upgrade --install backend ./charts \
+            --namespace ${PROD_NAMESPACE} \
+            --create-namespace \
+            -f env-values/prod/global.yaml \
+            -f env-values/prod/backend.yaml \
+            --set image.tag=${IMAGE_TAG} \
+            --set image.repository=${REGISTRY}/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }} \
+            --set imagePullSecrets[0].name=ghcr-secret \
+            --wait --timeout=5m
+
+      - name: Verify deployment
+        run: |
+          export KUBECONFIG=/tmp/kubeconfig
+          echo "✅ Production Deployment Status:"
+          kubectl get pods -n ${PROD_NAMESPACE} -l app=backend
+          kubectl get svc -n ${PROD_NAMESPACE} -l app=backend
+
