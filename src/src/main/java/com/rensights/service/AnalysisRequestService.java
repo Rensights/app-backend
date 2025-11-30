@@ -7,6 +7,7 @@ import com.rensights.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -29,6 +30,12 @@ public class AnalysisRequestService {
     
     @Autowired
     private FileStorageService fileStorageService;
+    
+    @Autowired(required = false)
+    private EmailService emailService;
+    
+    @Value("${app.admin.email:admin@rensights.com}")
+    private String adminEmail;
     
     @Transactional
     public AnalysisRequest createAnalysisRequest(
@@ -111,6 +118,24 @@ public class AnalysisRequestService {
         }
         
         logger.info("Created analysis request: {} for email: {}", request.getId(), email);
+        
+        // Send email notification to admin
+        if (emailService != null) {
+            try {
+                String propertyAddress = String.format("%s, %s, %s", buildingName, area, city);
+                emailService.sendAnalysisRequestNotification(
+                    adminEmail,
+                    request.getId().toString(),
+                    email,
+                    propertyAddress
+                );
+                logger.info("✅ Admin notification email sent for analysis request: {}", request.getId());
+            } catch (Exception e) {
+                logger.error("Failed to send admin notification email for analysis request: {}", request.getId(), e);
+                // Don't fail the request creation if email fails
+            }
+        }
+        
         return request;
     }
     
