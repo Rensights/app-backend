@@ -62,5 +62,47 @@ public class EmailService {
             throw new RuntimeException("Failed to send verification email: " + e.getMessage(), e);
         }
     }
+    
+    public void sendPasswordResetCode(String toEmail, String code) {
+        logger.info("=== EmailService.sendPasswordResetCode called ===");
+        logger.info("Email enabled: {}", emailEnabled);
+        logger.info("MailSender available: {}", mailSender != null);
+        logger.info("From email: {}", fromEmail);
+        logger.info("To email: {}", toEmail);
+        
+        if (!emailEnabled) {
+            logger.warn("Email is disabled. Password reset code for {}: {}", toEmail, code);
+            return;
+        }
+        
+        if (mailSender == null) {
+            logger.error("JavaMailSender is not available! Email configuration may be missing.");
+            logger.warn("DEV MODE: Password Reset Code for {}: {}", toEmail, code);
+            return;
+        }
+        
+        try {
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setFrom(fromEmail);
+            message.setTo(toEmail);
+            message.setSubject("Rensights - Password Reset Code");
+            message.setText(String.join("\n",
+                "Your password reset code is: " + code,
+                "",
+                "This code will expire in 10 minutes.",
+                "",
+                "If you didn't request this code, please ignore this email.",
+                "",
+                "For security reasons, please do not share this code with anyone."
+            ));
+            
+            logger.info("Attempting to send password reset email to: {}", toEmail);
+            mailSender.send(message);
+            logger.info("✅ Password reset email sent successfully to: {}", toEmail);
+        } catch (Exception e) {
+            logger.error("❌ Failed to send password reset email to: {}", toEmail, e);
+            throw new RuntimeException("Failed to send password reset email: " + e.getMessage(), e);
+        }
+    }
 }
 

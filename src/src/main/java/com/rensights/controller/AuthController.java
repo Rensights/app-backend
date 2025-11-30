@@ -1,12 +1,15 @@
 package com.rensights.controller;
 
 import com.rensights.dto.AuthResponse;
+import com.rensights.dto.ForgotPasswordRequest;
 import com.rensights.dto.LoginRequest;
 import com.rensights.dto.RegisterRequest;
+import com.rensights.dto.ResetPasswordRequest;
 import com.rensights.dto.SendVerificationCodeRequest;
 import com.rensights.dto.VerifyCodeRequest;
 import com.rensights.dto.VerifyDeviceRequest;
 import com.rensights.dto.VerifyEmailRequest;
+import com.rensights.dto.VerifyResetCodeRequest;
 import com.rensights.service.AuthService;
 import com.rensights.service.DeviceService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -178,6 +181,74 @@ public class AuthController {
             logger.error("❌ Unexpected error resending verification code: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new ErrorResponse("Failed to resend verification code: " + e.getMessage()));
+        }
+    }
+    
+    /**
+     * Request password reset - sends reset code to email
+     */
+    @PostMapping("/forgot-password")
+    public ResponseEntity<?> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        logger.info("=== Forgot password called for: {}", request.getEmail());
+        
+        try {
+            authService.requestPasswordReset(request.getEmail());
+            logger.info("✅ Password reset code sent to: {}", request.getEmail());
+            return ResponseEntity.ok(new MessageResponse("Password reset code sent to your email"));
+        } catch (RuntimeException e) {
+            logger.error("❌ Error requesting password reset: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(new ErrorResponse(e.getMessage()));
+        } catch (Exception e) {
+            logger.error("❌ Unexpected error requesting password reset: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ErrorResponse("Failed to send password reset code: " + e.getMessage()));
+        }
+    }
+    
+    /**
+     * Verify password reset code
+     */
+    @PostMapping("/verify-reset-code")
+    public ResponseEntity<?> verifyResetCode(@Valid @RequestBody VerifyResetCodeRequest request) {
+        logger.info("=== Verify reset code called for: {}", request.getEmail());
+        
+        try {
+            boolean isValid = authService.verifyResetCode(request.getEmail(), request.getCode());
+            if (isValid) {
+                logger.info("✅ Reset code verified for: {}", request.getEmail());
+                return ResponseEntity.ok(new MessageResponse("Reset code verified successfully"));
+            } else {
+                logger.warn("❌ Invalid reset code for: {}", request.getEmail());
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(new ErrorResponse("Invalid or expired reset code"));
+            }
+        } catch (Exception e) {
+            logger.error("❌ Unexpected error verifying reset code: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ErrorResponse("Failed to verify reset code: " + e.getMessage()));
+        }
+    }
+    
+    /**
+     * Reset password with code
+     */
+    @PostMapping("/reset-password")
+    public ResponseEntity<?> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        logger.info("=== Reset password called for: {}", request.getEmail());
+        
+        try {
+            authService.resetPassword(request.getEmail(), request.getCode(), request.getNewPassword());
+            logger.info("✅ Password reset successful for: {}", request.getEmail());
+            return ResponseEntity.ok(new MessageResponse("Password reset successfully"));
+        } catch (RuntimeException e) {
+            logger.error("❌ Error resetting password: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(new ErrorResponse(e.getMessage()));
+        } catch (Exception e) {
+            logger.error("❌ Unexpected error resetting password: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ErrorResponse("Failed to reset password: " + e.getMessage()));
         }
     }
     

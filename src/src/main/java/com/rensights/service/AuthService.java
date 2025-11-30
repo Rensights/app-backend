@@ -238,6 +238,55 @@ public class AuthService {
         }
     }
     
+    /**
+     * Request password reset - sends reset code to email
+     */
+    @Transactional
+    public void requestPasswordReset(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        
+        if (!user.getIsActive()) {
+            throw new RuntimeException("Account is deactivated");
+        }
+        
+        // Generate reset code using verification code service
+        String code = verificationCodeService.generateCode("reset:" + email);
+        emailService.sendPasswordResetCode(email, code);
+        logger.info("Password reset code sent to: {}", email);
+    }
+    
+    /**
+     * Verify password reset code
+     */
+    public boolean verifyResetCode(String email, String code) {
+        return verificationCodeService.verifyCode("reset:" + email, code);
+    }
+    
+    /**
+     * Reset password with code
+     */
+    @Transactional
+    public void resetPassword(String email, String code, String newPassword) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        
+        if (!user.getIsActive()) {
+            throw new RuntimeException("Account is deactivated");
+        }
+        
+        // Verify the reset code
+        if (!verificationCodeService.verifyCode("reset:" + email, code)) {
+            throw new RuntimeException("Invalid or expired reset code");
+        }
+        
+        // Update password
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+        
+        logger.info("Password reset successful for: {}", email);
+    }
+    
     // Response classes
     @lombok.Data
     @lombok.Builder
