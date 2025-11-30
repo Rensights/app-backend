@@ -1,0 +1,145 @@
+package com.rensights.service;
+
+import com.rensights.model.AnalysisRequest;
+import com.rensights.model.User;
+import com.rensights.repository.AnalysisRequestRepository;
+import com.rensights.repository.UserRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.util.List;
+import java.util.UUID;
+
+@Service
+public class AnalysisRequestService {
+    
+    private static final Logger logger = LoggerFactory.getLogger(AnalysisRequestService.class);
+    
+    @Autowired
+    private AnalysisRequestRepository analysisRequestRepository;
+    
+    @Autowired
+    private UserRepository userRepository;
+    
+    @Autowired
+    private FileStorageService fileStorageService;
+    
+    @Transactional
+    public AnalysisRequest createAnalysisRequest(
+            String email,
+            UUID userId,
+            String city,
+            String area,
+            String buildingName,
+            String listingUrl,
+            String propertyType,
+            String bedrooms,
+            String size,
+            String plotSize,
+            String floor,
+            String totalFloors,
+            String buildingStatus,
+            String condition,
+            String latitude,
+            String longitude,
+            String askingPrice,
+            String serviceCharge,
+            String handoverDate,
+            String developer,
+            String paymentPlan,
+            List<String> features,
+            String view,
+            String furnishing,
+            String additionalNotes,
+            MultipartFile[] files
+    ) throws Exception {
+        // Get user if authenticated
+        User user = null;
+        if (userId != null) {
+            user = userRepository.findById(userId).orElse(null);
+        }
+        
+        // Create analysis request
+        AnalysisRequest request = AnalysisRequest.builder()
+                .user(user)
+                .email(email)
+                .city(city)
+                .area(area)
+                .buildingName(buildingName)
+                .listingUrl(listingUrl)
+                .propertyType(propertyType)
+                .bedrooms(bedrooms)
+                .size(size)
+                .plotSize(plotSize)
+                .floor(floor)
+                .totalFloors(totalFloors)
+                .buildingStatus(buildingStatus)
+                .condition(condition)
+                .latitude(latitude)
+                .longitude(longitude)
+                .askingPrice(askingPrice)
+                .serviceCharge(serviceCharge)
+                .handoverDate(handoverDate)
+                .developer(developer)
+                .paymentPlan(paymentPlan)
+                .features(features)
+                .view(view)
+                .furnishing(furnishing)
+                .additionalNotes(additionalNotes)
+                .status(AnalysisRequest.AnalysisRequestStatus.PENDING)
+                .build();
+        
+        // Save request first to get ID
+        request = analysisRequestRepository.save(request);
+        
+        // Store files if provided
+        if (files != null && files.length > 0) {
+            try {
+                List<String> filePaths = fileStorageService.storeFiles(files, request.getId());
+                request.setFilePaths(filePaths);
+                request = analysisRequestRepository.save(request);
+            } catch (Exception e) {
+                logger.error("Error storing files for analysis request: {}", request.getId(), e);
+                // Continue without files rather than failing the entire request
+            }
+        }
+        
+        logger.info("Created analysis request: {} for email: {}", request.getId(), email);
+        return request;
+    }
+    
+    public Page<AnalysisRequest> getAllRequests(Pageable pageable) {
+        return analysisRequestRepository.findAllByOrderByCreatedAtDesc(pageable);
+    }
+    
+    public AnalysisRequest getRequestById(UUID id) {
+        return analysisRequestRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Analysis request not found"));
+    }
+    
+    public List<AnalysisRequest> getRequestsByEmail(String email) {
+        return analysisRequestRepository.findByEmailOrderByCreatedAtDesc(email);
+    }
+    
+    public List<AnalysisRequest> getRequestsByUserId(UUID userId) {
+        return analysisRequestRepository.findByUserIdOrderByCreatedAtDesc(userId);
+    }
+    
+    @Transactional
+    public AnalysisRequest updateStatus(UUID id, AnalysisRequest.AnalysisRequestStatus status) {
+        AnalysisRequest request = getRequestById(id);
+        request.setStatus(status);
+        return analysisRequestRepository.save(request);
+    }
+    
+    public long getPendingCount() {
+        return analysisRequestRepository.countByStatus(AnalysisRequest.AnalysisRequestStatus.PENDING);
+    }
+}
+

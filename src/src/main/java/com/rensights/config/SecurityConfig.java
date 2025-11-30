@@ -31,6 +31,9 @@ public class SecurityConfig {
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/**").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/analysis-requests").permitAll() // Allow submission without auth
+                .requestMatchers("/api/analysis-requests/files/**").permitAll() // Allow file access
+                .requestMatchers("/api/analysis-requests/my-requests").authenticated() // User's own requests require auth
                 .requestMatchers("/api/subscriptions/**").authenticated()
                 .requestMatchers("/users/**").authenticated()
                 .requestMatchers("/actuator/**").permitAll()

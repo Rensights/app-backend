@@ -63,3 +63,9 @@ Current Dockerfile uses `latest` tag, which will automatically use the newest re
 - [v0.0.1 Release](https://github.com/Rensights/avro-schemas/releases/tag/v0.0.1)
 - [Avro Integration Guide](./AVRO_INTEGRATION.md)
 
+
+
+
+
+
+
