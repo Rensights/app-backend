@@ -104,5 +104,50 @@ public class EmailService {
             throw new RuntimeException("Failed to send password reset email: " + e.getMessage(), e);
         }
     }
+    
+    public void sendAnalysisRequestNotification(String adminEmail, String requestId, String userEmail, String propertyAddress) {
+        logger.info("=== EmailService.sendAnalysisRequestNotification called ===");
+        logger.info("Email enabled: {}", emailEnabled);
+        logger.info("MailSender available: {}", mailSender != null);
+        logger.info("Admin email: {}", adminEmail);
+        logger.info("Request ID: {}", requestId);
+        
+        if (!emailEnabled) {
+            logger.warn("Email is disabled. Analysis request notification for admin {}: Request ID {}", adminEmail, requestId);
+            return;
+        }
+        
+        if (mailSender == null) {
+            logger.error("JavaMailSender is not available! Email configuration may be missing.");
+            logger.warn("DEV MODE: New Analysis Request - ID: {}, User: {}, Property: {}", requestId, userEmail, propertyAddress);
+            return;
+        }
+        
+        try {
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setFrom(fromEmail);
+            message.setTo(adminEmail);
+            message.setSubject("Rensights - New Property Analysis Request");
+            message.setText(String.join("\n",
+                "A new property analysis request has been submitted.",
+                "",
+                "Request Details:",
+                "  Request ID: " + requestId,
+                "  User Email: " + userEmail,
+                "  Property: " + propertyAddress,
+                "",
+                "Please review the request in the admin dashboard.",
+                "",
+                "Login to admin panel to view full details and process the request."
+            ));
+            
+            logger.info("Attempting to send analysis request notification to admin: {}", adminEmail);
+            mailSender.send(message);
+            logger.info("✅ Analysis request notification sent successfully to admin: {}", adminEmail);
+        } catch (Exception e) {
+            logger.error("❌ Failed to send analysis request notification to admin: {}", adminEmail, e);
+            // Don't throw exception - email failure shouldn't block request creation
+        }
+    }
 }
 
