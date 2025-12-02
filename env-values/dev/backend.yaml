@@ -13,9 +13,9 @@ service:
 database:
   host: ""  # Will be set from service IP in CI/CD
   port: 5432
-  name: backend_db_dev
-  usernameSecret: backend-db-user
-  passwordSecret: backend-db-password
+  name: public_db_dev
+  usernameSecret: public-db-user
+  passwordSecret: public-db-password
 
 resources:
   requests:

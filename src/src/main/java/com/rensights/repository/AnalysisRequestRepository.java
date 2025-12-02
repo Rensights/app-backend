@@ -20,3 +20,5 @@ public interface AnalysisRequestRepository extends JpaRepository<AnalysisRequest
     long countByStatus(AnalysisRequest.AnalysisRequestStatus status);
 }
 
+
+

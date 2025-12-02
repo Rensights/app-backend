@@ -3,9 +3,9 @@ spring:
     name: rensights-backend
   
   datasource:
-    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/rensights_dev}
-    username: ${DATABASE_USER:rensights}
-    password: ${DATABASE_PASSWORD:rensights_dev_password}
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/public_db_dev}
+    username: ${DATABASE_USER:public_user}
+    password: ${DATABASE_PASSWORD:password}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 10
