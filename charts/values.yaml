@@ -66,7 +66,8 @@ tolerations: []
 extraEnv: {}
 
 secrets:
-  dbCredentials: backend-db-credentials
+  dbCredentials: admin-db-credentials
+  publicDbCredentials: public-db-credentials
   jwtSecret: jwt-secret
   stripeSecrets: stripe-secrets
 

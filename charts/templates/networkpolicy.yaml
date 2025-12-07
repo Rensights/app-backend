@@ -16,12 +16,20 @@ spec:
   - Ingress
   {{- end }}
   egress:
-  # Allow egress to PostgreSQL database
+  # Allow egress to PostgreSQL databases (admin and public)
   - to:
     - podSelector:
         matchLabels:
           app.kubernetes.io/name: postgresql
-          app.kubernetes.io/instance: postgres-backend
+          app.kubernetes.io/instance: postgres-admin
+    ports:
+    - protocol: TCP
+      port: {{ .Values.networkPolicy.databasePort | default 5432 }}
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: postgresql
+          app.kubernetes.io/instance: postgres-public
     ports:
     - protocol: TCP
       port: {{ .Values.networkPolicy.databasePort | default 5432 }}

@@ -285,7 +285,7 @@ jobs:
             STATUS=$(helm status backend -n ${DEV_NAMESPACE} -o json 2>/dev/null | jq -r '.info.status' 2>/dev/null || echo "unknown")
             if [[ "$STATUS" =~ ^(pending-install|pending-upgrade|pending-rollback|failed)$ ]]; then
               echo "⚠️  Cleaning up stuck release (status: $STATUS)..."
-              helm rollback backend -n ${DEV_NAMESPACE} --force 2>&1 || true
+              helm rollback backend -n ${DEV_NAMESPACE} --force-replace 2>&1 || true
               sleep 3
               helm delete backend -n ${DEV_NAMESPACE} 2>&1 || true
               sleep 3
@@ -300,8 +300,8 @@ jobs:
             -f env-values/dev/backend.yaml \
             --set image.tag=${IMAGE_TAG} \
             --set image.repository=${REGISTRY}/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }} \
-            --set imagePullSecrets[0].name=ghcr-secret \
-            --atomic --timeout=8m || {
+                --set imagePullSecrets[0].name=ghcr-secret \
+                --rollback-on-failure --timeout=8m || {
             
             echo "⚠️  Deployment failed or timed out, checking status..."
             kubectl get pods -n ${DEV_NAMESPACE} -l app.kubernetes.io/name=backend -o wide
@@ -441,8 +441,8 @@ jobs:
             -f env-values/prod/backend.yaml \
             --set image.tag=${IMAGE_TAG} \
             --set image.repository=${REGISTRY}/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }} \
-            --set imagePullSecrets[0].name=ghcr-secret \
-            --atomic --timeout=8m
+                --set imagePullSecrets[0].name=ghcr-secret \
+                --rollback-on-failure --timeout=8m
 
       - name: Verify deployment
         run: |
