@@ -59,13 +59,17 @@ public class DeviceService {
         // Check if device already exists
         return deviceRepository.findByUserIdAndDeviceFingerprint(userId, deviceFingerprint)
                 .orElseGet(() -> {
-                    // Create new device
+                    // Create new device - set all timestamp fields explicitly to ensure they're not null
+                    // @PrePersist should also set them, but we set them here as a safety measure
+                    LocalDateTime now = LocalDateTime.now();
                     Device device = Device.builder()
                             .userId(userId)
                             .deviceFingerprint(deviceFingerprint)
                             .userAgent(request.getHeader("User-Agent"))
                             .ipAddress(getClientIpAddress(request))
-                            .lastUsedAt(LocalDateTime.now())
+                            .createdAt(now)
+                            .updatedAt(now)
+                            .lastUsedAt(now)
                             .build();
                     return deviceRepository.save(device);
                 });
