@@ -51,16 +51,20 @@ public class PublicDataSourceConfig {
             EntityManagerFactoryBuilder builder,
             @Qualifier("publicDataSource") DataSource dataSource) {
         Map<String, String> properties = new HashMap<>();
-        properties.put("hibernate.hbm2ddl.auto", "validate");
+        properties.put("hibernate.hbm2ddl.auto", "none");
         properties.put("hibernate.format_sql", "true");
         properties.put("hibernate.show_sql", "true");
+        properties.put("hibernate.archive.autodetection", "none");
         
-        return builder
-            .dataSource(dataSource)
-            .packages(Deal.class)
-            .persistenceUnit("public")
-            .properties(properties)
-            .build();
+        // Only include Deal entity explicitly - prevent auto-discovery of other entities
+        LocalContainerEntityManagerFactoryBean factory = new LocalContainerEntityManagerFactoryBean();
+        factory.setDataSource(dataSource);
+        factory.setAnnotatedClasses(Deal.class);
+        factory.setPersistenceUnitName("public");
+        factory.setJpaPropertyMap(properties);
+        factory.setPersistenceProviderClass(org.hibernate.jpa.HibernatePersistenceProvider.class);
+        
+        return factory;
     }
 
     @Bean(name = "publicTransactionManager")
