@@ -60,7 +60,6 @@ public class DeviceService {
         return deviceRepository.findByUserIdAndDeviceFingerprint(userId, deviceFingerprint)
                 .orElseGet(() -> {
                     // Create new device - set all timestamp fields explicitly to ensure they're not null
-                    // @PrePersist should also set them, but we set them here as a safety measure
                     LocalDateTime now = LocalDateTime.now();
                     Device device = Device.builder()
                             .userId(userId)
@@ -71,7 +70,28 @@ public class DeviceService {
                             .updatedAt(now)
                             .lastUsedAt(now)
                             .build();
-                    return deviceRepository.save(device);
+                    
+                    // Double-check that updatedAt is set (shouldn't be needed but ensures it's never null)
+                    if (device.getUpdatedAt() == null) {
+                        device.setUpdatedAt(now);
+                    }
+                    if (device.getCreatedAt() == null) {
+                        device.setCreatedAt(now);
+                    }
+                    if (device.getLastUsedAt() == null) {
+                        device.setLastUsedAt(now);
+                    }
+                    
+                    // Save the device - @PrePersist will also set timestamps as a backup
+                    Device saved = deviceRepository.save(device);
+                    
+                    // Final verification - if somehow updatedAt is still null, set it and save again
+                    if (saved.getUpdatedAt() == null) {
+                        saved.setUpdatedAt(LocalDateTime.now());
+                        saved = deviceRepository.save(saved);
+                    }
+                    
+                    return saved;
                 });
     }
     
