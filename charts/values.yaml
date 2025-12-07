@@ -3,7 +3,7 @@ replicaCount: 1
 
 image:
   repository: ghcr.io/rensights/app-backend
-  tag: ""  # Will be set by CI/CD with pipeline run number
+  # tag is set by CI/CD via --set image.tag=${IMAGE_TAG}
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
