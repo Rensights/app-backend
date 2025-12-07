@@ -293,15 +293,22 @@ jobs:
           fi
           
           echo "🚀 Deploying to DEV with tag: ${IMAGE_TAG}"
+          
+          # Force update by adding a timestamp annotation that changes each time
+          TIMESTAMP=$(date +%s)
           helm upgrade --install backend ./charts \
             --namespace ${DEV_NAMESPACE} \
             --create-namespace \
             -f env-values/dev/global.yaml \
             -f env-values/dev/backend.yaml \
             --set image.tag=${IMAGE_TAG} \
+            --set image.pullPolicy=Always \
             --set image.repository=${REGISTRY}/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }} \
-                --set imagePullSecrets[0].name=ghcr-secret \
-                --rollback-on-failure --timeout=8m || {
+            --set imagePullSecrets[0].name=ghcr-secret \
+            --set podAnnotations."deployment\.timestamp"=${TIMESTAMP} \
+            --force-replace \
+            --reset-values \
+            --rollback-on-failure --timeout=8m || {
             
             echo "⚠️  Deployment failed or timed out, checking status..."
             kubectl get pods -n ${DEV_NAMESPACE} -l app.kubernetes.io/name=backend -o wide
@@ -316,9 +323,29 @@ jobs:
       - name: Verify deployment
         run: |
           export KUBECONFIG=/tmp/kubeconfig
+          IMAGE_TAG="${{ needs.build.outputs.image_tag }}"
           echo "✅ Dev Deployment Status:"
           kubectl get pods -n ${DEV_NAMESPACE} -l app.kubernetes.io/name=backend
           kubectl get svc -n ${DEV_NAMESPACE} -l app.kubernetes.io/name=backend
+          
+          echo ""
+          echo "🔍 Verifying deployed image tag..."
+          DEPLOYED_IMAGE=$(kubectl get deployment backend -n ${DEV_NAMESPACE} -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || echo "")
+          echo "Deployed image: ${DEPLOYED_IMAGE}"
+          echo "Expected tag: ${IMAGE_TAG}"
+          
+          if echo "${DEPLOYED_IMAGE}" | grep -q ":${IMAGE_TAG}$"; then
+            echo "✅ Image tag matches!"
+          else
+            echo "⚠️  Warning: Image tag mismatch! Forcing pod restart..."
+            kubectl rollout restart deployment backend -n ${DEV_NAMESPACE}
+            sleep 10
+            kubectl rollout status deployment backend -n ${DEV_NAMESPACE} --timeout=5m
+          fi
+          
+          echo ""
+          echo "📋 Final pod details:"
+          kubectl get pods -n ${DEV_NAMESPACE} -l app.kubernetes.io/name=backend -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.spec.containers[0].image}{"\t"}{.status.phase}{"\n"}{end}'
 
   # Step 4: Deploy to Prod (requires approval)
   deploy-prod:
