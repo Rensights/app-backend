@@ -40,14 +40,20 @@ public class Device {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
     
+    @Column(name = "updated_at", nullable = false)
+    private LocalDateTime updatedAt;
+    
     @PrePersist
     protected void onCreate() {
-        createdAt = LocalDateTime.now();
-        lastUsedAt = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now();
+        createdAt = now;
+        updatedAt = now;
+        lastUsedAt = now;
     }
     
     @PreUpdate
     protected void onUpdate() {
+        updatedAt = LocalDateTime.now();
         lastUsedAt = LocalDateTime.now();
     }
 }
