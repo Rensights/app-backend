@@ -5,12 +5,16 @@ metadata:
   name: {{ include "backend.fullname" . }}
   labels:
     {{- include "backend.labels" . | nindent 4 }}
+  {{- if .Values.ingress.annotations }}
   annotations:
-    {{- with .Values.ingress.annotations }}
-    {{- toYaml . | nindent 4 }}
-    {{- end }}
+    {{- toYaml .Values.ingress.annotations | nindent 4 }}
     # Reference KongPlugin for CORS
     konghq.com/plugins: {{ include "backend.fullname" . }}-cors
+  {{- else }}
+  annotations:
+    # Reference KongPlugin for CORS
+    konghq.com/plugins: {{ include "backend.fullname" . }}-cors
+  {{- end }}
 spec:
   {{- if .Values.ingress.className }}
   ingressClassName: {{ .Values.ingress.className }}
