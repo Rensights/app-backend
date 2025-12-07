@@ -2,8 +2,6 @@ package com.rensights.service;
 
 import com.rensights.model.Device;
 import com.rensights.repository.DeviceRepository;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceContext;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -17,9 +15,6 @@ public class DeviceService {
     
     @Autowired
     private DeviceRepository deviceRepository;
-    
-    @PersistenceContext
-    private EntityManager entityManager;
     
     /**
      * Generate a device fingerprint from request headers
@@ -64,28 +59,34 @@ public class DeviceService {
         // Check if device already exists
         return deviceRepository.findByUserIdAndDeviceFingerprint(userId, deviceFingerprint)
                 .orElseGet(() -> {
-                    // Create new device - DO NOT set timestamp fields in builder
-                    // Let @CreationTimestamp, @UpdateTimestamp, and @PrePersist handle them
+                    // Create new device - MUST explicitly set ALL timestamp fields
+                    // Hibernate annotations aren't working, so we set them explicitly
+                    // This ensures they're included in the INSERT statement
+                    LocalDateTime now = LocalDateTime.now();
+                    
                     Device device = Device.builder()
                             .userId(userId)
                             .deviceFingerprint(deviceFingerprint)
                             .userAgent(request.getHeader("User-Agent"))
                             .ipAddress(getClientIpAddress(request))
-                            // Don't set createdAt, updatedAt, or lastUsedAt here
-                            // They will be set by @CreationTimestamp, @UpdateTimestamp, and @PrePersist
+                            .createdAt(now)  // Explicitly set - required for INSERT
+                            .updatedAt(now)  // Explicitly set - required for INSERT  
+                            .lastUsedAt(now) // Explicitly set - required for INSERT
                             .build();
                     
-                    // Set lastUsedAt explicitly since it doesn't have a Hibernate annotation
-                    LocalDateTime now = LocalDateTime.now();
-                    device.setLastUsedAt(now);
+                    // Double-check all timestamps are set (defensive programming)
+                    if (device.getCreatedAt() == null) {
+                        device.setCreatedAt(now);
+                    }
+                    if (device.getUpdatedAt() == null) {
+                        device.setUpdatedAt(now);
+                    }
+                    if (device.getLastUsedAt() == null) {
+                        device.setLastUsedAt(now);
+                    }
                     
-                    // Use EntityManager.persist() to ensure Hibernate processes @CreationTimestamp/@UpdateTimestamp
-                    // This ensures the annotations are properly triggered
-                    entityManager.persist(device);
-                    entityManager.flush(); // Force immediate INSERT to database
-                    entityManager.refresh(device); // Refresh to get database-generated values
-                    
-                    return device;
+                    // Save using repository - the explicit values ensure Hibernate includes them in INSERT
+                    return deviceRepository.save(device);
                 });
     }
     
