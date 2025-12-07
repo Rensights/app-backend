@@ -43,16 +43,14 @@ public class Device {
     @CreationTimestamp
     private LocalDateTime createdAt;
     
-    @Column(name = "updated_at", nullable = false, insertable = true, updatable = true)
-    @CreationTimestamp  // Set on INSERT
-    @UpdateTimestamp    // Update on UPDATE
+    @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
     
     @PrePersist
     protected void onCreate() {
         LocalDateTime now = LocalDateTime.now();
-        // @CreationTimestamp and @UpdateTimestamp handle createdAt and updatedAt
-        // But we still set them here as backup, and also set lastUsedAt
+        // Always set timestamps in @PrePersist as final safety net
+        // This ensures they're never null even if builder didn't set them
         if (createdAt == null) {
             createdAt = now;
         }
