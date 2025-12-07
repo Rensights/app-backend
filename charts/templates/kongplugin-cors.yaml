@@ -1,4 +1,12 @@
 {{- if .Values.ingress.enabled -}}
+{{- $corsOrigins := "" -}}
+{{- if .Values.extraEnv.CORS_ORIGINS -}}
+  {{- $corsOrigins = .Values.extraEnv.CORS_ORIGINS -}}
+{{- else if .Values.cors.origins -}}
+  {{- $corsOrigins = (join "," .Values.cors.origins) -}}
+{{- end -}}
+{{- if $corsOrigins -}}
+{{- $originsList := splitList "," $corsOrigins -}}
 apiVersion: configuration.konghq.com/v1
 kind: KongPlugin
 metadata:
@@ -8,26 +16,44 @@ metadata:
     {{- include "backend.labels" . | nindent 4 }}
 config:
   origins:
-    - http://dev.72.62.40.154.nip.io:31416
-    - http://dev.72.62.40.154.nip.io
-    - http://localhost:3000
-    - http://localhost:3001
+    {{- range $originsList }}
+    - {{ trim . | quote }}
+    {{- end }}
   methods:
+    {{- if .Values.cors.methods }}
+    {{- range .Values.cors.methods }}
+    - {{ . }}
+    {{- end }}
+    {{- else }}
     - GET
     - POST
     - PUT
     - DELETE
     - PATCH
     - OPTIONS
+    {{- end }}
   headers:
+    {{- if .Values.cors.headers }}
+    {{- range .Values.cors.headers }}
+    - {{ . | quote }}
+    {{- end }}
+    {{- else }}
     - "*"
+    {{- end }}
   exposed_headers:
+    {{- if .Values.cors.exposedHeaders }}
+    {{- range .Values.cors.exposedHeaders }}
+    - {{ . }}
+    {{- end }}
+    {{- else }}
     - Authorization
     - Content-Type
     - X-Requested-With
-  credentials: true
-  max_age: 3600
+    {{- end }}
+  credentials: {{ .Values.cors.credentials | default true }}
+  max_age: {{ .Values.cors.maxAge | default 3600 }}
   preflight_continue: false
 plugin: cors
+{{- end }}
 {{- end }}
 

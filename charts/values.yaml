@@ -65,6 +65,25 @@ tolerations: []
 
 extraEnv: {}
 
+cors:
+  # CORS origins for KongPlugin (if not set, will use extraEnv.CORS_ORIGINS)
+  origins: []
+  methods:
+    - GET
+    - POST
+    - PUT
+    - DELETE
+    - PATCH
+    - OPTIONS
+  headers:
+    - "*"
+  exposedHeaders:
+    - Authorization
+    - Content-Type
+    - X-Requested-With
+  credentials: true
+  maxAge: 3600
+
 secrets:
   dbCredentials: admin-db-credentials
   publicDbCredentials: public-db-credentials
