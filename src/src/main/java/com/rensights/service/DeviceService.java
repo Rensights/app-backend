@@ -59,39 +59,24 @@ public class DeviceService {
         // Check if device already exists
         return deviceRepository.findByUserIdAndDeviceFingerprint(userId, deviceFingerprint)
                 .orElseGet(() -> {
-                    // Create new device - set all timestamp fields explicitly to ensure they're not null
-                    LocalDateTime now = LocalDateTime.now();
+                    // Create new device - DO NOT set timestamp fields in builder
+                    // Let @CreationTimestamp, @UpdateTimestamp, and @PrePersist handle them
+                    // This ensures Hibernate includes them in INSERT statements
                     Device device = Device.builder()
                             .userId(userId)
                             .deviceFingerprint(deviceFingerprint)
                             .userAgent(request.getHeader("User-Agent"))
                             .ipAddress(getClientIpAddress(request))
-                            .createdAt(now)
-                            .updatedAt(now)
-                            .lastUsedAt(now)
+                            // Don't set createdAt, updatedAt, or lastUsedAt here
+                            // They will be set by @CreationTimestamp, @UpdateTimestamp, and @PrePersist
                             .build();
                     
-                    // Double-check that updatedAt is set (shouldn't be needed but ensures it's never null)
-                    if (device.getUpdatedAt() == null) {
-                        device.setUpdatedAt(now);
-                    }
-                    if (device.getCreatedAt() == null) {
-                        device.setCreatedAt(now);
-                    }
-                    if (device.getLastUsedAt() == null) {
-                        device.setLastUsedAt(now);
-                    }
+                    // Set lastUsedAt explicitly since it doesn't have a Hibernate annotation
+                    LocalDateTime now = LocalDateTime.now();
+                    device.setLastUsedAt(now);
                     
-                    // Save the device - @PrePersist will also set timestamps as a backup
-                    Device saved = deviceRepository.save(device);
-                    
-                    // Final verification - if somehow updatedAt is still null, set it and save again
-                    if (saved.getUpdatedAt() == null) {
-                        saved.setUpdatedAt(LocalDateTime.now());
-                        saved = deviceRepository.save(saved);
-                    }
-                    
-                    return saved;
+                    // Save the device - Hibernate annotations will handle timestamps
+                    return deviceRepository.save(device);
                 });
     }
     

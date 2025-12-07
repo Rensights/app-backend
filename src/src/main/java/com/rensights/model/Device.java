@@ -44,7 +44,8 @@ public class Device {
     private LocalDateTime createdAt;
     
     @Column(name = "updated_at", nullable = false, insertable = true, updatable = true)
-    @UpdateTimestamp
+    @CreationTimestamp  // Set on INSERT
+    @UpdateTimestamp    // Update on UPDATE
     private LocalDateTime updatedAt;
     
     @PrePersist
