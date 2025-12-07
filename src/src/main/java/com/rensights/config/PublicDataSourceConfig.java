@@ -56,15 +56,14 @@ public class PublicDataSourceConfig {
         properties.put("hibernate.show_sql", "true");
         properties.put("hibernate.archive.autodetection", "none");
         
-        // Only include Deal entity explicitly - prevent auto-discovery of other entities
-        LocalContainerEntityManagerFactoryBean factory = new LocalContainerEntityManagerFactoryBean();
-        factory.setDataSource(dataSource);
-        factory.setAnnotatedClasses(Deal.class);
-        factory.setPersistenceUnitName("public");
-        factory.setJpaPropertyMap(properties);
-        factory.setPersistenceProviderClass(org.hibernate.jpa.HibernatePersistenceProvider.class);
-        
-        return factory;
+        // Use builder with packages() but set ddl-auto to none to prevent validation
+        // The repository filter already ensures only DealRepository is used
+        return builder
+            .dataSource(dataSource)
+            .packages(Deal.class)
+            .persistenceUnit("public")
+            .properties(properties)
+            .build();
     }
 
     @Bean(name = "publicTransactionManager")
