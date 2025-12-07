@@ -2,6 +2,8 @@ package com.rensights.service;
 
 import com.rensights.model.Device;
 import com.rensights.repository.DeviceRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -15,6 +17,9 @@ public class DeviceService {
     
     @Autowired
     private DeviceRepository deviceRepository;
+    
+    @PersistenceContext
+    private EntityManager entityManager;
     
     /**
      * Generate a device fingerprint from request headers
@@ -61,7 +66,6 @@ public class DeviceService {
                 .orElseGet(() -> {
                     // Create new device - DO NOT set timestamp fields in builder
                     // Let @CreationTimestamp, @UpdateTimestamp, and @PrePersist handle them
-                    // This ensures Hibernate includes them in INSERT statements
                     Device device = Device.builder()
                             .userId(userId)
                             .deviceFingerprint(deviceFingerprint)
@@ -75,8 +79,13 @@ public class DeviceService {
                     LocalDateTime now = LocalDateTime.now();
                     device.setLastUsedAt(now);
                     
-                    // Save the device - Hibernate annotations will handle timestamps
-                    return deviceRepository.save(device);
+                    // Use EntityManager.persist() to ensure Hibernate processes @CreationTimestamp/@UpdateTimestamp
+                    // This ensures the annotations are properly triggered
+                    entityManager.persist(device);
+                    entityManager.flush(); // Force immediate INSERT to database
+                    entityManager.refresh(device); // Refresh to get database-generated values
+                    
+                    return device;
                 });
     }
     
