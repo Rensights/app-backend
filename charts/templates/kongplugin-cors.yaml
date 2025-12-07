@@ -1,0 +1,33 @@
+{{- if .Values.ingress.enabled -}}
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: {{ include "backend.fullname" . }}-cors
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "backend.labels" . | nindent 4 }}
+config:
+  origins:
+    - http://dev.72.62.40.154.nip.io:31416
+    - http://dev.72.62.40.154.nip.io
+    - http://localhost:3000
+    - http://localhost:3001
+  methods:
+    - GET
+    - POST
+    - PUT
+    - DELETE
+    - PATCH
+    - OPTIONS
+  headers:
+    - "*"
+  exposed_headers:
+    - Authorization
+    - Content-Type
+    - X-Requested-With
+  credentials: true
+  max_age: 3600
+  preflight_continue: false
+plugin: cors
+{{- end }}
+
