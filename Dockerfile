@@ -7,24 +7,35 @@ FROM ghcr.io/rensights/avro-schemas:${AVRO_SCHEMAS_VERSION} AS schemas
 FROM maven:3.9-eclipse-temurin-17 AS builder
 WORKDIR /app
 
-# Copy Avro schemas from schemas stage
+# Copy Avro schemas from schemas stage (cached layer)
 COPY --from=schemas /schemas/schemas ./schemas/avro
 
-# Copy Maven files
+# Copy Maven configuration files first (better layer caching)
+# Only copy pom.xml files first to leverage Maven dependency cache
 COPY pom.xml .
+COPY src/pom.xml ./src/
+
+# Download dependencies (this layer will be cached unless pom.xml changes)
+WORKDIR /app/src
+RUN mvn dependency:go-offline -B || true
+
+# Now copy source code (this layer only invalidates when code changes)
+WORKDIR /app
 COPY src ./src
 
 # Build the application (this will generate Avro classes from schemas)
 WORKDIR /app/src
-RUN mvn clean package -DskipTests
+RUN mvn clean package -DskipTests -B
 
 # Stage 3: Runtime image
 FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app
 
-# Download OpenTelemetry Java agent
-RUN wget -O opentelemetry-javaagent.jar \
-    https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/latest/download/opentelemetry-javaagent.jar
+# Download OpenTelemetry Java agent (cached unless version changes)
+ARG OTEL_AGENT_VERSION=2.22.0
+RUN wget -q -O opentelemetry-javaagent.jar \
+    https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/download/v${OTEL_AGENT_VERSION}/opentelemetry-javaagent.jar && \
+    rm -rf /var/cache/apk/*
 
 # Copy built JAR from builder
 COPY --from=builder /app/src/target/*.jar app.jar
@@ -32,5 +43,4 @@ COPY --from=builder /app/src/target/*.jar app.jar
 EXPOSE 8080
 
 # Run with OpenTelemetry Java agent for auto-instrumentation
-# Suppress class sharing warning (harmless but noisy)
 ENTRYPOINT ["java", "-Xshare:off", "-javaagent:/app/opentelemetry-javaagent.jar", "-jar", "app.jar"]
