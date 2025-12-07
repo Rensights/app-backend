@@ -9,6 +9,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -27,7 +28,7 @@ public class CorsConfig implements WebMvcConfigurer {
             .toList();
         
         // Build patterns list - include exact matches and wildcard patterns
-        List<String> patterns = new java.util.ArrayList<>();
+        List<String> patterns = new ArrayList<>();
         for (String origin : origins) {
             patterns.add(origin); // Add exact match
             // Also add wildcard patterns for domain flexibility
@@ -77,7 +78,7 @@ public class CorsConfig implements WebMvcConfigurer {
         }
         
         // Build patterns list - include exact matches and wildcard patterns for flexibility
-        List<String> patterns = new java.util.ArrayList<>();
+        List<String> patterns = new ArrayList<>();
         for (String origin : origins) {
             patterns.add(origin); // Add exact match
             // Also add wildcard patterns for domain flexibility
