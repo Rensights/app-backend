@@ -51,7 +51,7 @@ ingress:
 extraEnv:
   SPRING_PROFILES_ACTIVE: "dev"
   SERVER_PORT: "8080"
-  CORS_ORIGINS: "http://dev.72.62.40.154.nip.io:31416"
+  CORS_ORIGINS: "http://dev.72.62.40.154.nip.io:31416,http://dev.72.62.40.154.nip.io,http://localhost:3000,http://localhost:3001"
   OTEL_SERVICE_NAME: "backend-dev"
   OTEL_EXPORTER_OTLP_ENDPOINT: "http://signoz-otel-collector.platform.svc.cluster.local:4318"
   OTEL_EXPORTER_OTLP_PROTOCOL: "http/protobuf"

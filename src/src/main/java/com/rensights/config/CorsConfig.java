@@ -26,9 +26,31 @@ public class CorsConfig implements WebMvcConfigurer {
             .filter(s -> !s.isEmpty())
             .toList();
         
-        // Use allowedOriginPatterns when credentials are enabled
-        // Use origins directly as patterns (Spring will match them exactly)
-        String[] originPatterns = origins.toArray(new String[0]);
+        // Build patterns list - include exact matches and wildcard patterns
+        List<String> patterns = new java.util.ArrayList<>();
+        for (String origin : origins) {
+            patterns.add(origin); // Add exact match
+            // Also add wildcard patterns for domain flexibility
+            try {
+                java.net.URL url = new java.net.URL(origin);
+                String protocol = url.getProtocol();
+                String host = url.getHost();
+                int port = url.getPort();
+                
+                // Add pattern with wildcard port
+                if (port != -1) {
+                    patterns.add(protocol + "://" + host + ":*");
+                }
+                // Add pattern without port
+                patterns.add(protocol + "://" + host);
+            } catch (Exception e) {
+                // If URL parsing fails, just use the origin as-is
+            }
+        }
+        
+        String[] originPatterns = patterns.toArray(new String[0]);
+        
+        System.out.println("CORS WebMvcConfigurer - Allowed Origin Patterns: " + Arrays.toString(originPatterns));
         
         registry.addMapping("/**")
             .allowedOriginPatterns(originPatterns)
@@ -54,10 +76,32 @@ public class CorsConfig implements WebMvcConfigurer {
             throw new IllegalStateException("CORS allowed origins cannot be empty. Set cors.allowed-origins property.");
         }
         
+        // Build patterns list - include exact matches and wildcard patterns for flexibility
+        List<String> patterns = new java.util.ArrayList<>();
+        for (String origin : origins) {
+            patterns.add(origin); // Add exact match
+            // Also add wildcard patterns for domain flexibility
+            try {
+                java.net.URL url = new java.net.URL(origin);
+                String protocol = url.getProtocol();
+                String host = url.getHost();
+                int port = url.getPort();
+                
+                // Add pattern with wildcard port
+                if (port != -1) {
+                    patterns.add(protocol + "://" + host + ":*");
+                }
+                // Add pattern without port
+                patterns.add(protocol + "://" + host);
+            } catch (Exception e) {
+                // If URL parsing fails, just use the origin as-is
+                System.out.println("Warning: Could not parse CORS origin as URL: " + origin);
+            }
+        }
+        
         // IMPORTANT: Only use allowedOriginPatterns, never set allowedOrigins
         // Setting allowedOrigins with "*" when allowCredentials is true causes the error
-        // Use origins directly as patterns (Spring will match them exactly)
-        configuration.setAllowedOriginPatterns(origins);
+        configuration.setAllowedOriginPatterns(patterns);
         
         // Explicitly clear allowedOrigins to ensure it's not set to "*" by default
         configuration.setAllowedOrigins(null);
@@ -67,6 +111,8 @@ public class CorsConfig implements WebMvcConfigurer {
         configuration.setExposedHeaders(Arrays.asList("Authorization", "Content-Type", "X-Requested-With"));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L); // Cache preflight for 1 hour
+        
+        System.out.println("CORS Configuration - Allowed Origin Patterns: " + patterns);
         
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
