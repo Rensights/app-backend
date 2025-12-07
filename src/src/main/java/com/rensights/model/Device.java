@@ -5,6 +5,8 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -38,23 +40,39 @@ public class Device {
     private LocalDateTime lastUsedAt;
     
     @Column(name = "created_at", nullable = false, updatable = false)
+    @CreationTimestamp
     private LocalDateTime createdAt;
     
     @Column(name = "updated_at", nullable = false, insertable = true, updatable = true)
+    @UpdateTimestamp
     private LocalDateTime updatedAt;
     
     @PrePersist
     protected void onCreate() {
         LocalDateTime now = LocalDateTime.now();
-        createdAt = now;
-        updatedAt = now;
-        lastUsedAt = now;
+        // @CreationTimestamp and @UpdateTimestamp handle createdAt and updatedAt
+        // But we still set them here as backup, and also set lastUsedAt
+        if (createdAt == null) {
+            createdAt = now;
+        }
+        if (updatedAt == null) {
+            updatedAt = now;
+        }
+        if (lastUsedAt == null) {
+            lastUsedAt = now;
+        }
     }
     
     @PreUpdate
     protected void onUpdate() {
+        // @UpdateTimestamp handles updatedAt automatically
+        // But we update it here as backup and also update lastUsedAt
         updatedAt = LocalDateTime.now();
-        lastUsedAt = LocalDateTime.now();
+        if (lastUsedAt == null) {
+            lastUsedAt = LocalDateTime.now();
+        } else {
+            lastUsedAt = LocalDateTime.now();
+        }
     }
 }
 
