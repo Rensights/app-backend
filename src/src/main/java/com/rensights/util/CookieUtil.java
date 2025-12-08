@@ -1,8 +1,6 @@
 package com.rensights.util;
 
 import jakarta.servlet.http.HttpServletResponse;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Component;
@@ -54,6 +52,9 @@ public class CookieUtil {
         
         ResponseCookie cookie = cookieBuilder.build();
         response.addHeader("Set-Cookie", cookie.toString());
+        logger.debug("Set auth cookie: name={}, secure={}, sameSite={}, path={}, domain={}", 
+            JWT_COOKIE_NAME, cookieSecure, cookieSameSite, cookiePath, 
+            cookieDomain != null && !cookieDomain.isEmpty() ? cookieDomain : "default");
     }
     
     /**
