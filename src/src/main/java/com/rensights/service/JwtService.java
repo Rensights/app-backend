@@ -22,7 +22,7 @@ public class JwtService {
     @Value("${jwt.expiration:86400000}")
     private Long expiration;
     
-    @javax.annotation.PostConstruct
+    @jakarta.annotation.PostConstruct
     public void validateSecret() {
         // SECURITY: Validate JWT secret is strong enough (minimum 32 bytes for HS256)
         if (secret == null || secret.length() < 32) {
