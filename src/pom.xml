@@ -176,6 +176,7 @@
                 <version>1.11.3</version>
                 <executions>
                     <execution>
+                        <id>avro-schema</id>
                         <phase>generate-sources</phase>
                         <goals>
                             <goal>schema</goal>

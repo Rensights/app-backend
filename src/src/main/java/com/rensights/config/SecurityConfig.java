@@ -32,14 +32,15 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             // SECURITY FIX: Add security headers
             .headers(headers -> headers
-                .contentTypeOptions(HeadersConfigurer.ContentTypeOptionsConfig::and)
-                .frameOptions(HeadersConfigurer.FrameOptionsConfig::deny)
+                .contentTypeOptions(contentTypeOptions -> contentTypeOptions.disable())
+                .contentTypeOptions(contentTypeOptions -> {})
+                .frameOptions(frameOptions -> frameOptions.deny())
                 .xssProtection(xss -> xss
                     .headerValue(org.springframework.security.web.header.writers.XXssProtectionHeaderWriter.HeaderValue.ENABLED_MODE_BLOCK)
                 )
                 .httpStrictTransportSecurity(hsts -> hsts
                     .maxAgeInSeconds(31536000) // 1 year
-                    .includeSubdomains(true)
+                    .includeSubDomains(true)
                     .preload(true)
                 )
                 .referrerPolicy(referrer -> referrer
