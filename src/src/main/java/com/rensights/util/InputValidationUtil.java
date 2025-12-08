@@ -110,3 +110,4 @@ public class InputValidationUtil {
         validateStringLength(additionalNotes, "Additional notes", MAX_TEXT_LENGTH);
     }
 }
+

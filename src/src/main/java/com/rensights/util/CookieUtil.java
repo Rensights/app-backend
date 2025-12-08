@@ -61,23 +61,29 @@ public class CookieUtil {
     
     /**
      * Clear JWT cookie by setting it to expire immediately
+     * IMPORTANT: Must use same domain, path, and secure/sameSite settings as when setting cookie
+     * Otherwise browser may not clear the cookie properly
      */
     public void clearAuthCookie(HttpServletResponse response) {
+        // Clear cookie with same attributes as when it was set
         ResponseCookie.ResponseCookieBuilder cookieBuilder = ResponseCookie.from(JWT_COOKIE_NAME, "")
                 .path(cookiePath)
                 .maxAge(0) // Expire immediately
                 .httpOnly(true)
-                .secure(cookieSecure)
-                .sameSite(cookieSameSite);
+                .secure(cookieSecure) // Must match the secure flag used when setting
+                .sameSite(cookieSameSite); // Must match the sameSite used when setting
         
-        // Set domain if configured (must match domain used when setting cookie)
+        // Set domain if configured (CRITICAL: must match domain used when setting cookie)
+        // If domain was set when creating cookie, it must be set here too
         if (cookieDomain != null && !cookieDomain.isEmpty()) {
             cookieBuilder.domain(cookieDomain);
         }
         
         ResponseCookie cookie = cookieBuilder.build();
         response.addHeader("Set-Cookie", cookie.toString());
-        logger.debug("Cleared auth cookie");
+        logger.debug("Cleared auth cookie: name={}, path={}, domain={}", 
+            JWT_COOKIE_NAME, cookiePath, 
+            cookieDomain != null && !cookieDomain.isEmpty() ? cookieDomain : "default");
     }
     
     /**
@@ -87,3 +93,4 @@ public class CookieUtil {
         return JWT_COOKIE_NAME;
     }
 }
+
