@@ -52,8 +52,11 @@ public class DealController {
                         // Invalid status, ignore
                     }
                 }
-                // Normalize city: capitalize first letter for matching
-                String normalizedCity = city.substring(0, 1).toUpperCase() + city.substring(1).toLowerCase();
+                // Normalize city: capitalize first letter for matching (e.g., "dubai" -> "Dubai")
+                String normalizedCity = city;
+                if (city.length() > 0) {
+                    normalizedCity = city.substring(0, 1).toUpperCase() + (city.length() > 1 ? city.substring(1).toLowerCase() : "");
+                }
                 deals = dealRepository.findApprovedDealsWithFilters(normalizedCity, area, bedroomCount, statusEnum, pageable);
             } else {
                 // Only return approved AND active deals
