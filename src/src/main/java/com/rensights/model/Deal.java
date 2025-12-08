@@ -72,6 +72,10 @@ public class Deal {
     @Builder.Default
     private DealStatus status = DealStatus.PENDING;
     
+    @Column(name = "active", nullable = false)
+    @Builder.Default
+    private Boolean active = true; // Whether the deal is active (visible to users)
+    
     @Column(name = "batch_date")
     private LocalDateTime batchDate;
     

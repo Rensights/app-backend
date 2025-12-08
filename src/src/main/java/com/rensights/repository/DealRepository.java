@@ -18,7 +18,7 @@ public interface DealRepository extends JpaRepository<Deal, UUID> {
     
     Page<Deal> findByStatus(Deal.DealStatus status, Pageable pageable);
     
-    @Query("SELECT d FROM Deal d WHERE d.status = 'APPROVED' AND d.city = :city " +
+    @Query("SELECT d FROM Deal d WHERE d.status = 'APPROVED' AND d.active = true AND UPPER(d.city) = UPPER(:city) " +
            "AND (:area IS NULL OR d.area = :area) " +
            "AND (:bedroomCount IS NULL OR d.bedroomCount = :bedroomCount) " +
            "AND (:buildingStatus IS NULL OR d.buildingStatus = :buildingStatus)")
@@ -27,5 +27,8 @@ public interface DealRepository extends JpaRepository<Deal, UUID> {
                                              @Param("bedroomCount") String bedroomCount,
                                              @Param("buildingStatus") Deal.BuildingStatus buildingStatus,
                                              Pageable pageable);
+    
+    @Query("SELECT d FROM Deal d WHERE d.status = 'APPROVED' AND d.active = true")
+    Page<Deal> findApprovedAndActiveDeals(Pageable pageable);
 }
 

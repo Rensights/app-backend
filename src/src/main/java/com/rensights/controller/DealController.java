@@ -52,9 +52,12 @@ public class DealController {
                         // Invalid status, ignore
                     }
                 }
-                deals = dealRepository.findApprovedDealsWithFilters(city, area, bedroomCount, statusEnum, pageable);
+                // Normalize city: capitalize first letter for matching
+                String normalizedCity = city.substring(0, 1).toUpperCase() + city.substring(1).toLowerCase();
+                deals = dealRepository.findApprovedDealsWithFilters(normalizedCity, area, bedroomCount, statusEnum, pageable);
             } else {
-                deals = dealRepository.findByStatus(Deal.DealStatus.APPROVED, pageable);
+                // Only return approved AND active deals
+                deals = dealRepository.findApprovedAndActiveDeals(pageable);
             }
             
             Page<Map<String, Object>> dealDTOs = deals.map(deal -> {
@@ -99,7 +102,7 @@ public class DealController {
             Deal deal = dealRepository.findById(dealId)
                     .orElseThrow(() -> new RuntimeException("Deal not found"));
             
-            if (deal.getStatus() != Deal.DealStatus.APPROVED) {
+            if (deal.getStatus() != Deal.DealStatus.APPROVED || !deal.getActive()) {
                 return ResponseEntity.status(404).body(Map.of("error", "Deal not found"));
             }
             
