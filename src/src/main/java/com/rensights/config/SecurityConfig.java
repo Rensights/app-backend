@@ -32,7 +32,6 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             // SECURITY FIX: Add security headers
             .headers(headers -> headers
-                .contentTypeOptions(contentTypeOptions -> contentTypeOptions.disable())
                 .contentTypeOptions(contentTypeOptions -> {})
                 .frameOptions(frameOptions -> frameOptions.deny())
                 .xssProtection(xss -> xss
