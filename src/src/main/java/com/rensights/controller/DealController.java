@@ -52,10 +52,18 @@ public class DealController {
                         // Invalid status, ignore
                     }
                 }
-                // Normalize city: capitalize first letter for matching (e.g., "dubai" -> "Dubai")
-                String normalizedCity = city;
-                if (city.length() > 0) {
-                    normalizedCity = city.substring(0, 1).toUpperCase() + (city.length() > 1 ? city.substring(1).toLowerCase() : "");
+                // Normalize city: handle "dubai" -> "Dubai" and "abudhabi" -> "Abu Dhabi"
+                String normalizedCity;
+                String cityLower = city.toLowerCase().trim();
+                if (cityLower.equals("dubai")) {
+                    normalizedCity = "Dubai";
+                } else if (cityLower.equals("abudhabi") || cityLower.equals("abu dhabi")) {
+                    normalizedCity = "Abu Dhabi";
+                } else {
+                    // Fallback: capitalize first letter
+                    normalizedCity = city.length() > 0 
+                        ? city.substring(0, 1).toUpperCase() + (city.length() > 1 ? city.substring(1).toLowerCase() : "")
+                        : city;
                 }
                 deals = dealRepository.findApprovedDealsWithFilters(normalizedCity, area, bedroomCount, statusEnum, pageable);
             } else {
