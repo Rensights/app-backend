@@ -33,19 +33,13 @@ public class CookieUtil {
      * SECURITY: SameSite provides CSRF protection
      */
     public void setAuthCookie(HttpServletResponse response, String token) {
-        ResponseCookie.SameSite sameSite = ResponseCookie.SameSite.STRICT;
-        if ("lax".equalsIgnoreCase(cookieSameSite)) {
-            sameSite = ResponseCookie.SameSite.LAX;
-        } else if ("none".equalsIgnoreCase(cookieSameSite)) {
-            sameSite = ResponseCookie.SameSite.NONE;
-        }
-        
+        // Build cookie with SameSite attribute (Spring Boot 3.2 compatible)
         ResponseCookie cookie = ResponseCookie.from(JWT_COOKIE_NAME, token)
                 .path(cookiePath)
                 .maxAge(cookieMaxAge)
                 .httpOnly(true) // CRITICAL: Prevents JavaScript access (XSS protection)
                 .secure(cookieSecure) // Only sent over HTTPS in production
-                .sameSite(sameSite) // CSRF protection
+                .sameSite(cookieSameSite) // CSRF protection (accepts string: "Strict", "Lax", "None")
                 .build();
         
         response.addHeader("Set-Cookie", cookie.toString());
@@ -55,19 +49,12 @@ public class CookieUtil {
      * Clear JWT cookie by setting it to expire immediately
      */
     public void clearAuthCookie(HttpServletResponse response) {
-        ResponseCookie.SameSite sameSite = ResponseCookie.SameSite.STRICT;
-        if ("lax".equalsIgnoreCase(cookieSameSite)) {
-            sameSite = ResponseCookie.SameSite.LAX;
-        } else if ("none".equalsIgnoreCase(cookieSameSite)) {
-            sameSite = ResponseCookie.SameSite.NONE;
-        }
-        
         ResponseCookie cookie = ResponseCookie.from(JWT_COOKIE_NAME, "")
                 .path(cookiePath)
                 .maxAge(0) // Expire immediately
                 .httpOnly(true)
                 .secure(cookieSecure)
-                .sameSite(sameSite)
+                .sameSite(cookieSameSite)
                 .build();
         
         response.addHeader("Set-Cookie", cookie.toString());
