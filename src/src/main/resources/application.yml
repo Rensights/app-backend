@@ -33,8 +33,17 @@ spring:
     show-sql: false
     open-in-view: false
 
+  # SECURITY: Request size limits to prevent DoS attacks
+  servlet:
+    multipart:
+      # SECURITY: File upload size limits
+      max-file-size: 10MB
+      max-request-size: 10MB
+
 server:
   port: ${SERVER_PORT:8080}
+  # SECURITY: Request size limits to prevent DoS attacks
+  max-http-header-size: 8KB
 
 jwt:
   secret: ${JWT_SECRET:dev-secret-key-change-in-production-minimum-32-characters-long}
@@ -47,7 +56,7 @@ management:
         include: health,info,metrics,prometheus
   endpoint:
     health:
-      show-details: always
+      show-details: when-authorized  # SECURITY FIX: Don't expose health details publicly
   health:
     mail:
       enabled: false

@@ -4,6 +4,7 @@ import com.rensights.model.AnalysisRequest;
 import com.rensights.model.User;
 import com.rensights.repository.AnalysisRequestRepository;
 import com.rensights.repository.UserRepository;
+import com.rensights.util.InputValidationUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -66,20 +67,47 @@ public class AnalysisRequestService {
             String additionalNotes,
             MultipartFile[] files
     ) throws Exception {
+        // SECURITY: Validate and sanitize all inputs before processing
+        // Note: Basic validation already done in controller, but add defensive validation here too
+        if (email == null || email.trim().isEmpty()) {
+            throw new IllegalArgumentException("Email is required");
+        }
+        
+        // Sanitize all string inputs to prevent injection and control character attacks
+        city = InputValidationUtil.sanitizeString(city, 500);
+        area = InputValidationUtil.sanitizeString(area, 500);
+        buildingName = InputValidationUtil.sanitizeString(buildingName, 500);
+        propertyType = InputValidationUtil.sanitizeString(propertyType, 100);
+        bedrooms = InputValidationUtil.sanitizeString(bedrooms, 10);
+        size = InputValidationUtil.sanitizeString(size, 50);
+        plotSize = InputValidationUtil.sanitizeString(plotSize, 50);
+        floor = InputValidationUtil.sanitizeString(floor, 10);
+        totalFloors = InputValidationUtil.sanitizeString(totalFloors, 10);
+        buildingStatus = InputValidationUtil.sanitizeString(buildingStatus, 50);
+        condition = InputValidationUtil.sanitizeString(condition, 50);
+        askingPrice = InputValidationUtil.sanitizeString(askingPrice, 50);
+        serviceCharge = InputValidationUtil.sanitizeString(serviceCharge, 50);
+        handoverDate = InputValidationUtil.sanitizeString(handoverDate, 50);
+        developer = InputValidationUtil.sanitizeString(developer, 200);
+        paymentPlan = InputValidationUtil.sanitizeString(paymentPlan, 200);
+        view = InputValidationUtil.sanitizeString(view, 100);
+        furnishing = InputValidationUtil.sanitizeString(furnishing, 100);
+        additionalNotes = InputValidationUtil.sanitizeString(additionalNotes, 5000);
+        
         // Get user if authenticated
         User user = null;
         if (userId != null) {
             user = userRepository.findById(userId).orElse(null);
         }
         
-        // Create analysis request
+        // Create analysis request with sanitized inputs
         AnalysisRequest request = AnalysisRequest.builder()
                 .user(user)
-                .email(email)
+                .email(email.trim().toLowerCase()) // Normalize email
                 .city(city)
                 .area(area)
                 .buildingName(buildingName)
-                .listingUrl(listingUrl)
+                .listingUrl(listingUrl) // URL already validated in controller
                 .propertyType(propertyType)
                 .bedrooms(bedrooms)
                 .size(size)
@@ -88,14 +116,14 @@ public class AnalysisRequestService {
                 .totalFloors(totalFloors)
                 .buildingStatus(buildingStatus)
                 .condition(condition)
-                .latitude(latitude)
-                .longitude(longitude)
+                .latitude(latitude) // Already validated in controller
+                .longitude(longitude) // Already validated in controller
                 .askingPrice(askingPrice)
                 .serviceCharge(serviceCharge)
                 .handoverDate(handoverDate)
                 .developer(developer)
                 .paymentPlan(paymentPlan)
-                .features(features)
+                .features(features) // List already sanitized in controller
                 .view(view)
                 .furnishing(furnishing)
                 .additionalNotes(additionalNotes)

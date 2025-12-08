@@ -33,6 +33,9 @@ import java.util.Map;
 )
 public class PublicDataSourceConfig {
 
+    @Value("${spring.profiles.active:}")
+    private String activeProfile;
+
     @Bean(name = "publicDataSourceProperties")
     @ConfigurationProperties("spring.public-datasource")
     public DataSourceProperties publicDataSourceProperties() {
@@ -52,8 +55,11 @@ public class PublicDataSourceConfig {
             @Qualifier("publicDataSource") DataSource dataSource) {
         Map<String, String> properties = new HashMap<>();
         properties.put("hibernate.hbm2ddl.auto", "none");
-        properties.put("hibernate.format_sql", "true");
-        properties.put("hibernate.show_sql", "true");
+        
+        // SECURITY FIX: Only enable SQL logging in dev profile to prevent sensitive data exposure in production
+        boolean isDev = activeProfile != null && activeProfile.contains("dev");
+        properties.put("hibernate.format_sql", isDev ? "true" : "false");
+        properties.put("hibernate.show_sql", isDev ? "true" : "false");
         properties.put("hibernate.archive.autodetection", "none");
         
         // Use builder with packages() but set ddl-auto to none to prevent validation

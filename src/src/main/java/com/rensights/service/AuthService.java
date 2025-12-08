@@ -46,8 +46,15 @@ public class AuthService {
      */
     @Transactional
     public AuthResponse register(RegisterRequest request, String deviceFingerprint, jakarta.servlet.http.HttpServletRequest httpRequest) {
+        // SECURITY FIX: Check if email exists but don't reveal this to prevent user enumeration
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new RuntimeException("Email already exists");
+            // Don't throw - just return null to indicate verification required (which will send code)
+            // This prevents revealing that email already exists
+            logger.warn("Registration attempted for existing email: {} - treating as verification request", request.getEmail());
+            // Generate verification code anyway (user can't register, but can't tell from response)
+            String code = verificationCodeService.generateCode(request.getEmail());
+            emailService.sendVerificationCode(request.getEmail(), code);
+            return null; // Return null to trigger verification code response
         }
         
         // Optimized: Generate customer ID using method chaining

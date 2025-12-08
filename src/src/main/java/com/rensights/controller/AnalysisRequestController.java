@@ -3,6 +3,7 @@ package com.rensights.controller;
 import com.rensights.model.AnalysisRequest;
 import com.rensights.service.AnalysisRequestService;
 import com.rensights.service.FileStorageService;
+import com.rensights.util.InputValidationUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
@@ -70,6 +71,37 @@ public class AnalysisRequestController {
         logger.info("=== Submit analysis request called for email: {}", email);
         
         try {
+            // SECURITY: Validate and sanitize all inputs
+            try {
+                InputValidationUtil.validateAnalysisRequestInputs(
+                    email, city, area, buildingName, listingUrl, latitude, longitude, additionalNotes);
+                
+                // Sanitize string inputs
+                city = InputValidationUtil.sanitizeString(city, 500);
+                area = InputValidationUtil.sanitizeString(area, 500);
+                buildingName = InputValidationUtil.sanitizeString(buildingName, 500);
+                propertyType = InputValidationUtil.sanitizeString(propertyType, 100);
+                bedrooms = InputValidationUtil.sanitizeString(bedrooms, 10);
+                size = InputValidationUtil.sanitizeString(size, 50);
+                plotSize = InputValidationUtil.sanitizeString(plotSize, 50);
+                floor = InputValidationUtil.sanitizeString(floor, 10);
+                totalFloors = InputValidationUtil.sanitizeString(totalFloors, 10);
+                buildingStatus = InputValidationUtil.sanitizeString(buildingStatus, 50);
+                condition = InputValidationUtil.sanitizeString(condition, 50);
+                askingPrice = InputValidationUtil.sanitizeString(askingPrice, 50);
+                serviceCharge = InputValidationUtil.sanitizeString(serviceCharge, 50);
+                handoverDate = InputValidationUtil.sanitizeString(handoverDate, 50);
+                developer = InputValidationUtil.sanitizeString(developer, 200);
+                paymentPlan = InputValidationUtil.sanitizeString(paymentPlan, 200);
+                view = InputValidationUtil.sanitizeString(view, 100);
+                furnishing = InputValidationUtil.sanitizeString(furnishing, 100);
+                additionalNotes = InputValidationUtil.sanitizeString(additionalNotes, 5000);
+            } catch (IllegalArgumentException e) {
+                logger.warn("Input validation failed: {}", e.getMessage());
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(new ErrorResponse(e.getMessage()));
+            }
+            
             // Get user ID if authenticated
             UUID userId = null;
             if (authentication != null && authentication.isAuthenticated()) {
@@ -169,9 +201,45 @@ public class AnalysisRequestController {
                 return ResponseEntity.status(401).build();
             }
             
-            // SECURITY: Optionally verify user owns the file (if filePath contains userId/requestId)
-            // Extract requestId from path if possible for ownership verification
-            // For now, any authenticated user can access files - consider adding ownership checks
+            // SECURITY FIX: Extract requestId from filePath and verify user owns the request
+            // File path format: "analysis-requests/{requestId}/{filename}"
+            UUID requestId = null;
+            try {
+                // Extract requestId from path: "analysis-requests/{requestId}/..."
+                String pathWithoutPrefix = filePath.startsWith("analysis-requests/") 
+                    ? filePath.substring("analysis-requests/".length())
+                    : filePath;
+                
+                // Get the first part (requestId) before the next slash
+                int firstSlash = pathWithoutPrefix.indexOf('/');
+                if (firstSlash > 0) {
+                    String requestIdStr = pathWithoutPrefix.substring(0, firstSlash);
+                    requestId = UUID.fromString(requestIdStr);
+                } else {
+                    // If no slash, the entire path might be the requestId
+                    requestId = UUID.fromString(pathWithoutPrefix);
+                }
+                
+                // SECURITY FIX: Verify user owns the request
+                UUID userId = UUID.fromString(authentication.getName());
+                AnalysisRequest request = analysisRequestService.getRequestById(requestId);
+                
+                // Check ownership: user must own the request
+                // Anonymous requests (no user) are not accessible through this authenticated endpoint
+                if (request.getUser() == null || !request.getUser().getId().equals(userId)) {
+                    logger.warn("SECURITY ALERT: Unauthorized file access attempt by user {} for request {} (request user: {})", 
+                        userId, requestId, request.getUser() != null ? request.getUser().getId() : "anonymous");
+                    return ResponseEntity.status(403).build();
+                }
+                
+            } catch (IllegalArgumentException | java.util.UUID.InvalidUUIDStringException e) {
+                logger.warn("SECURITY ALERT: Invalid requestId in file path: {}", filePath);
+                return ResponseEntity.status(400).build();
+            } catch (RuntimeException e) {
+                // Request not found - don't reveal this information, return 404
+                logger.warn("SECURITY ALERT: Request not found for file path: {}", filePath);
+                return ResponseEntity.notFound().build();
+            }
             
             byte[] fileContent = fileStorageService.getFile(filePath);
             ByteArrayResource resource = new ByteArrayResource(fileContent);

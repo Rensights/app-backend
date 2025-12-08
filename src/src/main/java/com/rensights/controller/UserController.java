@@ -143,10 +143,16 @@ public class UserController {
             logger.info("Updating user profile for userId: {}, firstName: '{}', lastName: '{}'", 
                     userId, request.getFirstName(), request.getLastName());
             
-            // Fixed: Always update if provided (even if empty string to clear the field)
+            // SECURITY: Sanitize and validate inputs
             boolean changed = false;
             if (request.getFirstName() != null) {
                 String newFirstName = request.getFirstName().trim();
+                // SECURITY: Validate length and sanitize
+                if (newFirstName.length() > 100) {
+                    throw new IllegalArgumentException("First name is too long (max 100 characters)");
+                }
+                // Remove control characters
+                newFirstName = newFirstName.replaceAll("[\\p{Cntrl}&&[^\r\n\t]]", "");
                 if (!newFirstName.equals(user.getFirstName())) {
                     user.setFirstName(newFirstName.isEmpty() ? null : newFirstName);
                     changed = true;
@@ -155,6 +161,12 @@ public class UserController {
             }
             if (request.getLastName() != null) {
                 String newLastName = request.getLastName().trim();
+                // SECURITY: Validate length and sanitize
+                if (newLastName.length() > 100) {
+                    throw new IllegalArgumentException("Last name is too long (max 100 characters)");
+                }
+                // Remove control characters
+                newLastName = newLastName.replaceAll("[\\p{Cntrl}&&[^\r\n\t]]", "");
                 if (!newLastName.equals(user.getLastName())) {
                     user.setLastName(newLastName.isEmpty() ? null : newLastName);
                     changed = true;

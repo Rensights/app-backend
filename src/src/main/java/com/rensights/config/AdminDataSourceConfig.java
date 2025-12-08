@@ -15,6 +15,7 @@ import org.springframework.orm.jpa.JpaTransactionManager;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
+import org.springframework.beans.factory.annotation.Value;
 
 import com.rensights.model.AnalysisRequest;
 import com.rensights.model.Device;
@@ -36,6 +37,9 @@ import java.util.Map;
     transactionManagerRef = "adminTransactionManager"
 )
 public class AdminDataSourceConfig {
+
+    @Value("${spring.profiles.active:}")
+    private String activeProfile;
 
     @Primary
     @Bean(name = "adminDataSourceProperties")
@@ -59,8 +63,11 @@ public class AdminDataSourceConfig {
             @Qualifier("adminDataSource") DataSource dataSource) {
         Map<String, String> properties = new HashMap<>();
         properties.put("hibernate.hbm2ddl.auto", "validate");
-        properties.put("hibernate.format_sql", "true");
-        properties.put("hibernate.show_sql", "true");
+        
+        // SECURITY FIX: Only enable SQL logging in dev profile to prevent sensitive data exposure in production
+        boolean isDev = activeProfile != null && activeProfile.contains("dev");
+        properties.put("hibernate.format_sql", isDev ? "true" : "false");
+        properties.put("hibernate.show_sql", isDev ? "true" : "false");
         
         return builder
             .dataSource(dataSource)
@@ -77,6 +84,7 @@ public class AdminDataSourceConfig {
         return new JpaTransactionManager(adminEntityManagerFactory.getObject());
     }
 }
+
 
 
 

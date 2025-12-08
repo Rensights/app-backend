@@ -26,3 +26,4 @@
 //     .ignoringRequestMatchers("/api/auth/**") // Only allow CSRF-free for auth endpoints
 // )
 
+
