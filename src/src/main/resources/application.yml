@@ -51,9 +51,10 @@ jwt:
   # SECURITY: Cookie configuration for HttpOnly cookie-based authentication
   cookie:
     max-age: ${JWT_COOKIE_MAX_AGE:86400} # 24 hours in seconds
-    secure: ${JWT_COOKIE_SECURE:true} # true in production (HTTPS only)
-    same-site: ${JWT_COOKIE_SAME_SITE:strict} # strict, lax, or none (strict for CSRF protection)
+    secure: ${JWT_COOKIE_SECURE:false} # false for dev (HTTP), true for prod (HTTPS)
+    same-site: ${JWT_COOKIE_SAME_SITE:lax} # lax for dev (allows cross-site), strict for prod
     path: ${JWT_COOKIE_PATH:/} # Cookie path
+    domain: ${JWT_COOKIE_DOMAIN:} # Empty = current domain (allows different ports in dev)
 
 management:
   endpoints:

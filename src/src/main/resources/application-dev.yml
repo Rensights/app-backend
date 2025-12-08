@@ -64,6 +64,12 @@ server:
 jwt:
   secret: ${JWT_SECRET:dev-secret-key-change-in-production-minimum-32-characters}
   expiration: ${JWT_EXPIRATION:86400000}
+  # SECURITY: Cookie configuration for development (HTTP, different ports allowed)
+  cookie:
+    max-age: ${JWT_COOKIE_MAX_AGE:86400} # 24 hours in seconds
+    secure: ${JWT_COOKIE_SECURE:false} # false for dev (HTTP)
+    same-site: ${JWT_COOKIE_SAME_SITE:lax} # lax for dev (allows cross-site)
+    path: ${JWT_COOKIE_PATH:/} # Cookie path
 
 cors:
   allowed-origins: ${CORS_ORIGINS:http://localhost:3000,http://localhost:3001}

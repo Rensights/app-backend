@@ -37,6 +37,12 @@ server:
 jwt:
   secret: ${JWT_SECRET}
   expiration: ${JWT_EXPIRATION:86400000}
+  # SECURITY: Cookie configuration for production (HTTPS, strict security)
+  cookie:
+    max-age: ${JWT_COOKIE_MAX_AGE:86400} # 24 hours in seconds
+    secure: ${JWT_COOKIE_SECURE:true} # true for prod (HTTPS only)
+    same-site: ${JWT_COOKIE_SAME_SITE:strict} # strict for prod (CSRF protection)
+    path: ${JWT_COOKIE_PATH:/} # Cookie path
 
 cors:
   allowed-origins: ${CORS_ORIGINS}

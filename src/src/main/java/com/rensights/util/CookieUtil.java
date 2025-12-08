@@ -1,6 +1,8 @@
 package com.rensights.util;
 
 import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Component;
@@ -12,6 +14,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class CookieUtil {
     
+    private static final Logger logger = LoggerFactory.getLogger(CookieUtil.class);
     private static final String JWT_COOKIE_NAME = "authToken";
     
     @Value("${jwt.cookie.max-age:86400}") // Default: 24 hours in seconds
@@ -26,6 +29,9 @@ public class CookieUtil {
     @Value("${jwt.cookie.path:/}")
     private String cookiePath;
     
+    @Value("${jwt.cookie.domain:}") // Empty = current domain (allows cross-port in dev)
+    private String cookieDomain;
+    
     /**
      * Set JWT token as HttpOnly cookie
      * SECURITY: HttpOnly prevents JavaScript access (XSS protection)
@@ -34,14 +40,19 @@ public class CookieUtil {
      */
     public void setAuthCookie(HttpServletResponse response, String token) {
         // Build cookie with SameSite attribute (Spring Boot 3.2 compatible)
-        ResponseCookie cookie = ResponseCookie.from(JWT_COOKIE_NAME, token)
+        ResponseCookie.ResponseCookieBuilder cookieBuilder = ResponseCookie.from(JWT_COOKIE_NAME, token)
                 .path(cookiePath)
                 .maxAge(cookieMaxAge)
                 .httpOnly(true) // CRITICAL: Prevents JavaScript access (XSS protection)
                 .secure(cookieSecure) // Only sent over HTTPS in production
-                .sameSite(cookieSameSite) // CSRF protection (accepts string: "Strict", "Lax", "None")
-                .build();
+                .sameSite(cookieSameSite); // CSRF protection (accepts string: "Strict", "Lax", "None")
         
+        // Set domain if configured (leave empty for current domain - works across ports in dev)
+        if (cookieDomain != null && !cookieDomain.isEmpty()) {
+            cookieBuilder.domain(cookieDomain);
+        }
+        
+        ResponseCookie cookie = cookieBuilder.build();
         response.addHeader("Set-Cookie", cookie.toString());
     }
     
@@ -49,15 +60,21 @@ public class CookieUtil {
      * Clear JWT cookie by setting it to expire immediately
      */
     public void clearAuthCookie(HttpServletResponse response) {
-        ResponseCookie cookie = ResponseCookie.from(JWT_COOKIE_NAME, "")
+        ResponseCookie.ResponseCookieBuilder cookieBuilder = ResponseCookie.from(JWT_COOKIE_NAME, "")
                 .path(cookiePath)
                 .maxAge(0) // Expire immediately
                 .httpOnly(true)
                 .secure(cookieSecure)
-                .sameSite(cookieSameSite)
-                .build();
+                .sameSite(cookieSameSite);
         
+        // Set domain if configured (must match domain used when setting cookie)
+        if (cookieDomain != null && !cookieDomain.isEmpty()) {
+            cookieBuilder.domain(cookieDomain);
+        }
+        
+        ResponseCookie cookie = cookieBuilder.build();
         response.addHeader("Set-Cookie", cookie.toString());
+        logger.debug("Cleared auth cookie");
     }
     
     /**
