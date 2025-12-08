@@ -12,7 +12,9 @@ import com.rensights.dto.VerifyEmailRequest;
 import com.rensights.dto.VerifyResetCodeRequest;
 import com.rensights.service.AuthService;
 import com.rensights.service.DeviceService;
+import com.rensights.util.CookieUtil;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,11 +41,17 @@ public class AuthController {
     @Autowired
     private com.rensights.service.EmailService emailService;
     
+    @Autowired
+    private CookieUtil cookieUtil;
+    
     /**
-     * Register - sends verification code if required, or returns token if verification disabled
+     * Register - sends verification code if required, or sets cookie if verification disabled
+     * SECURITY: Token stored in HttpOnly cookie (XSS protection)
      */
     @PostMapping("/register")
-    public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest request, HttpServletRequest httpRequest) {
+    public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest request, 
+                                     HttpServletRequest httpRequest, 
+                                     HttpServletResponse httpResponse) {
         logger.info("=== Register called for: {}", request.getEmail());
         try {
             // Generate device fingerprint if not provided
@@ -55,9 +63,13 @@ public class AuthController {
             AuthResponse authResponse = authService.register(request, deviceFingerprint, httpRequest);
             
             if (authResponse != null) {
-                // Email verification disabled - return token directly
-                logger.info("✅ Registration successful (verification disabled), token generated for: {}", request.getEmail());
-                return ResponseEntity.ok(authResponse);
+                // Email verification disabled - set cookie and return user data (no token in response)
+                logger.info("✅ Registration successful (verification disabled), cookie set for: {}", request.getEmail());
+                cookieUtil.setAuthCookie(httpResponse, authResponse.getToken());
+                // Return user data without token
+                AuthResponse responseWithoutToken = new AuthResponse(null, authResponse.getEmail(), 
+                    authResponse.getFirstName(), authResponse.getLastName());
+                return ResponseEntity.ok(responseWithoutToken);
             } else {
                 // Email verification required - send code
                 logger.info("✅ Registration successful, verification code sent to: {}", request.getEmail());
@@ -73,9 +85,12 @@ public class AuthController {
     
     /**
      * Verify email after registration - also registers device
+     * SECURITY: Token stored in HttpOnly cookie
      */
     @PostMapping("/verify-email")
-    public ResponseEntity<?> verifyEmail(@Valid @RequestBody VerifyEmailRequest request, HttpServletRequest httpRequest) {
+    public ResponseEntity<?> verifyEmail(@Valid @RequestBody VerifyEmailRequest request, 
+                                        HttpServletRequest httpRequest,
+                                        HttpServletResponse httpResponse) {
         logger.info("=== Verify email called for: {}", request.getEmail());
         
         // Generate device fingerprint if not provided
@@ -93,7 +108,12 @@ public class AuthController {
                     httpRequest
             );
             logger.info("✅ Email verified and device registered for: {}", request.getEmail());
-            return ResponseEntity.ok(response);
+            // Set token in HttpOnly cookie
+            cookieUtil.setAuthCookie(httpResponse, response.getToken());
+            // Return user data without token
+            AuthResponse responseWithoutToken = new AuthResponse(null, response.getEmail(), 
+                response.getFirstName(), response.getLastName());
+            return ResponseEntity.ok(responseWithoutToken);
         } catch (RuntimeException e) {
             logger.error("❌ Email verification failed: {}", e.getMessage());
             // SECURITY FIX: Use generic error message
@@ -104,9 +124,12 @@ public class AuthController {
     
     /**
      * Login - checks device, may require verification
+     * SECURITY: Token stored in HttpOnly cookie when login successful
      */
     @PostMapping("/login")
-    public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request, HttpServletRequest httpRequest) {
+    public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request, 
+                                   HttpServletRequest httpRequest,
+                                   HttpServletResponse httpResponse) {
         logger.info("=== Login called for: {}", request.getEmail());
         
         // Generate device fingerprint if not provided
@@ -125,7 +148,10 @@ public class AuthController {
                         .body(new LoginResponse(true, null, request.getEmail(), null, null, deviceFingerprint));
             } else {
                 logger.info("✅ Login successful (known device) for: {}", request.getEmail());
-                return ResponseEntity.ok(new LoginResponse(false, response.getToken(), 
+                // Set token in HttpOnly cookie
+                cookieUtil.setAuthCookie(httpResponse, response.getToken());
+                // Return user data without token
+                return ResponseEntity.ok(new LoginResponse(false, null, 
                         response.getEmail(), response.getFirstName(), response.getLastName(), deviceFingerprint));
             }
         } catch (RuntimeException e) {
@@ -138,9 +164,12 @@ public class AuthController {
     
     /**
      * Verify device for login (new device)
+     * SECURITY: Token stored in HttpOnly cookie
      */
     @PostMapping("/verify-device")
-    public ResponseEntity<?> verifyDevice(@Valid @RequestBody VerifyDeviceRequest request, HttpServletRequest httpRequest) {
+    public ResponseEntity<?> verifyDevice(@Valid @RequestBody VerifyDeviceRequest request, 
+                                         HttpServletRequest httpRequest,
+                                         HttpServletResponse httpResponse) {
         logger.info("=== Verify device called for: {}", request.getEmail());
         
         try {
@@ -151,7 +180,12 @@ public class AuthController {
                     httpRequest
             );
             logger.info("✅ Device verified successfully for: {}", request.getEmail());
-            return ResponseEntity.ok(response);
+            // Set token in HttpOnly cookie
+            cookieUtil.setAuthCookie(httpResponse, response.getToken());
+            // Return user data without token
+            AuthResponse responseWithoutToken = new AuthResponse(null, response.getEmail(), 
+                response.getFirstName(), response.getLastName());
+            return ResponseEntity.ok(responseWithoutToken);
         } catch (RuntimeException e) {
             logger.error("❌ Device verification failed: {}", e.getMessage());
             // SECURITY FIX: Use generic error message
@@ -257,6 +291,17 @@ public class AuthController {
         }
     }
     
+    /**
+     * Logout - clears authentication cookie
+     * SECURITY: Clears HttpOnly cookie to logout user
+     */
+    @PostMapping("/logout")
+    public ResponseEntity<?> logout(HttpServletResponse httpResponse) {
+        logger.info("=== Logout called");
+        cookieUtil.clearAuthCookie(httpResponse);
+        return ResponseEntity.ok(new MessageResponse("Logged out successfully"));
+    }
+    
     private static class ErrorResponse {
         private String error;
         
@@ -283,7 +328,7 @@ public class AuthController {
     
     private static class LoginResponse {
         private boolean requiresVerification;
-        private String token;
+        private String token; // SECURITY: Token no longer returned in response (stored in HttpOnly cookie)
         private String email;
         private String firstName;
         private String lastName;
@@ -292,7 +337,7 @@ public class AuthController {
         public LoginResponse(boolean requiresVerification, String token, String email, 
                            String firstName, String lastName, String deviceFingerprint) {
             this.requiresVerification = requiresVerification;
-            this.token = token;
+            this.token = token; // Will be null for cookie-based auth
             this.email = email;
             this.firstName = firstName;
             this.lastName = lastName;
@@ -300,7 +345,7 @@ public class AuthController {
         }
         
         public boolean isRequiresVerification() { return requiresVerification; }
-        public String getToken() { return token; }
+        public String getToken() { return token; } // Deprecated: Token now in HttpOnly cookie
         public String getEmail() { return email; }
         public String getFirstName() { return firstName; }
         public String getLastName() { return lastName; }

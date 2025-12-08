@@ -48,6 +48,12 @@ server:
 jwt:
   secret: ${JWT_SECRET:dev-secret-key-change-in-production-minimum-32-characters-long}
   expiration: ${JWT_EXPIRATION:86400000}
+  # SECURITY: Cookie configuration for HttpOnly cookie-based authentication
+  cookie:
+    max-age: ${JWT_COOKIE_MAX_AGE:86400} # 24 hours in seconds
+    secure: ${JWT_COOKIE_SECURE:true} # true in production (HTTPS only)
+    same-site: ${JWT_COOKIE_SAME_SITE:strict} # strict, lax, or none (strict for CSRF protection)
+    path: ${JWT_COOKIE_PATH:/} # Cookie path
 
 management:
   endpoints:

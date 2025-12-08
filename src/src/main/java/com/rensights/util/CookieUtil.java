@@ -1,0 +1,82 @@
+package com.rensights.util;
+
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.ResponseCookie;
+import org.springframework.stereotype.Component;
+
+/**
+ * SECURITY: Utility class for managing secure HttpOnly cookies for JWT tokens
+ * HttpOnly cookies prevent JavaScript access, protecting against XSS attacks
+ */
+@Component
+public class CookieUtil {
+    
+    private static final String JWT_COOKIE_NAME = "authToken";
+    
+    @Value("${jwt.cookie.max-age:86400}") // Default: 24 hours in seconds
+    private int cookieMaxAge;
+    
+    @Value("${jwt.cookie.secure:true}")
+    private boolean cookieSecure; // Should be true in production (HTTPS only)
+    
+    @Value("${jwt.cookie.same-site:strict}")
+    private String cookieSameSite; // strict, lax, or none
+    
+    @Value("${jwt.cookie.path:/}")
+    private String cookiePath;
+    
+    /**
+     * Set JWT token as HttpOnly cookie
+     * SECURITY: HttpOnly prevents JavaScript access (XSS protection)
+     * SECURITY: Secure flag ensures cookie only sent over HTTPS (in production)
+     * SECURITY: SameSite provides CSRF protection
+     */
+    public void setAuthCookie(HttpServletResponse response, String token) {
+        ResponseCookie.SameSite sameSite = ResponseCookie.SameSite.STRICT;
+        if ("lax".equalsIgnoreCase(cookieSameSite)) {
+            sameSite = ResponseCookie.SameSite.LAX;
+        } else if ("none".equalsIgnoreCase(cookieSameSite)) {
+            sameSite = ResponseCookie.SameSite.NONE;
+        }
+        
+        ResponseCookie cookie = ResponseCookie.from(JWT_COOKIE_NAME, token)
+                .path(cookiePath)
+                .maxAge(cookieMaxAge)
+                .httpOnly(true) // CRITICAL: Prevents JavaScript access (XSS protection)
+                .secure(cookieSecure) // Only sent over HTTPS in production
+                .sameSite(sameSite) // CSRF protection
+                .build();
+        
+        response.addHeader("Set-Cookie", cookie.toString());
+    }
+    
+    /**
+     * Clear JWT cookie by setting it to expire immediately
+     */
+    public void clearAuthCookie(HttpServletResponse response) {
+        ResponseCookie.SameSite sameSite = ResponseCookie.SameSite.STRICT;
+        if ("lax".equalsIgnoreCase(cookieSameSite)) {
+            sameSite = ResponseCookie.SameSite.LAX;
+        } else if ("none".equalsIgnoreCase(cookieSameSite)) {
+            sameSite = ResponseCookie.SameSite.NONE;
+        }
+        
+        ResponseCookie cookie = ResponseCookie.from(JWT_COOKIE_NAME, "")
+                .path(cookiePath)
+                .maxAge(0) // Expire immediately
+                .httpOnly(true)
+                .secure(cookieSecure)
+                .sameSite(sameSite)
+                .build();
+        
+        response.addHeader("Set-Cookie", cookie.toString());
+    }
+    
+    /**
+     * Get cookie name for token extraction
+     */
+    public static String getCookieName() {
+        return JWT_COOKIE_NAME;
+    }
+}

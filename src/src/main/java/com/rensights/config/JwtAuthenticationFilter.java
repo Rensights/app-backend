@@ -1,8 +1,10 @@
 package com.rensights.config;
 
 import com.rensights.service.JwtService;
+import com.rensights.util.CookieUtil;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,28 +37,45 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
         
-        String authHeader = request.getHeader("Authorization");
+        String token = null;
         
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            String token = authHeader.substring(7);
-            
-            if (jwtService.validateToken(token)) {
-                try {
-                    UUID userId = jwtService.getUserIdFromToken(token);
-                    
-                    // Create authentication object
-                    UsernamePasswordAuthenticationToken authentication = 
-                        new UsernamePasswordAuthenticationToken(
-                            userId.toString(), 
-                            null, 
-                            Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER"))
-                        );
-                    authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                    
-                    SecurityContextHolder.getContext().setAuthentication(authentication);
-                } catch (Exception e) {
-                    // Invalid token, continue without authentication
+        // SECURITY: Priority 1 - Read token from HttpOnly cookie (most secure)
+        Cookie[] cookies = request.getCookies();
+        if (cookies != null) {
+            for (Cookie cookie : cookies) {
+                if (CookieUtil.getCookieName().equals(cookie.getName())) {
+                    token = cookie.getValue();
+                    break;
                 }
+            }
+        }
+        
+        // SECURITY: Priority 2 - Fallback to Authorization header (for API clients, mobile apps)
+        // This maintains backward compatibility while preferring secure cookies
+        if (token == null) {
+            String authHeader = request.getHeader("Authorization");
+            if (authHeader != null && authHeader.startsWith("Bearer ")) {
+                token = authHeader.substring(7);
+            }
+        }
+        
+        // Validate and authenticate if token is present
+        if (token != null && jwtService.validateToken(token)) {
+            try {
+                UUID userId = jwtService.getUserIdFromToken(token);
+                
+                // Create authentication object
+                UsernamePasswordAuthenticationToken authentication = 
+                    new UsernamePasswordAuthenticationToken(
+                        userId.toString(), 
+                        null, 
+                        Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER"))
+                    );
+                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                
+                SecurityContextHolder.getContext().setAuthentication(authentication);
+            } catch (Exception e) {
+                // Invalid token, continue without authentication
             }
         }
         
