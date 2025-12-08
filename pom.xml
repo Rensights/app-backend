@@ -40,6 +40,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <flyway.version>0</flyway.version>
         <lombok.version>1.18.30</lombok.version>
+        <skip.avro>true</skip.avro>
     </properties>
     
     <dependencies>
@@ -182,14 +183,12 @@
                             <goal>schema</goal>
                         </goals>
                         <configuration>
-                            <sourceDirectory>${project.basedir}/../schemas/avro</sourceDirectory>
+                            <sourceDirectory>${project.basedir}/schemas/avro</sourceDirectory>
                             <outputDirectory>${project.build.directory}/generated-sources/avro</outputDirectory>
                             <stringType>String</stringType>
                             <includes>
                                 <include>**/*.avsc</include>
                             </includes>
-                            <!-- Skip if skip.avro property is set -->
-                            <skip>${skip.avro}</skip>
                         </configuration>
                     </execution>
                 </executions>

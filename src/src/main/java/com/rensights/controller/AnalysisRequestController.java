@@ -232,7 +232,7 @@ public class AnalysisRequestController {
                     return ResponseEntity.status(403).build();
                 }
                 
-            } catch (IllegalArgumentException | java.util.UUID.InvalidUUIDStringException e) {
+            } catch (IllegalArgumentException e) {
                 logger.warn("SECURITY ALERT: Invalid requestId in file path: {}", filePath);
                 return ResponseEntity.status(400).build();
             } catch (RuntimeException e) {
