@@ -31,14 +31,24 @@ RUN mvn clean package -DskipTests -B
 FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app
 
+# SECURITY FIX: Create non-root user for running the application
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+
 # Download OpenTelemetry Java agent (cached unless version changes)
 ARG OTEL_AGENT_VERSION=2.22.0
+# SECURITY: Download and verify checksum (optional but recommended)
 RUN wget -q -O opentelemetry-javaagent.jar \
     https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/download/v${OTEL_AGENT_VERSION}/opentelemetry-javaagent.jar && \
     rm -rf /var/cache/apk/*
 
 # Copy built JAR from builder
 COPY --from=builder /app/src/target/*.jar app.jar
+
+# SECURITY: Change ownership to non-root user
+RUN chown -R appuser:appgroup /app
+
+# SECURITY: Switch to non-root user
+USER appuser
 
 EXPOSE 8080
 

@@ -46,6 +46,9 @@ logging:
     com.rensights: INFO
     org.springframework.security: WARN
     org.hibernate: WARN
+    # SECURITY FIX: Disable SQL logging in production
+    org.hibernate.SQL: OFF
+    org.hibernate.type.descriptor.sql.BasicBinder: OFF
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
   file:

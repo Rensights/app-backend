@@ -30,13 +30,15 @@ public class EmailService {
         logger.info("To email: {}", toEmail);
         
         if (!emailEnabled) {
-            logger.warn("Email is disabled. Verification code for {}: {}", toEmail, code);
+            // SECURITY FIX: Never log verification codes
+            logger.warn("Email is disabled. Verification code for {}: [REDACTED]", toEmail);
             return;
         }
         
         if (mailSender == null) {
             logger.error("JavaMailSender is not available! Email configuration may be missing.");
-            logger.warn("DEV MODE: Verification Code for {}: {}", toEmail, code);
+            // SECURITY FIX: Never log verification codes - even in dev mode
+            logger.warn("DEV MODE: Verification Code for {}: [REDACTED]", toEmail);
             return;
         }
         
@@ -71,13 +73,15 @@ public class EmailService {
         logger.info("To email: {}", toEmail);
         
         if (!emailEnabled) {
-            logger.warn("Email is disabled. Password reset code for {}: {}", toEmail, code);
+            // SECURITY FIX: Never log password reset codes
+            logger.warn("Email is disabled. Password reset code for {}: [REDACTED]", toEmail);
             return;
         }
         
         if (mailSender == null) {
             logger.error("JavaMailSender is not available! Email configuration may be missing.");
-            logger.warn("DEV MODE: Password Reset Code for {}: {}", toEmail, code);
+            // SECURITY FIX: Never log password reset codes - even in dev mode
+            logger.warn("DEV MODE: Password Reset Code for {}: [REDACTED]", toEmail);
             return;
         }
         

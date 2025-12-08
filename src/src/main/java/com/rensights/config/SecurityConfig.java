@@ -29,17 +29,35 @@ public class SecurityConfig {
             // CORS must be configured before authentication
             .cors(cors -> cors.configurationSource(corsConfig.corsConfigurationSource()))
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            // SECURITY FIX: Add security headers
+            .headers(headers -> headers
+                .contentTypeOptions(HeadersConfigurer.ContentTypeOptionsConfig::and)
+                .frameOptions(HeadersConfigurer.FrameOptionsConfig::deny)
+                .xssProtection(xss -> xss
+                    .headerValue(org.springframework.security.web.header.writers.XXssProtectionHeaderWriter.HeaderValue.ENABLED_MODE_BLOCK)
+                )
+                .httpStrictTransportSecurity(hsts -> hsts
+                    .maxAgeInSeconds(31536000) // 1 year
+                    .includeSubdomains(true)
+                    .preload(true)
+                )
+                .referrerPolicy(referrer -> referrer
+                    .policy(org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN)
+                )
+            )
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
             .authorizeHttpRequests(auth -> auth
                 // OPTIONS requests must be permitted first for CORS preflight
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/analysis-requests").permitAll() // Allow submission without auth
-                .requestMatchers("/api/analysis-requests/files/**").permitAll() // Allow file access
+                // SECURITY FIX: Require authentication for file access to prevent unauthorized access
+                .requestMatchers("/api/analysis-requests/files/**").authenticated()
                 .requestMatchers("/api/analysis-requests/my-requests").authenticated() // User's own requests require auth
                 .requestMatchers("/api/subscriptions/**").authenticated()
                 .requestMatchers("/users/**").authenticated()
-                .requestMatchers("/actuator/**").permitAll()
+                .requestMatchers("/actuator/health").permitAll() // Only health endpoint public
+                .requestMatchers("/actuator/**").authenticated() // Other actuator endpoints require auth
                 .requestMatchers("/error").permitAll()
                 .anyRequest().authenticated()
             );

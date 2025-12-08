@@ -118,11 +118,11 @@ public class SubscriptionController {
         } catch (StripeException e) {
             logger.error("Error creating checkout session: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ErrorResponse("Failed to create checkout session: " + e.getMessage()));
+                    .body(new ErrorResponse("Failed to create checkout session. Please try again later."));
         } catch (Exception e) {
             logger.error("Error creating checkout session: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ErrorResponse("Failed to create checkout session"));
+                    .body(new ErrorResponse("Failed to create checkout session. Please try again later."));
         }
     }
     
@@ -214,11 +214,11 @@ public class SubscriptionController {
         } catch (StripeException e) {
             logger.error("Stripe error processing checkout success: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ErrorResponse("Failed to process checkout: " + e.getMessage()));
+                    .body(new ErrorResponse("Failed to process checkout. Please try again later."));
         } catch (Exception e) {
             logger.error("Error processing checkout success: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ErrorResponse("Failed to process checkout: " + e.getMessage()));
+                    .body(new ErrorResponse("Failed to process checkout. Please try again later."));
         }
     }
     

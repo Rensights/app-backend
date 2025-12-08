@@ -232,22 +232,38 @@ public class AuthService {
                 .build();
     }
     
+    // SECURITY FIX: This method is used for password reset - don't throw to prevent user enumeration
+    // The controller should always return success message regardless
     public void validateUserExists(String email) {
+        // Always succeed silently to prevent user enumeration
+        // If user doesn't exist, password reset code generation will just fail silently
+        // This prevents attackers from discovering which emails are registered
         if (!userRepository.existsByEmail(email)) {
-            throw new RuntimeException("User not found");
+            // Don't throw - just log and return (prevents user enumeration)
+            logger.warn("Password reset requested for non-existent email: {}", email);
+            return;
         }
     }
     
     /**
      * Request password reset - sends reset code to email
+     * SECURITY FIX: Don't reveal if user exists to prevent user enumeration
      */
     @Transactional
     public void requestPasswordReset(String email) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        // SECURITY FIX: Don't reveal if user exists to prevent user enumeration
+        User user = userRepository.findByEmail(email).orElse(null);
+        
+        if (user == null) {
+            // User doesn't exist - log but don't throw (prevents user enumeration)
+            logger.warn("Password reset requested for non-existent email: {}", email);
+            return; // Silent return - controller will always show success message
+        }
         
         if (!user.getIsActive()) {
-            throw new RuntimeException("Account is deactivated");
+            // Account deactivated - still don't reveal this to prevent enumeration
+            logger.warn("Password reset requested for deactivated account: {}", email);
+            return; // Silent return
         }
         
         // Generate reset code using verification code service

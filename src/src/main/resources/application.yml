@@ -29,7 +29,8 @@ spring:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
       ddl-auto: validate
-    show-sql: true
+    # SECURITY FIX: Disable SQL logging in production (prevents sensitive data exposure)
+    show-sql: false
     open-in-view: false
 
 server:
@@ -67,4 +68,6 @@ logging:
   level:
     root: INFO
     com.rensights: DEBUG
-    org.hibernate.SQL: DEBUG
+    # SECURITY FIX: Disable SQL logging to prevent sensitive data exposure
+    org.hibernate.SQL: OFF
+    org.hibernate.type.descriptor.sql.BasicBinder: OFF

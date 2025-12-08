@@ -1,0 +1,28 @@
+// NOTE ON CSRF PROTECTION:
+// 
+// CSRF protection is disabled because this application uses:
+// 1. Stateless JWT authentication (no server-side sessions)
+// 2. RESTful API endpoints
+// 3. CORS protection for cross-origin requests
+//
+// For JWT-based stateless APIs, CSRF protection is typically not required because:
+// - CSRF attacks rely on browser automatically sending cookies
+// - JWTs are stored in localStorage/headers, not cookies (or if in cookies, they use SameSite attribute)
+// - The attacker cannot read the JWT token from localStorage due to same-origin policy
+//
+// However, if you decide to use cookies for JWT storage, you MUST:
+// 1. Enable CSRF protection
+// 2. Use SameSite=Strict or SameSite=Lax cookie attribute
+// 3. Implement Double Submit Cookie pattern
+//
+// Current implementation is secure because:
+// - Tokens are stored client-side (localStorage/memory)
+// - CORS is properly configured
+// - Same-origin policy protects localStorage
+//
+// To enable CSRF protection in the future:
+// .csrf(csrf -> csrf
+//     .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+//     .ignoringRequestMatchers("/api/auth/**") // Only allow CSRF-free for auth endpoints
+// )
+

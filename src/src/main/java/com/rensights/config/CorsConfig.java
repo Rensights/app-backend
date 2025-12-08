@@ -38,13 +38,10 @@ public class CorsConfig implements WebMvcConfigurer {
                 String host = url.getHost();
                 int port = url.getPort();
                 
-                // Always add pattern with wildcard port for flexibility
-                String wildcardPortPattern = protocol + "://" + host + ":*";
-                if (!patterns.contains(wildcardPortPattern)) {
-                    patterns.add(wildcardPortPattern);
-                }
+                // SECURITY FIX: Removed wildcard port patterns to prevent attacks from any port
+                // Only allow explicit ports or default ports (80/443)
                 
-                // Always add pattern without port
+                // Always add pattern without port (defaults to 80 for http, 443 for https)
                 String noPortPattern = protocol + "://" + host;
                 if (!patterns.contains(noPortPattern)) {
                     patterns.add(noPortPattern);
@@ -73,7 +70,8 @@ public class CorsConfig implements WebMvcConfigurer {
         registry.addMapping("/**")
             .allowedOriginPatterns(originPatterns)
             .allowedMethods("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS")
-            .allowedHeaders("*")
+            // SECURITY FIX: Restrict allowed headers instead of allowing all
+            .allowedHeaders("Authorization", "Content-Type", "X-Requested-With", "Accept", "Origin")
             .exposedHeaders("Authorization", "Content-Type", "X-Requested-With")
             .allowCredentials(true)
             .maxAge(3600);
@@ -105,13 +103,10 @@ public class CorsConfig implements WebMvcConfigurer {
                 String host = url.getHost();
                 int port = url.getPort();
                 
-                // Always add pattern with wildcard port for flexibility
-                String wildcardPortPattern = protocol + "://" + host + ":*";
-                if (!patterns.contains(wildcardPortPattern)) {
-                    patterns.add(wildcardPortPattern);
-                }
+                // SECURITY FIX: Removed wildcard port patterns to prevent attacks from any port
+                // Only allow explicit ports or default ports (80/443)
                 
-                // Always add pattern without port
+                // Always add pattern without port (defaults to 80 for http, 443 for https)
                 String noPortPattern = protocol + "://" + host;
                 if (!patterns.contains(noPortPattern)) {
                     patterns.add(noPortPattern);
@@ -138,7 +133,10 @@ public class CorsConfig implements WebMvcConfigurer {
         configuration.setAllowedOrigins(null);
         
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
-        configuration.setAllowedHeaders(Arrays.asList("*"));
+        // SECURITY FIX: Restrict allowed headers instead of allowing all
+        configuration.setAllowedHeaders(Arrays.asList(
+            "Authorization", "Content-Type", "X-Requested-With", "Accept", "Origin"
+        ));
         configuration.setExposedHeaders(Arrays.asList("Authorization", "Content-Type", "X-Requested-With"));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L); // Cache preflight for 1 hour

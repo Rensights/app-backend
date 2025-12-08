@@ -36,8 +36,22 @@ autoscaling:
   maxReplicas: 3
   targetCPUUtilizationPercentage: 80
 
-podSecurityContext: {}
-securityContext: {}
+# SECURITY FIX: Add security contexts to prevent privilege escalation
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1001
+  fsGroup: 1001
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false  # Set to true if app doesn't need to write to root filesystem
+  capabilities:
+    drop:
+      - ALL
+  runAsNonRoot: true
+  runAsUser: 1001
 
 podAnnotations: {}
 

@@ -100,7 +100,7 @@ public class DealController {
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             logger.error("Error fetching approved deals: {}", e.getMessage(), e);
-            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+            return ResponseEntity.status(500).body(Map.of("error", "Failed to fetch deals. Please try again later."));
         }
     }
     
@@ -138,7 +138,7 @@ public class DealController {
             return ResponseEntity.ok(dto);
         } catch (Exception e) {
             logger.error("Error fetching deal: {}", e.getMessage(), e);
-            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+            return ResponseEntity.status(500).body(Map.of("error", "Failed to fetch deal. Please try again later."));
         }
     }
 }

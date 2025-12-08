@@ -65,8 +65,9 @@ public class AuthController {
             }
         } catch (RuntimeException e) {
             logger.error("❌ Registration failed: {}", e.getMessage());
+            // SECURITY FIX: Use generic error message to prevent information disclosure
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new ErrorResponse(e.getMessage()));
+                    .body(new ErrorResponse("Registration failed. Please check your input and try again."));
         }
     }
     
@@ -95,8 +96,9 @@ public class AuthController {
             return ResponseEntity.ok(response);
         } catch (RuntimeException e) {
             logger.error("❌ Email verification failed: {}", e.getMessage());
+            // SECURITY FIX: Use generic error message
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new ErrorResponse(e.getMessage()));
+                    .body(new ErrorResponse("Invalid or expired verification code. Please request a new code."));
         }
     }
     
@@ -128,8 +130,9 @@ public class AuthController {
             }
         } catch (RuntimeException e) {
             logger.error("❌ Login failed: {}", e.getMessage());
+            // SECURITY FIX: Use generic error message to prevent user enumeration
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(new ErrorResponse(e.getMessage()));
+                    .body(new ErrorResponse("Invalid email or password"));
         }
     }
     
@@ -151,8 +154,9 @@ public class AuthController {
             return ResponseEntity.ok(response);
         } catch (RuntimeException e) {
             logger.error("❌ Device verification failed: {}", e.getMessage());
+            // SECURITY FIX: Use generic error message
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new ErrorResponse(e.getMessage()));
+                    .body(new ErrorResponse("Invalid or expired verification code. Please request a new code."));
         }
     }
     
@@ -175,12 +179,12 @@ public class AuthController {
             return ResponseEntity.ok(new MessageResponse("Verification code sent to your email"));
         } catch (RuntimeException e) {
             logger.error("❌ Error resending verification code: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new ErrorResponse(e.getMessage()));
+            // SECURITY FIX: Don't reveal if user exists - always return success message
+            return ResponseEntity.ok(new MessageResponse("If the email exists, a verification code has been sent."));
         } catch (Exception e) {
             logger.error("❌ Unexpected error resending verification code: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ErrorResponse("Failed to resend verification code: " + e.getMessage()));
+                    .body(new ErrorResponse("Failed to resend verification code. Please try again later."));
         }
     }
     
@@ -197,12 +201,12 @@ public class AuthController {
             return ResponseEntity.ok(new MessageResponse("Password reset code sent to your email"));
         } catch (RuntimeException e) {
             logger.error("❌ Error requesting password reset: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new ErrorResponse(e.getMessage()));
+            // SECURITY FIX: Don't reveal if user exists - always return success message to prevent user enumeration
+            return ResponseEntity.ok(new MessageResponse("If the email exists, a password reset code has been sent."));
         } catch (Exception e) {
             logger.error("❌ Unexpected error requesting password reset: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ErrorResponse("Failed to send password reset code: " + e.getMessage()));
+                    .body(new ErrorResponse("Failed to send password reset code. Please try again later."));
         }
     }
     
@@ -226,7 +230,7 @@ public class AuthController {
         } catch (Exception e) {
             logger.error("❌ Unexpected error verifying reset code: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ErrorResponse("Failed to verify reset code: " + e.getMessage()));
+                    .body(new ErrorResponse("Failed to verify reset code. Please try again later."));
         }
     }
     
@@ -243,12 +247,13 @@ public class AuthController {
             return ResponseEntity.ok(new MessageResponse("Password reset successfully"));
         } catch (RuntimeException e) {
             logger.error("❌ Error resetting password: {}", e.getMessage());
+            // SECURITY FIX: Use generic error message
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new ErrorResponse(e.getMessage()));
+                    .body(new ErrorResponse("Invalid or expired reset code. Please request a new code."));
         } catch (Exception e) {
             logger.error("❌ Unexpected error resetting password: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ErrorResponse("Failed to reset password: " + e.getMessage()));
+                    .body(new ErrorResponse("Failed to reset password. Please try again later."));
         }
     }
     

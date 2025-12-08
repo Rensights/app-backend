@@ -119,7 +119,8 @@ public class UserController {
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             logger.error("Error retrieving user: {}", e.getMessage(), e);
-            return ResponseEntity.status(500).body(new ErrorResponse("Error retrieving user: " + e.getMessage()));
+            // SECURITY FIX: Don't expose internal error details to client
+            return ResponseEntity.status(500).body(new ErrorResponse("Error retrieving user"));
         }
     }
     
@@ -205,7 +206,8 @@ public class UserController {
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             logger.error("Error updating user profile: {}", e.getMessage(), e);
-            return ResponseEntity.status(500).body(new ErrorResponse("Error updating user: " + e.getMessage()));
+            // SECURITY FIX: Don't expose internal error details to client
+            return ResponseEntity.status(500).body(new ErrorResponse("Error updating user"));
         }
     }
     
@@ -227,7 +229,7 @@ public class UserController {
             
             return ResponseEntity.ok(history);
         } catch (Exception e) {
-            return ResponseEntity.status(500).body(new ErrorResponse("Error retrieving payment history: " + e.getMessage()));
+            return ResponseEntity.status(500).body(new ErrorResponse("Error retrieving payment history. Please try again later."));
         }
     }
     

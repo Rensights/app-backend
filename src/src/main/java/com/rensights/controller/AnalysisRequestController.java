@@ -130,12 +130,13 @@ public class AnalysisRequestController {
             ));
         } catch (IllegalArgumentException e) {
             logger.error("❌ Validation error: {}", e.getMessage());
+            // SECURITY FIX: Only expose validation errors (they're user-facing and safe)
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(new ErrorResponse(e.getMessage()));
         } catch (Exception e) {
             logger.error("❌ Error creating analysis request: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ErrorResponse("Failed to submit analysis request: " + e.getMessage()));
+                    .body(new ErrorResponse("Failed to submit analysis request. Please try again later."));
         }
     }
     
@@ -153,22 +154,41 @@ public class AnalysisRequestController {
         } catch (Exception e) {
             logger.error("❌ Error getting user requests: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ErrorResponse("Failed to get requests: " + e.getMessage()));
+                    .body(new ErrorResponse("Failed to get requests. Please try again later."));
         }
     }
     
     @GetMapping("/files/{filePath:.+}")
-    public ResponseEntity<Resource> getFile(@PathVariable String filePath) {
+    public ResponseEntity<Resource> getFile(
+            @PathVariable String filePath,
+            Authentication authentication) {
         try {
+            // SECURITY: Verify user is authenticated
+            if (authentication == null || !authentication.isAuthenticated()) {
+                logger.warn("SECURITY ALERT: Unauthenticated file access attempt: {}", filePath);
+                return ResponseEntity.status(401).build();
+            }
+            
+            // SECURITY: Optionally verify user owns the file (if filePath contains userId/requestId)
+            // Extract requestId from path if possible for ownership verification
+            // For now, any authenticated user can access files - consider adding ownership checks
+            
             byte[] fileContent = fileStorageService.getFile(filePath);
             ByteArrayResource resource = new ByteArrayResource(fileContent);
             
             String filename = filePath.substring(filePath.lastIndexOf('/') + 1);
             
+            // SECURITY: Sanitize filename to prevent header injection
+            filename = filename.replaceAll("[^a-zA-Z0-9._-]", "_");
+            
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
                     .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                    .header("X-Content-Type-Options", "nosniff") // Prevent MIME sniffing
                     .body(resource);
+        } catch (SecurityException e) {
+            logger.error("SECURITY ALERT: Security violation accessing file: {}", filePath, e);
+            return ResponseEntity.status(403).build();
         } catch (Exception e) {
             logger.error("Error serving file: {}", filePath, e);
             return ResponseEntity.notFound().build();
