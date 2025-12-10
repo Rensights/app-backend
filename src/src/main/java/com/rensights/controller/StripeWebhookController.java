@@ -18,6 +18,11 @@ public class StripeWebhookController {
     
     private static final Logger logger = LoggerFactory.getLogger(StripeWebhookController.class);
     
+    // Log controller initialization to verify it's being loaded
+    public StripeWebhookController() {
+        logger.info("StripeWebhookController initialized - endpoint: POST /api/webhooks/stripe");
+    }
+    
     @Autowired
     private InvoiceService invoiceService;
     
@@ -29,10 +34,17 @@ public class StripeWebhookController {
     
     /**
      * Handle Stripe webhook events
+     * Endpoint: POST /api/webhooks/stripe
      */
-    @PostMapping
-    public ResponseEntity<String> handleWebhook(@RequestBody String payload, 
-                                                @RequestHeader("Stripe-Signature") String sigHeader) {
+    @PostMapping(value = {"", "/"})
+    public ResponseEntity<String> handleWebhook(
+            @RequestBody String payload, 
+            @RequestHeader(value = "Stripe-Signature", required = false) String sigHeader) {
+        
+        logger.info("=== WEBHOOK ENDPOINT HIT ===");
+        logger.info("Webhook received - payload length: {}, signature present: {}", 
+                   payload != null ? payload.length() : 0, 
+                   sigHeader != null && !sigHeader.isEmpty());
         if (webhookSecret == null || webhookSecret.isEmpty()) {
             logger.warn("Stripe webhook secret not configured - skipping signature verification");
             // In development, you might want to process without verification

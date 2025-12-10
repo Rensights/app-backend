@@ -66,6 +66,10 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/analysis-requests").permitAll() // Allow submission without auth
+                // SECURITY: Webhook endpoint must be public for Stripe to call it, but signature verification is performed
+                // Allow both with and without trailing slash
+                .requestMatchers(HttpMethod.POST, "/api/webhooks/stripe").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/webhooks/stripe/").permitAll()
                 // SECURITY FIX: Require authentication for file access to prevent unauthorized access
                 .requestMatchers("/api/analysis-requests/files/**").authenticated()
                 .requestMatchers("/api/analysis-requests/my-requests").authenticated() // User's own requests require auth
