@@ -211,5 +211,88 @@ public class SubscriptionService {
     public List<Subscription> getUserSubscriptions(UUID userId) {
         return subscriptionRepository.findByUserId(userId);
     }
+    
+    /**
+     * Handle payment failure - downgrade user to FREE tier
+     * Called when invoice payment fails or subscription is cancelled due to payment failure
+     */
+    @Transactional
+    public void handlePaymentFailure(String stripeSubscriptionId) {
+        logger.warn("Handling payment failure for Stripe subscription: {}", stripeSubscriptionId);
+        
+        // Find subscription by Stripe subscription ID
+        Subscription subscription = subscriptionRepository.findByStripeSubscriptionId(stripeSubscriptionId)
+                .orElse(null);
+        
+        if (subscription == null) {
+            logger.warn("Subscription not found for Stripe subscription ID: {}", stripeSubscriptionId);
+            return;
+        }
+        
+        // Only process if subscription is still active
+        if (subscription.getStatus() != SubscriptionStatus.ACTIVE) {
+            logger.info("Subscription {} is already cancelled/expired, skipping payment failure handling", 
+                       subscription.getId());
+            return;
+        }
+        
+        // Mark subscription as cancelled
+        subscription.setStatus(SubscriptionStatus.CANCELLED);
+        subscription.setEndDate(LocalDateTime.now());
+        subscription = subscriptionRepository.save(subscription);
+        
+        // Downgrade user to FREE tier
+        User user = subscription.getUser();
+        user.setUserTier(UserTier.FREE);
+        userRepository.save(user);
+        
+        logger.info("Payment failure handled: User {} downgraded to FREE tier, subscription {} cancelled", 
+                   user.getId(), subscription.getId());
+    }
+    
+    /**
+     * Handle payment failure by Stripe customer ID (when subscription ID is not available)
+     */
+    @Transactional
+    public void handlePaymentFailureByCustomer(String stripeCustomerId) {
+        logger.warn("Handling payment failure for Stripe customer: {}", stripeCustomerId);
+        
+        // Find user by Stripe customer ID
+        User user = userRepository.findByStripeCustomerId(stripeCustomerId)
+                .orElse(null);
+        
+        if (user == null) {
+            logger.warn("User not found for Stripe customer ID: {}", stripeCustomerId);
+            return;
+        }
+        
+        // Find active subscription for this user
+        Subscription subscription = subscriptionRepository
+                .findByUserIdAndStatus(user.getId(), SubscriptionStatus.ACTIVE)
+                .orElse(null);
+        
+        if (subscription == null) {
+            logger.warn("No active subscription found for user {}", user.getId());
+            // Still downgrade user tier if it's not already FREE
+            if (user.getUserTier() != UserTier.FREE) {
+                user.setUserTier(UserTier.FREE);
+                userRepository.save(user);
+                logger.info("User {} downgraded to FREE tier (no active subscription found)", user.getId());
+            }
+            return;
+        }
+        
+        // Mark subscription as cancelled
+        subscription.setStatus(SubscriptionStatus.CANCELLED);
+        subscription.setEndDate(LocalDateTime.now());
+        subscription = subscriptionRepository.save(subscription);
+        
+        // Downgrade user to FREE tier
+        user.setUserTier(UserTier.FREE);
+        userRepository.save(user);
+        
+        logger.info("Payment failure handled: User {} downgraded to FREE tier, subscription {} cancelled", 
+                   user.getId(), subscription.getId());
+    }
 }
 

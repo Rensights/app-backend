@@ -29,6 +29,9 @@ public class StripeWebhookController {
     @Autowired
     private com.rensights.service.EmailService emailService;
     
+    @Autowired
+    private com.rensights.service.SubscriptionService subscriptionService;
+    
     @Value("${stripe.webhook-secret:}")
     private String webhookSecret;
     
@@ -67,6 +70,12 @@ public class StripeWebhookController {
                         break;
                     case "invoice.updated":
                         handleInvoiceUpdated(event);
+                        break;
+                    case "customer.subscription.deleted":
+                        handleSubscriptionDeleted(event);
+                        break;
+                    case "customer.subscription.updated":
+                        handleSubscriptionUpdated(event);
                         break;
                     default:
                         logger.info("Unhandled event type: {}", event.getType());
@@ -149,8 +158,23 @@ public class StripeWebhookController {
             
             logger.warn("Invoice payment failed for invoice: {}", stripeInvoice.getId());
             
-            // Still store/update the invoice record with failed status
+            // Store/update the invoice record with failed status
             invoiceService.processStripeInvoice(stripeInvoice);
+            
+            // Handle automatic downgrade to FREE tier when payment fails
+            // Only process if this is a subscription invoice (not a one-time payment)
+            String subscriptionId = stripeInvoice.getSubscription();
+            if (subscriptionId != null && !subscriptionId.isEmpty()) {
+                logger.info("Payment failed for subscription invoice, downgrading user to FREE tier");
+                subscriptionService.handlePaymentFailure(subscriptionId);
+            } else {
+                // If no subscription ID, try using customer ID
+                String customerId = stripeInvoice.getCustomer();
+                if (customerId != null && !customerId.isEmpty()) {
+                    logger.info("Payment failed for customer {}, downgrading to FREE tier", customerId);
+                    subscriptionService.handlePaymentFailureByCustomer(customerId);
+                }
+            }
         } catch (Exception e) {
             logger.error("Error handling invoice.payment_failed: {}", e.getMessage(), e);
         }
@@ -179,6 +203,47 @@ public class StripeWebhookController {
             invoiceService.processStripeInvoice(stripeInvoice);
         } catch (Exception e) {
             logger.error("Error handling invoice.updated: {}", e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * Handle subscription deleted event (when Stripe cancels subscription due to payment failure)
+     */
+    private void handleSubscriptionDeleted(Event event) {
+        try {
+            com.stripe.model.Subscription stripeSubscription = (com.stripe.model.Subscription) event.getDataObjectDeserializer()
+                    .getObject()
+                    .orElseThrow(() -> new RuntimeException("Failed to deserialize subscription"));
+            
+            logger.warn("Subscription deleted: {}", stripeSubscription.getId());
+            
+            // Downgrade user to FREE tier when subscription is deleted
+            subscriptionService.handlePaymentFailure(stripeSubscription.getId());
+        } catch (Exception e) {
+            logger.error("Error handling customer.subscription.deleted: {}", e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * Handle subscription updated event (check for past_due or unpaid status)
+     */
+    private void handleSubscriptionUpdated(Event event) {
+        try {
+            com.stripe.model.Subscription stripeSubscription = (com.stripe.model.Subscription) event.getDataObjectDeserializer()
+                    .getObject()
+                    .orElseThrow(() -> new RuntimeException("Failed to deserialize subscription"));
+            
+            logger.info("Subscription updated: {} - status: {}", stripeSubscription.getId(), stripeSubscription.getStatus());
+            
+            // If subscription is past_due or unpaid, downgrade to FREE tier
+            String status = stripeSubscription.getStatus();
+            if ("past_due".equals(status) || "unpaid".equals(status) || "canceled".equals(status)) {
+                logger.warn("Subscription {} is in {} status, downgrading user to FREE tier", 
+                           stripeSubscription.getId(), status);
+                subscriptionService.handlePaymentFailure(stripeSubscription.getId());
+            }
+        } catch (Exception e) {
+            logger.error("Error handling customer.subscription.updated: {}", e.getMessage(), e);
         }
     }
 }

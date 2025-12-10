@@ -25,7 +25,9 @@ The system automatically creates Stripe customers on registration and sends invo
    - `invoice.payment_succeeded`
    - `invoice.created`
    - `invoice.updated`
-   - `invoice.payment_failed` (optional)
+   - `invoice.payment_failed` **REQUIRED** - Automatically downgrades user to FREE tier
+   - `customer.subscription.deleted` **REQUIRED** - Handles subscription cancellation due to payment failure
+   - `customer.subscription.updated` **REQUIRED** - Handles subscription status changes (past_due, unpaid, canceled)
 5. Copy the webhook signing secret
 
 ### 2. Configure Webhook Secret
@@ -38,6 +40,41 @@ The webhook secret is configured in:
   - ✅ Backend API host: `dev-api.72.62.40.154.nip.io`
   - ❌ Frontend host (wrong): `dev.72.62.40.154.nip.io`
 - Update production URL when deploying to production
+
+## Automatic Subscription Management
+
+### Payment Failure Handling
+The system automatically handles payment failures and downgrades users to the FREE tier:
+
+**When Payment Fails:**
+1. **`invoice.payment_failed` event** - Triggered when Stripe fails to charge a customer
+   - System automatically:
+     - Marks the subscription as CANCELLED
+     - Downgrades user to FREE tier
+     - Updates subscription end date to current time
+
+2. **`customer.subscription.deleted` event** - Triggered when Stripe cancels a subscription due to payment failure
+   - System automatically:
+     - Downgrades user to FREE tier
+     - Marks subscription as CANCELLED
+
+3. **`customer.subscription.updated` event** - Triggered when subscription status changes
+   - If status is `past_due`, `unpaid`, or `canceled`:
+     - System automatically downgrades user to FREE tier
+     - Marks subscription as CANCELLED
+
+**Example Flow:**
+1. User has PREMIUM subscription (paid month 1)
+2. Month 2 payment fails (card declined, insufficient funds, etc.)
+3. Stripe sends `invoice.payment_failed` webhook
+4. System automatically:
+   - Cancels the subscription
+   - Sets user tier to FREE
+   - User loses premium features immediately
+
+**Manual Reactivation:**
+- User must go through the payment flow again to re-activate premium subscription
+- System will create a new subscription when payment succeeds
 
 ### Troubleshooting 404 Errors
 If you get a 404 error with HTML response:
