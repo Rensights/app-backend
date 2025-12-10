@@ -1,3 +1,14 @@
+# Database Migration Instructions
+
+## Invoices Table Migration
+
+Since Flyway is excluded from this project, database migrations need to be run manually.
+
+### Create Invoices Table
+
+Run the following SQL in your PostgreSQL database:
+
+```sql
 -- Create invoices table
 CREATE TABLE IF NOT EXISTS invoices (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -19,12 +30,33 @@ CREATE TABLE IF NOT EXISTS invoices (
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- Note: If you need to add this table to an existing database, run this SQL manually
--- Flyway migrations are excluded in this project, so migrations need to be run manually
-
 -- Create indexes
 CREATE INDEX IF NOT EXISTS idx_invoices_user_id ON invoices(user_id);
 CREATE INDEX IF NOT EXISTS idx_invoices_stripe_invoice_id ON invoices(stripe_invoice_id);
 CREATE INDEX IF NOT EXISTS idx_invoices_stripe_customer_id ON invoices(stripe_customer_id);
 CREATE INDEX IF NOT EXISTS idx_invoices_invoice_date ON invoices(invoice_date DESC);
+```
 
+### Quick Commands
+
+**Using psql:**
+```bash
+psql -h <host> -U <user> -d <database> -f src/main/resources/db/migration/V2__create_invoices_table.sql
+```
+
+**Using Docker/Kubernetes:**
+```bash
+kubectl exec -it <postgres-pod> -- psql -U <user> -d <database> < src/main/resources/db/migration/V2__create_invoices_table.sql
+```
+
+**Direct SQL:**
+Copy the SQL from `src/main/resources/db/migration/V2__create_invoices_table.sql` and run it in your database client.
+
+### Verification
+
+After running the migration, verify the table was created:
+
+```sql
+SELECT * FROM invoices LIMIT 1;
+\d invoices  -- PostgreSQL describe table
+```
