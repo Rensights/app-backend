@@ -28,7 +28,7 @@ spring:
   jpa:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
-      ddl-auto: validate
+      ddl-auto: update  # TEMPORARY: Will create missing tables. Change back to 'validate' after migration
     # SECURITY FIX: Disable SQL logging in production (prevents sensitive data exposure)
     show-sql: false
     open-in-view: false
