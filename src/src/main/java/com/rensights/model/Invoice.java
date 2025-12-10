@@ -51,10 +51,7 @@ public class Invoice {
     private String invoiceUrl; // Stripe hosted invoice URL
     
     @Column(name = "invoice_pdf")
-    private String invoicePdf; // PDF download URL
-    
-    @Column(name = "confirmation_pdf_path")
-    private String confirmationPdfPath; // Path to our generated confirmation PDF
+    private String invoicePdf; // Stripe invoice/receipt PDF URL
     
     @Column(name = "invoice_number")
     private String invoiceNumber; // Human-readable invoice number
@@ -88,3 +85,4 @@ public class Invoice {
         updatedAt = LocalDateTime.now();
     }
 }
+

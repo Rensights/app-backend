@@ -4,7 +4,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.FileSystemResource;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
@@ -12,7 +11,6 @@ import org.springframework.stereotype.Service;
 
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
-import java.io.File;
 
 @Service
 public class EmailService {
@@ -160,35 +158,37 @@ public class EmailService {
         }
     }
     
-    public void sendPaymentConfirmationEmail(String toEmail, String customerName, 
-                                            String invoiceNumber, String amount, 
-                                            String currency, String confirmationPdfPath) {
-        logger.info("=== EmailService.sendPaymentConfirmationEmail called ===");
+    public void sendPaymentReceiptEmail(String toEmail, String customerName, 
+                                        String invoiceNumber, String amount, 
+                                        String currency, String receiptPdfUrl) {
+        logger.info("=== EmailService.sendPaymentReceiptEmail called ===");
         logger.info("Email enabled: {}", emailEnabled);
         logger.info("MailSender available: {}", mailSender != null);
         logger.info("To email: {}", toEmail);
         logger.info("Invoice number: {}", invoiceNumber);
+        logger.info("Receipt PDF URL: {}", receiptPdfUrl);
         
         if (!emailEnabled) {
-            logger.warn("Email is disabled. Payment confirmation for {}: Invoice {}", toEmail, invoiceNumber);
+            logger.warn("Email is disabled. Payment receipt for {}: Invoice {}", toEmail, invoiceNumber);
             return;
         }
         
         if (mailSender == null) {
             logger.error("JavaMailSender is not available! Email configuration may be missing.");
-            logger.warn("DEV MODE: Payment Confirmation - Invoice: {}, Amount: {} {}", invoiceNumber, currency, amount);
+            logger.warn("DEV MODE: Payment Receipt - Invoice: {}, Amount: {} {}, Receipt URL: {}", 
+                       invoiceNumber, currency, amount, receiptPdfUrl);
             return;
         }
         
         try {
             MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, true);
+            MimeMessageHelper helper = new MimeMessageHelper(message, false, "UTF-8");
             
             helper.setFrom(fromEmail);
             helper.setTo(toEmail);
-            helper.setSubject("Rensights - Payment Confirmation");
+            helper.setSubject("Rensights - Payment Receipt");
             
-            // Email body
+            // Email body with HTML for better formatting
             String emailBody = String.join("\n",
                 "Dear " + (customerName != null && !customerName.isEmpty() ? customerName : "Valued Customer") + ",",
                 "",
@@ -199,10 +199,13 @@ public class EmailService {
                 "  Amount: " + currency + " " + amount,
                 "  Status: Paid",
                 "",
-                "Your payment confirmation PDF is attached to this email.",
+                "Your payment receipt is available for download:",
+                receiptPdfUrl,
                 "",
-                "You can also download your confirmation from your account page:",
+                "You can also download your receipt from your account page:",
                 "https://app.rensights.com/account",
+                "",
+                "This receipt serves as proof of payment for your records.",
                 "",
                 "If you have any questions or concerns, please don't hesitate to contact our support team.",
                 "",
@@ -210,29 +213,17 @@ public class EmailService {
                 "Rensights Team"
             );
             
-            helper.setText(emailBody);
+            helper.setText(emailBody, false); // Plain text email
             
-            // Attach PDF if available
-            if (confirmationPdfPath != null && !confirmationPdfPath.isEmpty()) {
-                File pdfFile = new File(confirmationPdfPath);
-                if (pdfFile.exists()) {
-                    FileSystemResource file = new FileSystemResource(pdfFile);
-                    helper.addAttachment("Payment_Confirmation_" + invoiceNumber + ".pdf", file);
-                    logger.info("Attached confirmation PDF: {}", confirmationPdfPath);
-                } else {
-                    logger.warn("Confirmation PDF file not found: {}", confirmationPdfPath);
-                }
-            }
-            
-            logger.info("Attempting to send payment confirmation email to: {}", toEmail);
+            logger.info("Attempting to send payment receipt email to: {}", toEmail);
             mailSender.send(message);
-            logger.info("✅ Payment confirmation email sent successfully to: {}", toEmail);
+            logger.info("✅ Payment receipt email sent successfully to: {}", toEmail);
         } catch (MessagingException e) {
-            logger.error("❌ Failed to send payment confirmation email to: {}", toEmail, e);
-            throw new RuntimeException("Failed to send payment confirmation email: " + e.getMessage(), e);
+            logger.error("❌ Failed to send payment receipt email to: {}", toEmail, e);
+            throw new RuntimeException("Failed to send payment receipt email: " + e.getMessage(), e);
         } catch (Exception e) {
-            logger.error("❌ Failed to send payment confirmation email to: {}", toEmail, e);
-            throw new RuntimeException("Failed to send payment confirmation email: " + e.getMessage(), e);
+            logger.error("❌ Failed to send payment receipt email to: {}", toEmail, e);
+            throw new RuntimeException("Failed to send payment receipt email: " + e.getMessage(), e);
         }
     }
 }

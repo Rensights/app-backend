@@ -16,3 +16,4 @@ public interface InvoiceRepository extends JpaRepository<Invoice, UUID> {
     
     List<Invoice> findByUserIdAndStatus(UUID userId, String status);
 }
+

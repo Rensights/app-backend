@@ -17,7 +17,7 @@ The system automatically creates Stripe customers on registration and sends invo
 ### 1. Configure Webhook in Stripe Dashboard
 1. Go to Stripe Dashboard → Developers → Webhooks
 2. Click "Add endpoint"
-3. Set endpoint URL: `https://your-domain.com/api/webhooks/stripe`
+3. Set endpoint URL: `http://dev.72.62.40.154.nip.io:31416/api/webhooks/stripe`
 4. Select events to listen for:
    - `invoice.payment_succeeded`
    - `invoice.created`
@@ -26,15 +26,13 @@ The system automatically creates Stripe customers on registration and sends invo
 5. Copy the webhook signing secret
 
 ### 2. Configure Webhook Secret
-Add to your Kubernetes secrets or environment variables:
-```yaml
-STRIPE_WEBHOOK_SECRET: "whsec_xxxxx"  # From Stripe dashboard
-```
-
-### 3. Update Backend Configuration
-The webhook secret is already configured in:
+The webhook secret is configured in:
+- `env-values/dev/backend.yaml`: `STRIPE_WEBHOOK_SECRET: "whsec_ao4ndqNEH0oM9X8gohCPlGoJGm3I2UhW"`
 - `application-dev.yml`: `stripe.webhook-secret: ${STRIPE_WEBHOOK_SECRET:}`
-- Set the environment variable in your deployment
+
+**Webhook Endpoint URL:**
+- Development: `http://dev.72.62.40.154.nip.io:31416/api/webhooks/stripe`
+- Update production URL when deploying to production
 
 ## How It Works
 
@@ -103,3 +101,4 @@ stripe trigger invoice.payment_succeeded
 - [ ] Test webhook receives events (check logs)
 - [ ] Verify invoices appear in account page after payment
 - [ ] Test invoice email delivery
+

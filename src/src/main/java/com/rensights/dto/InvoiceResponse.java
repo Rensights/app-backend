@@ -19,10 +19,10 @@ public class InvoiceResponse {
     private String currency;
     private String status;
     private String invoiceUrl; // Stripe hosted invoice URL
-    private String invoicePdf; // PDF download URL
-    private String confirmationPdfPath; // Our generated confirmation PDF path
+    private String invoicePdf; // Stripe invoice/receipt PDF download URL
     private String description;
     private LocalDateTime invoiceDate;
     private LocalDateTime dueDate;
     private LocalDateTime paidAt;
 }
+
