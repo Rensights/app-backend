@@ -7,6 +7,7 @@ import com.rensights.model.User;
 import com.rensights.model.UserTier;
 import com.rensights.repository.SubscriptionRepository;
 import com.rensights.repository.UserRepository;
+import com.rensights.service.InvoiceService;
 import com.rensights.service.StripeService;
 import com.rensights.service.SubscriptionService;
 import com.stripe.exception.StripeException;
@@ -42,6 +43,9 @@ public class SubscriptionController {
     
     @Autowired
     private SubscriptionRepository subscriptionRepository;
+    
+    @Autowired
+    private InvoiceService invoiceService;
     
     @Value("${stripe.premium-price-id:}")
     private String premiumPriceId;
@@ -229,6 +233,15 @@ public class SubscriptionController {
             user.setUserTier(planType);
             userRepository.save(user);
             logger.info("Updated user tier to: {} for user: {}", planType, userId);
+            
+            // Sync invoices after successful payment
+            try {
+                invoiceService.syncInvoicesForUser(userId);
+                logger.info("Synced invoices for user: {}", userId);
+            } catch (Exception e) {
+                logger.warn("Failed to sync invoices after checkout success: {}", e.getMessage());
+                // Don't fail the checkout success if invoice sync fails
+            }
             
             return ResponseEntity.ok(toResponse(subscription));
         } catch (StripeException e) {

@@ -41,6 +41,8 @@ public class StripeService {
     
     /**
      * Create a Stripe customer
+     * Note: Stripe automatically sends invoices via email when payment succeeds
+     * This is enabled by default in Stripe dashboard settings
      */
     public Customer createCustomer(String email, String name) throws StripeException {
         CustomerCreateParams params = CustomerCreateParams.builder()
@@ -49,8 +51,30 @@ public class StripeService {
                 .build();
         
         Customer customer = Customer.create(params);
-        logger.info("Created Stripe customer: {}", customer.getId());
+        
+        // Stripe automatically sends invoices via email when payment succeeds
+        // This is enabled by default - no additional configuration needed
+        logger.info("Created Stripe customer {} - invoices will be automatically sent to: {}", customer.getId(), email);
         return customer;
+    }
+    
+    /**
+     * Get invoice by ID
+     */
+    public com.stripe.model.Invoice getInvoice(String invoiceId) throws StripeException {
+        return com.stripe.model.Invoice.retrieve(invoiceId);
+    }
+    
+    /**
+     * List invoices for a customer
+     */
+    public java.util.List<com.stripe.model.Invoice> listCustomerInvoices(String customerId) throws StripeException {
+        Map<String, Object> params = new HashMap<>();
+        params.put("customer", customerId);
+        params.put("limit", 100);
+        
+        com.stripe.model.InvoiceCollection invoices = com.stripe.model.Invoice.list(params);
+        return invoices.getData();
     }
     
     /**
@@ -79,6 +103,8 @@ public class StripeService {
         customer.update(params);
         
         // Create subscription
+        // Note: Stripe automatically sends invoices via email when payment succeeds
+        // This is enabled by default in Stripe dashboard settings
         SubscriptionCreateParams subscriptionParams = SubscriptionCreateParams.builder()
                 .setCustomer(customerId)
                 .addItem(SubscriptionCreateParams.Item.builder()
