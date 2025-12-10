@@ -17,7 +17,10 @@ The system automatically creates Stripe customers on registration and sends invo
 ### 1. Configure Webhook in Stripe Dashboard
 1. Go to Stripe Dashboard → Developers → Webhooks
 2. Click "Add endpoint"
-3. Set endpoint URL: `http://dev.72.62.40.154.nip.io:31416/api/webhooks/stripe`
+3. **IMPORTANT**: Set endpoint URL to the BACKEND API host (not frontend):
+   - Development: `http://dev-api.72.62.40.154.nip.io:31416/api/webhooks/stripe`
+   - ⚠️ DO NOT use `dev.72.62.40.154.nip.io` (frontend host)
+   - ✅ USE `dev-api.72.62.40.154.nip.io` (backend API host)
 4. Select events to listen for:
    - `invoice.payment_succeeded`
    - `invoice.created`
@@ -31,8 +34,17 @@ The webhook secret is configured in:
 - `application-dev.yml`: `stripe.webhook-secret: ${STRIPE_WEBHOOK_SECRET:}`
 
 **Webhook Endpoint URL:**
-- Development: `http://dev.72.62.40.154.nip.io:31416/api/webhooks/stripe`
+- Development: `http://dev-api.72.62.40.154.nip.io:31416/api/webhooks/stripe`
+  - ✅ Backend API host: `dev-api.72.62.40.154.nip.io`
+  - ❌ Frontend host (wrong): `dev.72.62.40.154.nip.io`
 - Update production URL when deploying to production
+
+### Troubleshooting 404 Errors
+If you get a 404 error with HTML response:
+- ✅ Check that webhook URL uses the **backend API host** (`dev-api.*`)
+- ❌ Do NOT use the frontend host (`dev.*` - this will return Next.js 404 page)
+- Verify the backend service is running and accessible
+- Check Kong ingress routing is properly configured
 
 ## How It Works
 
