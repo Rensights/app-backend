@@ -79,27 +79,38 @@ public class SubscriptionController {
                         .body(new ErrorResponse("Stripe price ID not configured for plan: " + request.getPlanType() + ". Please create a price for product prod_TTZPr5yGZso2iI in Stripe dashboard."));
             }
             
-            // Optimized: Check existing subscription for Stripe customer ID, or create new
-            String customerId = subscriptionRepository.findByUserId(user.getId())
-                    .stream()
-                    .filter(sub -> sub.getStripeCustomerId() != null && !sub.getStripeCustomerId().isEmpty())
-                    .findFirst()
-                    .map(Subscription::getStripeCustomerId)
+            // Use stored Stripe customer ID from user record (created during registration)
+            // If not found, try to get from existing subscription, otherwise create new
+            String customerId = java.util.Optional.ofNullable(user.getStripeCustomerId())
+                    .filter(id -> !id.isEmpty())
                     .orElseGet(() -> {
-                        // Optimized: Use String.join for cleaner concatenation
-                        String fullName = String.join(" ",
-                                java.util.Optional.ofNullable(user.getFirstName()).orElse(""),
-                                java.util.Optional.ofNullable(user.getLastName()).orElse(""))
-                                .trim();
-                        try {
-                            com.stripe.model.Customer stripeCustomer = stripeService.createCustomer(
-                                    user.getEmail(),
-                                    fullName.isEmpty() ? user.getEmail() : fullName);
-                            return stripeCustomer.getId();
-                        } catch (StripeException e) {
-                            logger.error("Error creating Stripe customer: {}", e.getMessage());
-                            throw new RuntimeException("Failed to create Stripe customer", e);
-                        }
+                        // Fallback: Check existing subscriptions
+                        return subscriptionRepository.findByUserId(user.getId())
+                                .stream()
+                                .filter(sub -> sub.getStripeCustomerId() != null && !sub.getStripeCustomerId().isEmpty())
+                                .findFirst()
+                                .map(Subscription::getStripeCustomerId)
+                                .orElseGet(() -> {
+                                    // Last resort: Create new Stripe customer and update user
+                                    try {
+                                        String fullName = String.join(" ",
+                                                java.util.Optional.ofNullable(user.getFirstName()).orElse(""),
+                                                java.util.Optional.ofNullable(user.getLastName()).orElse(""))
+                                                .trim();
+                                        com.stripe.model.Customer stripeCustomer = stripeService.createCustomer(
+                                                user.getEmail(),
+                                                fullName.isEmpty() ? user.getEmail() : fullName);
+                                        String newCustomerId = stripeCustomer.getId();
+                                        // Update user with Stripe customer ID for future use
+                                        user.setStripeCustomerId(newCustomerId);
+                                        userRepository.save(user);
+                                        logger.info("Created and stored Stripe customer {} for user {}", newCustomerId, user.getId());
+                                        return newCustomerId;
+                                    } catch (StripeException e) {
+                                        logger.error("Error creating Stripe customer: {}", e.getMessage());
+                                        throw new RuntimeException("Failed to create Stripe customer", e);
+                                    }
+                                });
                     });
             
             // Create checkout session
@@ -191,6 +202,15 @@ public class SubscriptionController {
                 subscriptionRepository.save(existing);
             }
             
+            // Ensure user has Stripe customer ID stored (should already exist from registration)
+            String stripeCustomerId = session.getCustomer();
+            if (user.getStripeCustomerId() == null || !user.getStripeCustomerId().equals(stripeCustomerId)) {
+                // Update user with Stripe customer ID if not set or different
+                user.setStripeCustomerId(stripeCustomerId);
+                userRepository.save(user);
+                logger.info("Updated user {} with Stripe customer ID: {}", user.getId(), stripeCustomerId);
+            }
+            
             // Create new subscription record
             Subscription subscription = Subscription.builder()
                     .user(user)
@@ -198,7 +218,7 @@ public class SubscriptionController {
                     .status(SubscriptionStatus.ACTIVE)
                     .startDate(java.time.LocalDateTime.now())
                     .endDate(java.time.LocalDateTime.now().plusMonths(1))
-                    .stripeCustomerId(session.getCustomer())
+                    .stripeCustomerId(stripeCustomerId)
                     .stripeSubscriptionId(stripeSubscriptionId)
                     .build();
             

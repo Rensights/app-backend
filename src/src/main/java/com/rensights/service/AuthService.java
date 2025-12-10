@@ -5,6 +5,8 @@ import com.rensights.dto.LoginRequest;
 import com.rensights.dto.RegisterRequest;
 import com.rensights.model.User;
 import com.rensights.repository.UserRepository;
+import com.rensights.service.StripeService;
+import com.stripe.exception.StripeException;
 
 import java.time.LocalDateTime;
 
@@ -38,6 +40,9 @@ public class AuthService {
     @Autowired
     private DeviceService deviceService;
     
+    @Autowired
+    private StripeService stripeService;
+    
     @org.springframework.beans.factory.annotation.Value("${app.email-verification-required:true}")
     private boolean emailVerificationRequired;
     
@@ -64,12 +69,30 @@ public class AuthService {
                 .toUpperCase();
         customerId = "CUST-" + customerId;
         
+        // Create Stripe customer for new user
+        String stripeCustomerId = null;
+        try {
+            String fullName = (request.getFirstName() != null ? request.getFirstName() : "") + 
+                            (request.getLastName() != null ? " " + request.getLastName() : "").trim();
+            if (fullName.isEmpty()) {
+                fullName = request.getEmail(); // Use email as fallback name
+            }
+            com.stripe.model.Customer stripeCustomer = stripeService.createCustomer(request.getEmail(), fullName);
+            stripeCustomerId = stripeCustomer.getId();
+            logger.info("Created Stripe customer {} for new user: {}", stripeCustomerId, request.getEmail());
+        } catch (Exception e) {
+            // Log error but don't fail registration if Stripe fails
+            logger.error("Failed to create Stripe customer for user {}: {}", request.getEmail(), e.getMessage(), e);
+            // Continue with registration even if Stripe customer creation fails
+        }
+        
         User user = User.builder()
                 .email(request.getEmail())
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
                 .firstName(request.getFirstName())
                 .lastName(request.getLastName())
                 .customerId(customerId)
+                .stripeCustomerId(stripeCustomerId) // Store Stripe customer ID
                 .isActive(true)
                 .createdAt(LocalDateTime.now())
                 .emailVerified(!emailVerificationRequired) // Auto-verify if verification is disabled
