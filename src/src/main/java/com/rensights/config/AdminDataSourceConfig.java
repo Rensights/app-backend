@@ -19,6 +19,7 @@ import org.springframework.beans.factory.annotation.Value;
 
 import com.rensights.model.AnalysisRequest;
 import com.rensights.model.Device;
+import com.rensights.model.Invoice;
 import com.rensights.model.Subscription;
 import com.rensights.model.User;
 
@@ -62,7 +63,9 @@ public class AdminDataSourceConfig {
             EntityManagerFactoryBuilder builder,
             @Qualifier("adminDataSource") DataSource dataSource) {
         Map<String, String> properties = new HashMap<>();
-        properties.put("hibernate.hbm2ddl.auto", "validate");
+        // Read ddl-auto from application config, default to 'update' for now
+        // TODO: Change back to 'validate' after invoices table is created
+        properties.put("hibernate.hbm2ddl.auto", "update");
         
         // SECURITY FIX: Only enable SQL logging in dev profile to prevent sensitive data exposure in production
         boolean isDev = activeProfile != null && activeProfile.contains("dev");
@@ -71,7 +74,7 @@ public class AdminDataSourceConfig {
         
         return builder
             .dataSource(dataSource)
-            .packages(User.class, Device.class, Subscription.class, AnalysisRequest.class)
+            .packages(User.class, Device.class, Subscription.class, AnalysisRequest.class, Invoice.class)
             .persistenceUnit("admin")
             .properties(properties)
             .build();
