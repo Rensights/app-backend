@@ -3,6 +3,7 @@ package com.rensights.controller;
 import com.rensights.dto.InvoiceResponse;
 import com.rensights.model.Invoice;
 import com.rensights.service.InvoiceService;
+import com.rensights.service.ConfirmationPdfService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,6 +25,9 @@ public class InvoiceController {
     
     @Autowired
     private InvoiceService invoiceService;
+    
+    @Autowired
+    private ConfirmationPdfService confirmationPdfService;
     
     /**
      * Get all invoices for current user
@@ -59,6 +63,58 @@ public class InvoiceController {
             logger.error("Error syncing invoices: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new ErrorResponse("Failed to sync invoices"));
+        }
+    }
+    
+    /**
+     * Download confirmation PDF
+     */
+    @GetMapping("/{invoiceId}/confirmation-pdf")
+    public ResponseEntity<?> downloadConfirmationPdf(@PathVariable UUID invoiceId) {
+        try {
+            UUID userId = getCurrentUserId();
+            return invoiceService.getInvoice(invoiceId)
+                    .map(invoice -> {
+                        // Verify invoice belongs to user
+                        if (!invoice.getUser().getId().equals(userId)) {
+                            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                                    .body(new ErrorResponse("Access denied"));
+                        }
+                        
+                        // Check if confirmation PDF exists
+                        if (invoice.getConfirmationPdfPath() == null || invoice.getConfirmationPdfPath().isEmpty()) {
+                            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                                    .body(new ErrorResponse("Confirmation PDF not available"));
+                        }
+                        
+                        try {
+                            java.io.File pdfFile = confirmationPdfService.getConfirmationPdfFile(invoice.getConfirmationPdfPath());
+                            if (pdfFile == null || !pdfFile.exists()) {
+                                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                                        .body(new ErrorResponse("Confirmation PDF file not found"));
+                            }
+                            
+                            org.springframework.core.io.Resource resource = 
+                                    new org.springframework.core.io.FileSystemResource(pdfFile);
+                            
+                            return ResponseEntity.ok()
+                                    .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION,
+                                            "attachment; filename=\"Payment_Confirmation_" + 
+                                            invoice.getInvoiceNumber() + ".pdf\"")
+                                    .contentType(org.springframework.http.MediaType.APPLICATION_PDF)
+                                    .body(resource);
+                        } catch (Exception e) {
+                            logger.error("Error reading confirmation PDF: {}", e.getMessage(), e);
+                            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                                    .body(new ErrorResponse("Failed to read confirmation PDF"));
+                        }
+                    })
+                    .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND)
+                            .body(new ErrorResponse("Invoice not found")));
+        } catch (Exception e) {
+            logger.error("Error downloading confirmation PDF: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ErrorResponse("Failed to download confirmation PDF"));
         }
     }
     
@@ -105,6 +161,7 @@ public class InvoiceController {
                 .status(invoice.getStatus())
                 .invoiceUrl(invoice.getInvoiceUrl())
                 .invoicePdf(invoice.getInvoicePdf())
+                .confirmationPdfPath(invoice.getConfirmationPdfPath())
                 .description(invoice.getDescription())
                 .invoiceDate(invoice.getInvoiceDate())
                 .dueDate(invoice.getDueDate())

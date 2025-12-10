@@ -21,6 +21,12 @@ public class StripeWebhookController {
     @Autowired
     private InvoiceService invoiceService;
     
+    @Autowired
+    private com.rensights.service.EmailService emailService;
+    
+    @Autowired
+    private com.rensights.service.ConfirmationPdfService confirmationPdfService;
+    
     @Value("${stripe.webhook-secret:}")
     private String webhookSecret;
     
@@ -88,7 +94,46 @@ public class StripeWebhookController {
             logger.info("Processing invoice.payment_succeeded for invoice: {}", stripeInvoice.getId());
             
             // Process and store invoice
-            invoiceService.processStripeInvoice(stripeInvoice);
+            com.rensights.model.Invoice invoice = invoiceService.processStripeInvoice(stripeInvoice);
+            
+            if (invoice != null && "paid".equalsIgnoreCase(invoice.getStatus())) {
+                // Generate confirmation PDF and send email
+                try {
+                    com.rensights.model.User user = invoice.getUser();
+                    
+                    // Generate confirmation PDF
+                    String pdfPath = confirmationPdfService.generateConfirmationPdf(invoice, user);
+                    
+                    // Update invoice with PDF path
+                    invoice.setConfirmationPdfPath(pdfPath);
+                    invoiceService.saveInvoice(invoice);
+                    
+                    // Send confirmation email
+                    String customerName = (user.getFirstName() != null ? user.getFirstName() : "") + 
+                                        (user.getLastName() != null ? " " + user.getLastName() : "").trim();
+                    if (customerName.isEmpty()) {
+                        customerName = user.getEmail();
+                    }
+                    
+                    String fullPdfPath = pdfPath.startsWith("/") ? pdfPath : 
+                                       System.getProperty("user.dir") + "/" + pdfPath;
+                    
+                    emailService.sendPaymentConfirmationEmail(
+                        user.getEmail(),
+                        customerName,
+                        invoice.getInvoiceNumber(),
+                        invoice.getAmount().toString(),
+                        invoice.getCurrency(),
+                        fullPdfPath
+                    );
+                    
+                    logger.info("Confirmation PDF generated and email sent for invoice: {}", invoice.getId());
+                } catch (Exception e) {
+                    logger.error("Error generating confirmation PDF or sending email for invoice {}: {}", 
+                               invoice.getId(), e.getMessage(), e);
+                    // Don't fail the webhook if PDF/email fails
+                }
+            }
             
             logger.info("Successfully processed invoice: {}", stripeInvoice.getId());
         } catch (Exception e) {

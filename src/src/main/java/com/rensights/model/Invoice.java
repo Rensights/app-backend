@@ -53,6 +53,9 @@ public class Invoice {
     @Column(name = "invoice_pdf")
     private String invoicePdf; // PDF download URL
     
+    @Column(name = "confirmation_pdf_path")
+    private String confirmationPdfPath; // Path to our generated confirmation PDF
+    
     @Column(name = "invoice_number")
     private String invoiceNumber; // Human-readable invoice number
     

@@ -20,6 +20,7 @@ public class InvoiceResponse {
     private String status;
     private String invoiceUrl; // Stripe hosted invoice URL
     private String invoicePdf; // PDF download URL
+    private String confirmationPdfPath; // Our generated confirmation PDF path
     private String description;
     private LocalDateTime invoiceDate;
     private LocalDateTime dueDate;

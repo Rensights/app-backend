@@ -4,9 +4,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.FileSystemResource;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
+
+import jakarta.mail.MessagingException;
+import jakarta.mail.internet.MimeMessage;
+import java.io.File;
 
 @Service
 public class EmailService {
@@ -151,6 +157,82 @@ public class EmailService {
         } catch (Exception e) {
             logger.error("❌ Failed to send analysis request notification to admin: {}", adminEmail, e);
             // Don't throw exception - email failure shouldn't block request creation
+        }
+    }
+    
+    public void sendPaymentConfirmationEmail(String toEmail, String customerName, 
+                                            String invoiceNumber, String amount, 
+                                            String currency, String confirmationPdfPath) {
+        logger.info("=== EmailService.sendPaymentConfirmationEmail called ===");
+        logger.info("Email enabled: {}", emailEnabled);
+        logger.info("MailSender available: {}", mailSender != null);
+        logger.info("To email: {}", toEmail);
+        logger.info("Invoice number: {}", invoiceNumber);
+        
+        if (!emailEnabled) {
+            logger.warn("Email is disabled. Payment confirmation for {}: Invoice {}", toEmail, invoiceNumber);
+            return;
+        }
+        
+        if (mailSender == null) {
+            logger.error("JavaMailSender is not available! Email configuration may be missing.");
+            logger.warn("DEV MODE: Payment Confirmation - Invoice: {}, Amount: {} {}", invoiceNumber, currency, amount);
+            return;
+        }
+        
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true);
+            
+            helper.setFrom(fromEmail);
+            helper.setTo(toEmail);
+            helper.setSubject("Rensights - Payment Confirmation");
+            
+            // Email body
+            String emailBody = String.join("\n",
+                "Dear " + (customerName != null && !customerName.isEmpty() ? customerName : "Valued Customer") + ",",
+                "",
+                "Thank you for your payment!",
+                "",
+                "Payment Details:",
+                "  Invoice Number: " + invoiceNumber,
+                "  Amount: " + currency + " " + amount,
+                "  Status: Paid",
+                "",
+                "Your payment confirmation PDF is attached to this email.",
+                "",
+                "You can also download your confirmation from your account page:",
+                "https://app.rensights.com/account",
+                "",
+                "If you have any questions or concerns, please don't hesitate to contact our support team.",
+                "",
+                "Best regards,",
+                "Rensights Team"
+            );
+            
+            helper.setText(emailBody);
+            
+            // Attach PDF if available
+            if (confirmationPdfPath != null && !confirmationPdfPath.isEmpty()) {
+                File pdfFile = new File(confirmationPdfPath);
+                if (pdfFile.exists()) {
+                    FileSystemResource file = new FileSystemResource(pdfFile);
+                    helper.addAttachment("Payment_Confirmation_" + invoiceNumber + ".pdf", file);
+                    logger.info("Attached confirmation PDF: {}", confirmationPdfPath);
+                } else {
+                    logger.warn("Confirmation PDF file not found: {}", confirmationPdfPath);
+                }
+            }
+            
+            logger.info("Attempting to send payment confirmation email to: {}", toEmail);
+            mailSender.send(message);
+            logger.info("✅ Payment confirmation email sent successfully to: {}", toEmail);
+        } catch (MessagingException e) {
+            logger.error("❌ Failed to send payment confirmation email to: {}", toEmail, e);
+            throw new RuntimeException("Failed to send payment confirmation email: " + e.getMessage(), e);
+        } catch (Exception e) {
+            logger.error("❌ Failed to send payment confirmation email to: {}", toEmail, e);
+            throw new RuntimeException("Failed to send payment confirmation email: " + e.getMessage(), e);
         }
     }
 }

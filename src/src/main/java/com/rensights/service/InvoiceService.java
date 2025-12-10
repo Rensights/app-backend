@@ -34,6 +34,9 @@ public class InvoiceService {
     @Autowired
     private StripeService stripeService;
     
+    @Autowired
+    private ConfirmationPdfService confirmationPdfService;
+    
     /**
      * Process invoice from Stripe webhook
      */
@@ -158,5 +161,20 @@ public class InvoiceService {
      */
     public Optional<Invoice> getInvoice(UUID invoiceId) {
         return invoiceRepository.findById(invoiceId);
+    }
+    
+    /**
+     * Save invoice (for updating confirmation PDF path)
+     */
+    @Transactional
+    public Invoice saveInvoice(Invoice invoice) {
+        return invoiceRepository.save(invoice);
+    }
+    
+    /**
+     * Get confirmation PDF file
+     */
+    public java.io.File getConfirmationPdfFile(String filename) {
+        return confirmationPdfService.getConfirmationPdfFile(filename);
     }
 }
