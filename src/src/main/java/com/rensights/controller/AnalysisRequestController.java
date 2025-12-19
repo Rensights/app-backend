@@ -180,11 +180,31 @@ public class AnalysisRequestController {
         }
         
         try {
-            UUID userId = UUID.fromString(authentication.getName());
+            String userIdStr = authentication.getName();
+            if (userIdStr == null || userIdStr.isEmpty()) {
+                logger.error("❌ Authentication name is null or empty");
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(new ErrorResponse("Invalid authentication"));
+            }
+            
+            UUID userId;
+            try {
+                userId = UUID.fromString(userIdStr);
+            } catch (IllegalArgumentException e) {
+                logger.error("❌ Invalid UUID format in authentication name: {}", userIdStr, e);
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(new ErrorResponse("Invalid authentication token"));
+            }
+            
             List<AnalysisRequest> requests = analysisRequestService.getRequestsByUserId(userId);
+            logger.info("✅ Retrieved {} analysis requests for user: {}", requests.size(), userId);
             return ResponseEntity.ok(requests);
+        } catch (IllegalArgumentException e) {
+            logger.error("❌ Invalid argument error getting user requests: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(new ErrorResponse("Invalid request parameters"));
         } catch (Exception e) {
-            logger.error("❌ Error getting user requests: {}", e.getMessage());
+            logger.error("❌ Error getting user requests: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new ErrorResponse("Failed to get requests. Please try again later."));
         }
