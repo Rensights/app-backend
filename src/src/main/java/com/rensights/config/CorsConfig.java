@@ -38,6 +38,27 @@ public class CorsConfig implements WebMvcConfigurer {
                 String host = url.getHost();
                 int port = url.getPort();
                 
+                // Special handling for nip.io domains - use wildcard pattern
+                // Spring's allowedOriginPatterns supports Ant-style patterns like *.nip.io
+                if (host.contains("nip.io")) {
+                    // For nip.io, create a pattern that matches any IP with nip.io
+                    // Pattern: http://*.nip.io:port or http://*.nip.io
+                    // Extract the nip.io part (e.g., "72.62.40.154.nip.io" -> "nip.io")
+                    String nipDomain = host.substring(host.indexOf("nip.io"));
+                    String nipPattern = protocol + "://*." + nipDomain;
+                    if (port != -1) {
+                        nipPattern += ":" + port;
+                    }
+                    if (!patterns.contains(nipPattern)) {
+                        patterns.add(nipPattern);
+                    }
+                    // Also add pattern without port for flexibility
+                    String nipPatternNoPort = protocol + "://*." + nipDomain;
+                    if (!patterns.contains(nipPatternNoPort)) {
+                        patterns.add(nipPatternNoPort);
+                    }
+                }
+                
                 // SECURITY FIX: Removed wildcard port patterns to prevent attacks from any port
                 // Only allow explicit ports or default ports (80/443)
                 
@@ -70,9 +91,11 @@ public class CorsConfig implements WebMvcConfigurer {
         registry.addMapping("/**")
             .allowedOriginPatterns(originPatterns)
             .allowedMethods("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS")
-            // SECURITY FIX: Restrict allowed headers instead of allowing all
-            .allowedHeaders("Authorization", "Content-Type", "X-Requested-With", "Accept", "Origin")
-            .exposedHeaders("Authorization", "Content-Type", "X-Requested-With")
+            // SECURITY FIX: Allow necessary headers for all request types including multipart/form-data
+            // Note: For multipart/form-data, browser sets Content-Type with boundary automatically
+            .allowedHeaders("Authorization", "Content-Type", "X-Requested-With", "Accept", "Origin", 
+                           "Cache-Control", "Pragma", "X-CSRF-Token")
+            .exposedHeaders("Authorization", "Content-Type", "X-Requested-With", "Content-Disposition")
             .allowCredentials(true)
             .maxAge(3600);
     }
@@ -102,6 +125,27 @@ public class CorsConfig implements WebMvcConfigurer {
                 String protocol = url.getProtocol();
                 String host = url.getHost();
                 int port = url.getPort();
+                
+                // Special handling for nip.io domains - use wildcard pattern
+                // Spring's allowedOriginPatterns supports Ant-style patterns like *.nip.io
+                if (host.contains("nip.io")) {
+                    // For nip.io, create a pattern that matches any IP with nip.io
+                    // Pattern: http://*.nip.io:port or http://*.nip.io
+                    // Extract the nip.io part (e.g., "72.62.40.154.nip.io" -> "nip.io")
+                    String nipDomain = host.substring(host.indexOf("nip.io"));
+                    String nipPattern = protocol + "://*." + nipDomain;
+                    if (port != -1) {
+                        nipPattern += ":" + port;
+                    }
+                    if (!patterns.contains(nipPattern)) {
+                        patterns.add(nipPattern);
+                    }
+                    // Also add pattern without port for flexibility
+                    String nipPatternNoPort = protocol + "://*." + nipDomain;
+                    if (!patterns.contains(nipPatternNoPort)) {
+                        patterns.add(nipPatternNoPort);
+                    }
+                }
                 
                 // SECURITY FIX: Removed wildcard port patterns to prevent attacks from any port
                 // Only allow explicit ports or default ports (80/443)
@@ -133,11 +177,15 @@ public class CorsConfig implements WebMvcConfigurer {
         configuration.setAllowedOrigins(null);
         
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
-        // SECURITY FIX: Restrict allowed headers instead of allowing all
+        // SECURITY FIX: Allow necessary headers for all request types including multipart/form-data
+        // Note: For multipart/form-data, browser sets Content-Type with boundary automatically
         configuration.setAllowedHeaders(Arrays.asList(
-            "Authorization", "Content-Type", "X-Requested-With", "Accept", "Origin"
+            "Authorization", "Content-Type", "X-Requested-With", "Accept", "Origin", 
+            "Cache-Control", "Pragma", "X-CSRF-Token"
         ));
-        configuration.setExposedHeaders(Arrays.asList("Authorization", "Content-Type", "X-Requested-With"));
+        configuration.setExposedHeaders(Arrays.asList(
+            "Authorization", "Content-Type", "X-Requested-With", "Content-Disposition"
+        ));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L); // Cache preflight for 1 hour
         

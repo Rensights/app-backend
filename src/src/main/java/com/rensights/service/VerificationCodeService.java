@@ -114,6 +114,30 @@ public class VerificationCodeService {
         }
     }
     
+    /**
+     * Verify code without consuming it (for password reset flow where code needs to be verified twice)
+     * This allows the code to be verified first, then used again to reset the password
+     */
+    public boolean verifyCodeWithoutConsuming(String email, String code) {
+        LocalDateTime now = LocalDateTime.now();
+        
+        CodeEntry entry = codes.get(email);
+        
+        // Remove if expired
+        if (entry != null && now.isAfter(entry.expiryTime)) {
+            codes.remove(email);
+            verificationAttempts.remove(email);
+            return false;
+        }
+        
+        if (entry == null) {
+            return false;
+        }
+        
+        // SECURITY: Use constant-time comparison to prevent timing attacks
+        return constantTimeEquals(entry.code, code);
+    }
+    
     // SECURITY: Constant-time string comparison to prevent timing attacks
     private boolean constantTimeEquals(String a, String b) {
         if (a == null || b == null) {

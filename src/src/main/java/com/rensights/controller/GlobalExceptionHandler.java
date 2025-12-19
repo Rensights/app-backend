@@ -20,6 +20,7 @@ public class GlobalExceptionHandler {
     /**
      * Handle validation errors from @Valid annotated request bodies
      * Returns user-friendly error messages
+     * Note: CORS headers are handled by Spring Security's CORS filter
      */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, Object>> handleValidationException(MethodArgumentNotValidException ex) {

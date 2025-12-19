@@ -304,9 +304,13 @@ public class AuthService {
     
     /**
      * Verify password reset code
+     * NOTE: Does NOT remove the code - it will be removed when password is actually reset
+     * This allows the code to be verified first, then used again to reset the password
      */
     public boolean verifyResetCode(String email, String code) {
-        return verificationCodeService.verifyCode("reset:" + email, code);
+        // Use a non-consuming verification that doesn't remove the code
+        // The code will be removed when resetPassword() is called
+        return verificationCodeService.verifyCodeWithoutConsuming("reset:" + email, code);
     }
     
     /**
