@@ -27,30 +27,13 @@ public class RateLimitFilter extends OncePerRequestFilter {
     
     private static final Logger logger = LoggerFactory.getLogger(RateLimitFilter.class);
     
-    // Rate limit configurations
-    private static final int AUTH_RATE_LIMIT = 5; // 5 requests per window for sensitive auth endpoints
+    // Rate limit configurations - only for login and signup
+    private static final int AUTH_RATE_LIMIT = 5; // 5 requests per window for login/signup endpoints
     private static final int AUTH_WINDOW_SECONDS = 60; // 1 minute window
-    
-    // Password reset endpoints need more lenient rate limiting (user might need multiple attempts)
-    private static final int PASSWORD_RESET_RATE_LIMIT = 10; // 10 requests per window
-    private static final int PASSWORD_RESET_WINDOW_SECONDS = 60; // 1 minute window
-    
-    private static final int GENERAL_RATE_LIMIT = 100; // 100 requests per window
-    private static final int GENERAL_WINDOW_SECONDS = 60; // 1 minute window
     
     // Cache: IP address -> Request count with expiry
     private final Cache<String, Integer> authRequestCache = Caffeine.newBuilder()
             .expireAfterWrite(AUTH_WINDOW_SECONDS, TimeUnit.SECONDS)
-            .maximumSize(10000)
-            .build();
-    
-    private final Cache<String, Integer> passwordResetRequestCache = Caffeine.newBuilder()
-            .expireAfterWrite(PASSWORD_RESET_WINDOW_SECONDS, TimeUnit.SECONDS)
-            .maximumSize(10000)
-            .build();
-    
-    private final Cache<String, Integer> generalRequestCache = Caffeine.newBuilder()
-            .expireAfterWrite(GENERAL_WINDOW_SECONDS, TimeUnit.SECONDS)
             .maximumSize(10000)
             .build();
     
@@ -67,21 +50,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
         String clientIp = getClientIpAddress(request);
         String path = request.getRequestURI();
         
-        // Password reset endpoints need more lenient rate limiting
-        // (user might need: forgot-password -> verify-code -> reset-password, plus retries)
-        if (path.contains("/forgot-password") || path.contains("/reset-password") || 
-            path.contains("/verify-reset-code")) {
-            if (!checkRateLimit(clientIp, passwordResetRequestCache, PASSWORD_RESET_RATE_LIMIT, "password-reset")) {
-                logger.warn("SECURITY ALERT: Rate limit exceeded for IP {} on password reset path {}", clientIp, path);
-                response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
-                response.setContentType("application/json");
-                response.setHeader("Retry-After", String.valueOf(PASSWORD_RESET_WINDOW_SECONDS));
-                response.getWriter().write("{\"error\":\"Too many password reset requests. Please wait a minute and try again.\"}");
-                return;
-            }
-        } else if (path.startsWith("/api/auth/") || path.startsWith("/api/admin/auth/")) {
-            // Apply stricter rate limiting to other authentication endpoints
-            if (!checkRateLimit(clientIp, authRequestCache, AUTH_RATE_LIMIT, "authentication")) {
+        // Apply rate limiting ONLY to login and signup endpoints
+        if (path.equals("/api/auth/login") || path.equals("/api/auth/register")) {
+            if (!checkRateLimit(clientIp, authRequestCache, AUTH_RATE_LIMIT, "login/signup")) {
                 logger.warn("SECURITY ALERT: Rate limit exceeded for IP {} on path {}", clientIp, path);
                 response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
                 response.setContentType("application/json");
@@ -89,17 +60,8 @@ public class RateLimitFilter extends OncePerRequestFilter {
                 response.getWriter().write("{\"error\":\"Too many requests. Please try again later.\"}");
                 return;
             }
-        } else {
-            // General rate limiting for all other endpoints
-            if (!checkRateLimit(clientIp, generalRequestCache, GENERAL_RATE_LIMIT, "general")) {
-                logger.warn("SECURITY ALERT: Rate limit exceeded for IP {} on path {}", clientIp, path);
-                response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
-                response.setContentType("application/json");
-                response.setHeader("Retry-After", String.valueOf(GENERAL_WINDOW_SECONDS));
-                response.getWriter().write("{\"error\":\"Too many requests. Please try again later.\"}");
-                return;
-            }
         }
+        // All other endpoints (including password reset, verification, etc.) are not rate limited
         
         filterChain.doFilter(request, response);
     }
