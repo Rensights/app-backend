@@ -213,6 +213,59 @@ public class AnalysisRequestService {
         return analysisRequestRepository.findByUserIdOrderByCreatedAtDesc(userId);
     }
     
+    /**
+     * Get report count information for a user (used, remaining, max)
+     */
+    public ReportCountInfo getReportCountInfo(UUID userId) {
+        com.rensights.model.User user = userRepository.findById(userId).orElse(null);
+        if (user == null) {
+            return new ReportCountInfo(0, 0, 0);
+        }
+        
+        java.time.LocalDateTime oneMonthAgo = java.time.LocalDateTime.now().minusMonths(1);
+        long reportsThisMonth = analysisRequestRepository.findByUserIdOrderByCreatedAtDesc(userId)
+            .stream()
+            .filter(req -> req.getCreatedAt() != null && req.getCreatedAt().isAfter(oneMonthAgo))
+            .count();
+        
+        int maxReports;
+        if (user.getUserTier() == com.rensights.model.UserTier.FREE) {
+            maxReports = 1;
+        } else if (user.getUserTier() == com.rensights.model.UserTier.PREMIUM) {
+            maxReports = 5;
+        } else {
+            maxReports = Integer.MAX_VALUE; // Enterprise/Trusted Advisor - unlimited
+        }
+        
+        long remaining = maxReports == Integer.MAX_VALUE ? Integer.MAX_VALUE : Math.max(0, maxReports - reportsThisMonth);
+        
+        return new ReportCountInfo((int) reportsThisMonth, (int) remaining, maxReports);
+    }
+    
+    /**
+     * DTO for report count information
+     */
+    public static class ReportCountInfo {
+        private int used;
+        private int remaining;
+        private int max;
+        
+        public ReportCountInfo(int used, int remaining, int max) {
+            this.used = used;
+            this.remaining = remaining;
+            this.max = max;
+        }
+        
+        public int getUsed() { return used; }
+        public void setUsed(int used) { this.used = used; }
+        
+        public int getRemaining() { return remaining; }
+        public void setRemaining(int remaining) { this.remaining = remaining; }
+        
+        public int getMax() { return max; }
+        public void setMax(int max) { this.max = max; }
+    }
+    
     @Transactional
     public AnalysisRequest updateStatus(UUID id, AnalysisRequest.AnalysisRequestStatus status) {
         AnalysisRequest request = getRequestById(id);

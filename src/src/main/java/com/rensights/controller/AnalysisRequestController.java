@@ -210,6 +210,39 @@ public class AnalysisRequestController {
         }
     }
     
+    @GetMapping("/report-count")
+    public ResponseEntity<?> getReportCount(Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(new ErrorResponse("Authentication required"));
+        }
+        
+        try {
+            String userIdStr = authentication.getName();
+            if (userIdStr == null || userIdStr.isEmpty()) {
+                logger.error("❌ Authentication name is null or empty");
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(new ErrorResponse("Invalid authentication"));
+            }
+            
+            UUID userId;
+            try {
+                userId = UUID.fromString(userIdStr);
+            } catch (IllegalArgumentException e) {
+                logger.error("❌ Invalid UUID format in authentication name: {}", userIdStr, e);
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(new ErrorResponse("Invalid authentication token"));
+            }
+            
+            AnalysisRequestService.ReportCountInfo countInfo = analysisRequestService.getReportCountInfo(userId);
+            return ResponseEntity.ok(countInfo);
+        } catch (Exception e) {
+            logger.error("❌ Error getting report count: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ErrorResponse("Failed to get report count. Please try again later."));
+        }
+    }
+    
     @GetMapping("/files/{filePath:.+}")
     public ResponseEntity<Resource> getFile(
             @PathVariable String filePath,
