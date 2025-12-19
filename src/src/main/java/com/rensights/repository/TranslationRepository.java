@@ -22,12 +22,6 @@ public interface TranslationRepository extends JpaRepository<Translation, UUID> 
         String languageCode, String namespace, String translationKey
     );
     
-    // Find all languages available
-    List<String> findDistinctLanguageCode();
-    
-    // Find all namespaces for a language
-    List<String> findDistinctNamespaceByLanguageCode(String languageCode);
-    
     // Check if translation exists
     boolean existsByLanguageCodeAndNamespaceAndTranslationKey(
         String languageCode, String namespace, String translationKey
