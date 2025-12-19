@@ -30,8 +30,8 @@ public class GlobalExceptionHandler {
             String fieldName = ((FieldError) error).getField();
             String errorMessage = error.getDefaultMessage();
             
-            // Make password errors more user-friendly
-            if ("password".equals(fieldName) && errorMessage != null) {
+            // Make password errors more user-friendly (handle both "password" and "newPassword" fields)
+            if (("password".equals(fieldName) || "newPassword".equals(fieldName)) && errorMessage != null) {
                 if (errorMessage.contains("Password must contain")) {
                     // Already a detailed message, use it as is
                     errors.put(fieldName, errorMessage);
@@ -50,9 +50,13 @@ public class GlobalExceptionHandler {
         response.put("error", "Validation failed");
         response.put("errors", errors);
         
-        // For password field, provide a helpful summary
-        if (errors.containsKey("password")) {
-            response.put("message", "Please fix the following errors: " + errors.get("password"));
+        // For password field, provide a helpful summary (handle both "password" and "newPassword")
+        String passwordError = errors.get("password");
+        if (passwordError == null) {
+            passwordError = errors.get("newPassword");
+        }
+        if (passwordError != null) {
+            response.put("message", "Please fix the following errors: " + passwordError);
         } else {
             response.put("message", "Please check your input and try again");
         }
