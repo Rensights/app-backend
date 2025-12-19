@@ -1,5 +1,6 @@
 package com.rensights.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -25,6 +26,7 @@ public class AnalysisRequest {
     
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = true)
+    @JsonIgnore // Prevent serialization issues with lazy-loaded User entity
     private User user; // Optional - can be submitted by non-authenticated users
     
     @Column(name = "email", nullable = false)
