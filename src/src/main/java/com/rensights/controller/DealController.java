@@ -1,7 +1,10 @@
 package com.rensights.controller;
 
 import com.rensights.model.Deal;
+import com.rensights.model.User;
+import com.rensights.model.UserTier;
 import com.rensights.repository.DealRepository;
+import com.rensights.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -9,7 +12,9 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -26,17 +31,59 @@ public class DealController {
     @Autowired
     private DealRepository dealRepository;
     
+    @Autowired
+    private UserRepository userRepository;
+    
+    /**
+     * Check if user has access to deals (not FREE tier)
+     */
+    private ResponseEntity<?> checkUserAccess(Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Authentication required to access deals."));
+        }
+        
+        try {
+            UUID userId = UUID.fromString(authentication.getName());
+            User user = userRepository.findById(userId).orElse(null);
+            
+            if (user == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(Map.of("error", "User not found."));
+            }
+            
+            if (user.getUserTier() == UserTier.FREE) {
+                logger.warn("Free tier user {} attempted to access deals", user.getEmail());
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(Map.of("error", "Deals are only available for Standard Package and above. Please upgrade your account."));
+            }
+            
+            return null; // Access granted
+        } catch (Exception e) {
+            logger.error("Error checking user access: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to verify user access."));
+        }
+    }
+    
     /**
      * Get approved deals for app-frontend
      */
     @GetMapping
     public ResponseEntity<?> getApprovedDeals(
+            Authentication authentication,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) String city,
             @RequestParam(required = false) String area,
             @RequestParam(required = false) String bedroomCount,
             @RequestParam(required = false) String buildingStatus) {
+        // Check if user has access (not FREE tier)
+        ResponseEntity<?> accessCheck = checkUserAccess(authentication);
+        if (accessCheck != null) {
+            return accessCheck;
+        }
+        
         try {
             Sort sort = Sort.by("createdAt").descending();
             Pageable pageable = PageRequest.of(page, size, sort);
@@ -108,7 +155,15 @@ public class DealController {
      * Get deal by ID
      */
     @GetMapping("/{dealId}")
-    public ResponseEntity<?> getDealById(@PathVariable UUID dealId) {
+    public ResponseEntity<?> getDealById(
+            Authentication authentication,
+            @PathVariable UUID dealId) {
+        // Check if user has access (not FREE tier)
+        ResponseEntity<?> accessCheck = checkUserAccess(authentication);
+        if (accessCheck != null) {
+            return accessCheck;
+        }
+        
         try {
             Deal deal = dealRepository.findById(dealId)
                     .orElseThrow(() -> new RuntimeException("Deal not found"));
