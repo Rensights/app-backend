@@ -100,6 +100,35 @@ public class AnalysisRequestService {
             user = userRepository.findById(userId).orElse(null);
         }
         
+        // Check report limits based on user tier
+        if (user != null) {
+            java.time.LocalDateTime oneMonthAgo = java.time.LocalDateTime.now().minusMonths(1);
+            long reportsThisMonth = analysisRequestRepository.findByUserIdOrderByCreatedAtDesc(userId)
+                .stream()
+                .filter(req -> req.getCreatedAt() != null && req.getCreatedAt().isAfter(oneMonthAgo))
+                .count();
+            
+            int maxReports;
+            if (user.getUserTier() == com.rensights.model.UserTier.FREE) {
+                maxReports = 1;
+            } else if (user.getUserTier() == com.rensights.model.UserTier.PREMIUM) {
+                maxReports = 5;
+            } else {
+                maxReports = Integer.MAX_VALUE; // Enterprise/Trusted Advisor - unlimited
+            }
+            
+            if (reportsThisMonth >= maxReports) {
+                throw new IllegalStateException(
+                    String.format("You have reached your monthly report limit (%d report%s). %s", 
+                        maxReports,
+                        maxReports == 1 ? "" : "s",
+                        user.getUserTier() == com.rensights.model.UserTier.FREE 
+                            ? "Upgrade to Standard Package for 5 reports per month." 
+                            : "Please wait until next month or upgrade your plan.")
+                );
+            }
+        }
+        
         // Create analysis request with sanitized inputs
         AnalysisRequest request = AnalysisRequest.builder()
                 .user(user)
