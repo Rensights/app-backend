@@ -28,8 +28,12 @@ public class RateLimitFilter extends OncePerRequestFilter {
     private static final Logger logger = LoggerFactory.getLogger(RateLimitFilter.class);
     
     // Rate limit configurations
-    private static final int AUTH_RATE_LIMIT = 5; // 5 requests per window
+    private static final int AUTH_RATE_LIMIT = 5; // 5 requests per window for sensitive auth endpoints
     private static final int AUTH_WINDOW_SECONDS = 60; // 1 minute window
+    
+    // Password reset endpoints need more lenient rate limiting (user might need multiple attempts)
+    private static final int PASSWORD_RESET_RATE_LIMIT = 10; // 10 requests per window
+    private static final int PASSWORD_RESET_WINDOW_SECONDS = 60; // 1 minute window
     
     private static final int GENERAL_RATE_LIMIT = 100; // 100 requests per window
     private static final int GENERAL_WINDOW_SECONDS = 60; // 1 minute window
@@ -37,6 +41,11 @@ public class RateLimitFilter extends OncePerRequestFilter {
     // Cache: IP address -> Request count with expiry
     private final Cache<String, Integer> authRequestCache = Caffeine.newBuilder()
             .expireAfterWrite(AUTH_WINDOW_SECONDS, TimeUnit.SECONDS)
+            .maximumSize(10000)
+            .build();
+    
+    private final Cache<String, Integer> passwordResetRequestCache = Caffeine.newBuilder()
+            .expireAfterWrite(PASSWORD_RESET_WINDOW_SECONDS, TimeUnit.SECONDS)
             .maximumSize(10000)
             .build();
     
@@ -58,12 +67,25 @@ public class RateLimitFilter extends OncePerRequestFilter {
         String clientIp = getClientIpAddress(request);
         String path = request.getRequestURI();
         
-        // Apply stricter rate limiting to authentication endpoints
-        if (path.startsWith("/api/auth/") || path.startsWith("/api/admin/auth/")) {
+        // Password reset endpoints need more lenient rate limiting
+        // (user might need: forgot-password -> verify-code -> reset-password, plus retries)
+        if (path.contains("/forgot-password") || path.contains("/reset-password") || 
+            path.contains("/verify-reset-code")) {
+            if (!checkRateLimit(clientIp, passwordResetRequestCache, PASSWORD_RESET_RATE_LIMIT, "password-reset")) {
+                logger.warn("SECURITY ALERT: Rate limit exceeded for IP {} on password reset path {}", clientIp, path);
+                response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
+                response.setContentType("application/json");
+                response.setHeader("Retry-After", String.valueOf(PASSWORD_RESET_WINDOW_SECONDS));
+                response.getWriter().write("{\"error\":\"Too many password reset requests. Please wait a minute and try again.\"}");
+                return;
+            }
+        } else if (path.startsWith("/api/auth/") || path.startsWith("/api/admin/auth/")) {
+            // Apply stricter rate limiting to other authentication endpoints
             if (!checkRateLimit(clientIp, authRequestCache, AUTH_RATE_LIMIT, "authentication")) {
                 logger.warn("SECURITY ALERT: Rate limit exceeded for IP {} on path {}", clientIp, path);
                 response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
                 response.setContentType("application/json");
+                response.setHeader("Retry-After", String.valueOf(AUTH_WINDOW_SECONDS));
                 response.getWriter().write("{\"error\":\"Too many requests. Please try again later.\"}");
                 return;
             }
@@ -73,6 +95,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
                 logger.warn("SECURITY ALERT: Rate limit exceeded for IP {} on path {}", clientIp, path);
                 response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
                 response.setContentType("application/json");
+                response.setHeader("Retry-After", String.valueOf(GENERAL_WINDOW_SECONDS));
                 response.getWriter().write("{\"error\":\"Too many requests. Please try again later.\"}");
                 return;
             }
