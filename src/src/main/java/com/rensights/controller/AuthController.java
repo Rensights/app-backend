@@ -230,13 +230,15 @@ public class AuthController {
         logger.info("=== Forgot password called for: {}", request.getEmail());
         
         try {
-            authService.requestPasswordReset(request.getEmail());
-            logger.info("✅ Password reset code sent to: {}", request.getEmail());
-            return ResponseEntity.ok(new MessageResponse("Password reset code sent to your email"));
-        } catch (RuntimeException e) {
-            logger.error("❌ Error requesting password reset: {}", e.getMessage());
-            // SECURITY FIX: Don't reveal if user exists - always return success message to prevent user enumeration
-            return ResponseEntity.ok(new MessageResponse("If the email exists, a password reset code has been sent."));
+            boolean emailExists = authService.requestPasswordReset(request.getEmail());
+            if (emailExists) {
+                logger.info("✅ Password reset code sent to: {}", request.getEmail());
+                return ResponseEntity.ok(new MessageResponse("Password reset code sent to your email"));
+            } else {
+                logger.warn("❌ Password reset requested for non-existent email: {}", request.getEmail());
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(new ErrorResponse("No account found with this email address. Please check your email and try again."));
+            }
         } catch (Exception e) {
             logger.error("❌ Unexpected error requesting password reset: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)

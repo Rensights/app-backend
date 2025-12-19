@@ -277,29 +277,29 @@ public class AuthService {
     
     /**
      * Request password reset - sends reset code to email
-     * SECURITY FIX: Don't reveal if user exists to prevent user enumeration
+     * Returns true if email exists and code was sent, false if email doesn't exist
      */
     @Transactional
-    public void requestPasswordReset(String email) {
-        // SECURITY FIX: Don't reveal if user exists to prevent user enumeration
+    public boolean requestPasswordReset(String email) {
         User user = userRepository.findByEmail(email).orElse(null);
         
         if (user == null) {
-            // User doesn't exist - log but don't throw (prevents user enumeration)
+            // User doesn't exist - return false so frontend can inform user
             logger.warn("Password reset requested for non-existent email: {}", email);
-            return; // Silent return - controller will always show success message
+            return false;
         }
         
         if (!user.getIsActive()) {
-            // Account deactivated - still don't reveal this to prevent enumeration
+            // Account deactivated - treat as if email doesn't exist for user feedback
             logger.warn("Password reset requested for deactivated account: {}", email);
-            return; // Silent return
+            return false;
         }
         
         // Generate reset code using verification code service
         String code = verificationCodeService.generateCode("reset:" + email);
         emailService.sendPasswordResetCode(email, code);
         logger.info("Password reset code sent to: {}", email);
+        return true;
     }
     
     /**
