@@ -23,40 +23,29 @@ public class Language {
     private UUID id;
     
     @Column(name = "code", nullable = false, unique = true, length = 10)
-    private String code; // e.g., "en", "ar", "fr"
+    private String code;
     
     @Column(name = "name", nullable = false, length = 100)
-    private String name; // e.g., "English", "العربية", "Français"
+    private String name;
     
     @Column(name = "native_name", length = 100)
-    private String nativeName; // e.g., "English", "العربية", "Français"
+    private String nativeName;
     
     @Column(name = "flag", length = 10)
-    private String flag; // Emoji flag, e.g., "🇬🇧", "🇸🇦", "🇫🇷"
+    private String flag;
     
     @Column(name = "enabled", nullable = false)
     @Builder.Default
-    private Boolean enabled = true; // Whether this language is enabled and available
+    private Boolean enabled = true;
     
     @Column(name = "is_default", nullable = false)
     @Builder.Default
-    private Boolean isDefault = false; // Whether this is the default language
+    private Boolean isDefault = false;
     
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
     
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
-    
-    @PrePersist
-    protected void onCreate() {
-        createdAt = LocalDateTime.now();
-        updatedAt = LocalDateTime.now();
-    }
-    
-    @PreUpdate
-    protected void onUpdate() {
-        updatedAt = LocalDateTime.now();
-    }
 }
 

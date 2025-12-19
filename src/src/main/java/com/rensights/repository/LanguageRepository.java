@@ -13,12 +13,6 @@ public interface LanguageRepository extends JpaRepository<Language, UUID> {
     
     Optional<Language> findByCode(String code);
     
-    boolean existsByCode(String code);
-    
     List<Language> findByEnabledTrueOrderByNameAsc();
-    
-    List<Language> findAllByOrderByNameAsc();
-    
-    Optional<Language> findByIsDefaultTrue();
 }
 
