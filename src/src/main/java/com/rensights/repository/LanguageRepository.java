@@ -16,3 +16,4 @@ public interface LanguageRepository extends JpaRepository<Language, UUID> {
     List<Language> findByEnabledTrueOrderByNameAsc();
 }
 
+

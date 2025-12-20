@@ -11,10 +11,10 @@ import java.util.Map;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class TranslationsResponse {
+public class LandingPageSectionDTO {
+    private String section;
     private String languageCode;
-    private String namespace;
-    private Map<String, String> translations; // key -> value mapping
+    private Map<String, Object> content;
 }
 
 

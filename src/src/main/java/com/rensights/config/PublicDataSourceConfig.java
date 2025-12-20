@@ -17,6 +17,8 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 
 import com.rensights.model.Deal;
+import com.rensights.model.LandingPageContent;
+import com.rensights.model.DealTranslation;
 
 import javax.sql.DataSource;
 import java.util.HashMap;
@@ -27,7 +29,9 @@ import java.util.Map;
 @EnableJpaRepositories(
     basePackages = "com.rensights.repository",
     includeFilters = {
-        @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = {com.rensights.repository.DealRepository.class})
+        @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = {com.rensights.repository.DealRepository.class}),
+        @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = {com.rensights.repository.DealTranslationRepository.class}),
+        @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = {com.rensights.repository.LandingPageContentRepository.class})
     },
     entityManagerFactoryRef = "publicEntityManagerFactory",
     transactionManagerRef = "publicTransactionManager"
@@ -67,7 +71,7 @@ public class PublicDataSourceConfig {
         // The repository filter already ensures only DealRepository is used
         return builder
             .dataSource(dataSource)
-            .packages(Deal.class)
+            .packages(Deal.class, DealTranslation.class, LandingPageContent.class)
             .persistenceUnit("public")
             .properties(properties)
             .build();
