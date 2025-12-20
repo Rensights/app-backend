@@ -120,13 +120,25 @@ public class Deal {
     @Column(name = "approved_by")
     private UUID approvedBy;
     
-    @ManyToMany(mappedBy = "deals", fetch = FetchType.LAZY)
+    // Self-referencing Many-to-Many: Listed deals (Deal -> Deal relationship)
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+        name = "deal_listed_deals",
+        joinColumns = @JoinColumn(name = "deal_id"),
+        inverseJoinColumns = @JoinColumn(name = "listed_deal_id")
+    )
     @Builder.Default
-    private Set<ListedDeal> listedDeals = new HashSet<>();
+    private Set<Deal> listedDeals = new HashSet<>();
     
-    @ManyToMany(mappedBy = "deals", fetch = FetchType.LAZY)
+    // Self-referencing Many-to-Many: Recent sales (Deal -> Deal relationship)
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+        name = "deal_recent_sales",
+        joinColumns = @JoinColumn(name = "deal_id"),
+        inverseJoinColumns = @JoinColumn(name = "recent_sale_id")
+    )
     @Builder.Default
-    private Set<RecentSale> recentSales = new HashSet<>();
+    private Set<Deal> recentSales = new HashSet<>();
     
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

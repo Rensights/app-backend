@@ -24,8 +24,6 @@ import com.rensights.model.Subscription;
 import com.rensights.model.User;
 import com.rensights.model.Deal;
 import com.rensights.model.DealTranslation;
-import com.rensights.model.ListedDeal;
-import com.rensights.model.RecentSale;
 import com.rensights.model.LandingPageContent;
 
 import javax.sql.DataSource;
@@ -76,7 +74,7 @@ public class AdminDataSourceConfig {
         
         return builder
             .dataSource(dataSource)
-            .packages(User.class, Device.class, Subscription.class, AnalysisRequest.class, Invoice.class, Deal.class, DealTranslation.class, ListedDeal.class, RecentSale.class, LandingPageContent.class)
+            .packages(User.class, Device.class, Subscription.class, AnalysisRequest.class, Invoice.class, Deal.class, DealTranslation.class, LandingPageContent.class)
             .persistenceUnit("admin")
             .properties(properties)
             .build();
