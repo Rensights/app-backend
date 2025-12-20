@@ -121,19 +121,32 @@ public class DealController {
             Page<Map<String, Object>> dealDTOs = deals.map(deal -> {
                 Map<String, Object> dto = new HashMap<>();
                 dto.put("id", deal.getId().toString());
-                dto.put("name", deal.getName());
+                dto.put("name", deal.getName()); // Building name
                 dto.put("location", deal.getLocation());
                 dto.put("city", deal.getCity());
                 dto.put("area", deal.getArea());
                 dto.put("bedrooms", deal.getBedrooms());
                 dto.put("bedroomCount", deal.getBedroomCount());
-                dto.put("size", deal.getSize());
-                dto.put("listedPrice", deal.getListedPrice());
+                dto.put("size", deal.getSize()); // Size, sqft
+                dto.put("listedPrice", deal.getListedPrice()); // Listed price, AED
                 dto.put("priceValue", deal.getPriceValue());
+                dto.put("estimateMin", deal.getEstimateMin()); // Our price estimate (min)
+                dto.put("estimateMax", deal.getEstimateMax()); // Our price estimate (max)
                 dto.put("estimateRange", deal.getEstimateRange());
-                dto.put("discount", deal.getDiscount());
+                dto.put("discount", deal.getDiscount()); // Potential savings range
                 dto.put("rentalYield", deal.getRentalYield());
-                dto.put("buildingStatus", deal.getBuildingStatus().name().toLowerCase().replace("_", "-"));
+                dto.put("grossRentalYield", deal.getGrossRentalYield()); // Gross rental yield
+                dto.put("buildingStatus", deal.getBuildingStatus().name().toLowerCase().replace("_", "-")); // Building status
+                dto.put("propertyType", deal.getPropertyType()); // Property type
+                dto.put("priceVsEstimations", deal.getPriceVsEstimations()); // Price vs. Estimations
+                dto.put("pricePerSqft", deal.getPricePerSqft()); // Price per sqft
+                dto.put("pricePerSqftVsMarket", deal.getPricePerSqftVsMarket()); // Price per sqft (vs. market)
+                dto.put("propertyDescription", deal.getPropertyDescription()); // Property description
+                dto.put("buildingFeatures", deal.getBuildingFeatures()); // Building features
+                dto.put("serviceCharge", deal.getServiceCharge()); // Service charge
+                dto.put("developer", deal.getDeveloper()); // Developer
+                dto.put("propertyLink", deal.getPropertyLink()); // Link for the property
+                dto.put("propertyId", deal.getPropertyId()); // Property id
                 return dto;
             });
             
@@ -174,21 +187,32 @@ public class DealController {
             
             Map<String, Object> dto = new HashMap<>();
             dto.put("id", deal.getId().toString());
-            dto.put("name", deal.getName());
+            dto.put("name", deal.getName()); // Building name
             dto.put("location", deal.getLocation());
             dto.put("city", deal.getCity());
             dto.put("area", deal.getArea());
             dto.put("bedrooms", deal.getBedrooms());
             dto.put("bedroomCount", deal.getBedroomCount());
-            dto.put("size", deal.getSize());
-            dto.put("listedPrice", deal.getListedPrice());
+            dto.put("size", deal.getSize()); // Size, sqft
+            dto.put("listedPrice", deal.getListedPrice()); // Listed price, AED
             dto.put("priceValue", deal.getPriceValue());
-            dto.put("estimateMin", deal.getEstimateMin());
-            dto.put("estimateMax", deal.getEstimateMax());
+            dto.put("estimateMin", deal.getEstimateMin()); // Our price estimate (min)
+            dto.put("estimateMax", deal.getEstimateMax()); // Our price estimate (max)
             dto.put("estimateRange", deal.getEstimateRange());
-            dto.put("discount", deal.getDiscount());
+            dto.put("discount", deal.getDiscount()); // Potential savings range
             dto.put("rentalYield", deal.getRentalYield());
-            dto.put("buildingStatus", deal.getBuildingStatus().name().toLowerCase().replace("_", "-"));
+            dto.put("grossRentalYield", deal.getGrossRentalYield()); // Gross rental yield
+            dto.put("buildingStatus", deal.getBuildingStatus().name().toLowerCase().replace("_", "-")); // Building status
+            dto.put("propertyType", deal.getPropertyType()); // Property type
+            dto.put("priceVsEstimations", deal.getPriceVsEstimations()); // Price vs. Estimations
+            dto.put("pricePerSqft", deal.getPricePerSqft()); // Price per sqft
+            dto.put("pricePerSqftVsMarket", deal.getPricePerSqftVsMarket()); // Price per sqft (vs. market)
+            dto.put("propertyDescription", deal.getPropertyDescription()); // Property description
+            dto.put("buildingFeatures", deal.getBuildingFeatures()); // Building features
+            dto.put("serviceCharge", deal.getServiceCharge()); // Service charge
+            dto.put("developer", deal.getDeveloper()); // Developer
+            dto.put("propertyLink", deal.getPropertyLink()); // Link for the property
+            dto.put("propertyId", deal.getPropertyId()); // Property id
             
             return ResponseEntity.ok(dto);
         } catch (Exception e) {

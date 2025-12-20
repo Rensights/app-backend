@@ -63,9 +63,42 @@ public class Deal {
     @Column(name = "rental_yield")
     private String rentalYield;
     
+    @Column(name = "gross_rental_yield")
+    private String grossRentalYield;
+    
     @Column(name = "building_status", nullable = false)
     @Enumerated(EnumType.STRING)
     private BuildingStatus buildingStatus;
+    
+    @Column(name = "property_type")
+    private String propertyType; // APARTMENT, VILLA, TOWNHOUSE, etc.
+    
+    @Column(name = "price_vs_estimations")
+    private String priceVsEstimations; // Comparison text or percentage
+    
+    @Column(name = "price_per_sqft")
+    private BigDecimal pricePerSqft;
+    
+    @Column(name = "price_per_sqft_vs_market")
+    private BigDecimal pricePerSqftVsMarket;
+    
+    @Column(name = "property_description", columnDefinition = "TEXT")
+    private String propertyDescription;
+    
+    @Column(name = "building_features", columnDefinition = "TEXT")
+    private String buildingFeatures; // JSON or comma-separated features
+    
+    @Column(name = "service_charge")
+    private String serviceCharge;
+    
+    @Column(name = "developer")
+    private String developer;
+    
+    @Column(name = "property_link")
+    private String propertyLink; // External link to the property
+    
+    @Column(name = "property_id")
+    private String propertyId; // External property ID (separate from our UUID)
     
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
