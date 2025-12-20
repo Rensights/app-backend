@@ -31,5 +31,12 @@ public interface DealRepository extends JpaRepository<Deal, UUID> {
     
     @Query("SELECT d FROM Deal d WHERE d.status = 'APPROVED' AND d.active = true")
     Page<Deal> findApprovedAndActiveDeals(Pageable pageable);
+    
+    // Fetch deal with listed deals and recent sales relationships
+    @Query("SELECT DISTINCT d FROM Deal d " +
+           "LEFT JOIN FETCH d.listedDeals " +
+           "LEFT JOIN FETCH d.recentSales " +
+           "WHERE d.id = :id")
+    java.util.Optional<Deal> findByIdWithRelationships(@Param("id") UUID id);
 }
 

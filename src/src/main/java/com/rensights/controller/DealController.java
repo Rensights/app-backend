@@ -181,7 +181,8 @@ public class DealController {
         }
         
         try {
-            Deal deal = dealRepository.findById(dealId)
+            // Fetch deal with relationships (listed deals and recent sales)
+            Deal deal = dealRepository.findByIdWithRelationships(dealId)
                     .orElseThrow(() -> new RuntimeException("Deal not found"));
             
             if (deal.getStatus() != Deal.DealStatus.APPROVED || !deal.getActive()) {
@@ -217,11 +218,56 @@ public class DealController {
             dto.put("propertyLink", deal.getPropertyLink()); // Link for the property
             dto.put("propertyId", deal.getPropertyId()); // Property id
             
+            // Add listed deals
+            if (deal.getListedDeals() != null && !deal.getListedDeals().isEmpty()) {
+                dto.put("listedDeals", deal.getListedDeals().stream().map(this::dealToMap).collect(java.util.stream.Collectors.toList()));
+            }
+            
+            // Add recent sales
+            if (deal.getRecentSales() != null && !deal.getRecentSales().isEmpty()) {
+                dto.put("recentSales", deal.getRecentSales().stream().map(this::dealToMap).collect(java.util.stream.Collectors.toList()));
+            }
+            
             return ResponseEntity.ok(dto);
         } catch (Exception e) {
             logger.error("Error fetching deal: {}", e.getMessage(), e);
             return ResponseEntity.status(500).body(Map.of("error", "Failed to fetch deal. Please try again later."));
         }
+    }
+    
+    /**
+     * Helper method to convert Deal to Map (for listed deals and recent sales)
+     */
+    private Map<String, Object> dealToMap(Deal deal) {
+        Map<String, Object> dealMap = new HashMap<>();
+        dealMap.put("id", deal.getId().toString());
+        dealMap.put("name", deal.getName());
+        dealMap.put("location", deal.getLocation());
+        dealMap.put("city", deal.getCity());
+        dealMap.put("area", deal.getArea());
+        dealMap.put("bedrooms", deal.getBedrooms());
+        dealMap.put("bedroomCount", deal.getBedroomCount());
+        dealMap.put("size", deal.getSize());
+        dealMap.put("listedPrice", deal.getListedPrice());
+        dealMap.put("priceValue", deal.getPriceValue());
+        dealMap.put("estimateMin", deal.getEstimateMin());
+        dealMap.put("estimateMax", deal.getEstimateMax());
+        dealMap.put("estimateRange", deal.getEstimateRange());
+        dealMap.put("discount", deal.getDiscount());
+        dealMap.put("rentalYield", deal.getRentalYield());
+        dealMap.put("grossRentalYield", deal.getGrossRentalYield());
+        dealMap.put("buildingStatus", deal.getBuildingStatus() != null ? deal.getBuildingStatus().name().toLowerCase().replace("_", "-") : null);
+        dealMap.put("propertyType", deal.getPropertyType());
+        dealMap.put("priceVsEstimations", deal.getPriceVsEstimations());
+        dealMap.put("pricePerSqft", deal.getPricePerSqft());
+        dealMap.put("pricePerSqftVsMarket", deal.getPricePerSqftVsMarket());
+        dealMap.put("propertyDescription", deal.getPropertyDescription());
+        dealMap.put("buildingFeatures", deal.getBuildingFeatures());
+        dealMap.put("serviceCharge", deal.getServiceCharge());
+        dealMap.put("developer", deal.getDeveloper());
+        dealMap.put("propertyLink", deal.getPropertyLink());
+        dealMap.put("propertyId", deal.getPropertyId());
+        return dealMap;
     }
 }
 
