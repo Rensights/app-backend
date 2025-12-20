@@ -19,6 +19,8 @@ import org.springframework.transaction.annotation.EnableTransactionManagement;
 import com.rensights.model.Deal;
 import com.rensights.model.LandingPageContent;
 import com.rensights.model.DealTranslation;
+import com.rensights.model.ListedDeal;
+import com.rensights.model.RecentSale;
 
 import javax.sql.DataSource;
 import java.util.HashMap;
@@ -31,7 +33,9 @@ import java.util.Map;
     includeFilters = {
         @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = {com.rensights.repository.DealRepository.class}),
         @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = {com.rensights.repository.DealTranslationRepository.class}),
-        @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = {com.rensights.repository.LandingPageContentRepository.class})
+        @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = {com.rensights.repository.LandingPageContentRepository.class}),
+        @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = {com.rensights.repository.ListedDealRepository.class}),
+        @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = {com.rensights.repository.RecentSaleRepository.class})
     },
     entityManagerFactoryRef = "publicEntityManagerFactory",
     transactionManagerRef = "publicTransactionManager"
@@ -71,7 +75,7 @@ public class PublicDataSourceConfig {
         // The repository filter already ensures only DealRepository is used
         return builder
             .dataSource(dataSource)
-            .packages(Deal.class, DealTranslation.class, LandingPageContent.class)
+            .packages(Deal.class, DealTranslation.class, LandingPageContent.class, ListedDeal.class, RecentSale.class)
             .persistenceUnit("public")
             .properties(properties)
             .build();

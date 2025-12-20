@@ -8,6 +8,8 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 
 @Entity
@@ -117,6 +119,14 @@ public class Deal {
     
     @Column(name = "approved_by")
     private UUID approvedBy;
+    
+    @ManyToMany(mappedBy = "deals", fetch = FetchType.LAZY)
+    @Builder.Default
+    private Set<ListedDeal> listedDeals = new HashSet<>();
+    
+    @ManyToMany(mappedBy = "deals", fetch = FetchType.LAZY)
+    @Builder.Default
+    private Set<RecentSale> recentSales = new HashSet<>();
     
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
