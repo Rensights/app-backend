@@ -22,6 +22,11 @@ import com.rensights.model.Device;
 import com.rensights.model.Invoice;
 import com.rensights.model.Subscription;
 import com.rensights.model.User;
+import com.rensights.model.Deal;
+import com.rensights.model.DealTranslation;
+import com.rensights.model.ListedDeal;
+import com.rensights.model.RecentSale;
+import com.rensights.model.LandingPageContent;
 
 import javax.sql.DataSource;
 import java.util.HashMap;
@@ -31,11 +36,6 @@ import java.util.Map;
 @EnableTransactionManagement
 @EnableJpaRepositories(
     basePackages = "com.rensights.repository",
-    excludeFilters = {
-        @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = {com.rensights.repository.DealRepository.class}),
-        @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = {com.rensights.repository.DealTranslationRepository.class}),
-        @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = {com.rensights.repository.LandingPageContentRepository.class})
-    },
     entityManagerFactoryRef = "adminEntityManagerFactory",
     transactionManagerRef = "adminTransactionManager"
 )
@@ -76,7 +76,7 @@ public class AdminDataSourceConfig {
         
         return builder
             .dataSource(dataSource)
-            .packages(User.class, Device.class, Subscription.class, AnalysisRequest.class, Invoice.class)
+            .packages(User.class, Device.class, Subscription.class, AnalysisRequest.class, Invoice.class, Deal.class, DealTranslation.class, ListedDeal.class, RecentSale.class, LandingPageContent.class)
             .persistenceUnit("admin")
             .properties(properties)
             .build();

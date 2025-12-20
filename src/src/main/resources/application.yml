@@ -2,22 +2,11 @@ spring:
   application:
     name: rensights-backend
   
-  # Admin Database (Primary - for User, Device, Subscription, AnalysisRequest)
+  # Database Configuration (Single database for all entities)
   datasource:
     url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/admin_db_dev}
     username: ${DATABASE_USER:admin}
     password: ${DATABASE_PASSWORD:password}
-    driver-class-name: org.postgresql.Driver
-    hikari:
-      maximum-pool-size: 10
-      minimum-idle: 5
-      connection-timeout: 30000
-  
-  # Public Database Configuration (for Deal entities only - read-only)
-  public-datasource:
-    url: ${PUBLIC_DATABASE_URL:jdbc:postgresql://localhost:5432/public_db_dev}
-    username: ${PUBLIC_DATABASE_USER:public_user}
-    password: ${PUBLIC_DATABASE_PASSWORD:password}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 10

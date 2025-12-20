@@ -28,11 +28,14 @@ public class DealController {
     
     private static final Logger logger = LoggerFactory.getLogger(DealController.class);
     
-    @Autowired
-    private DealRepository dealRepository;
+    private final DealRepository dealRepository;
+    private final UserRepository userRepository;
     
-    @Autowired
-    private UserRepository userRepository;
+    // Constructor injection (better performance and testability)
+    public DealController(DealRepository dealRepository, UserRepository userRepository) {
+        this.dealRepository = dealRepository;
+        this.userRepository = userRepository;
+    }
     
     /**
      * Check if user has access to deals (not FREE tier)

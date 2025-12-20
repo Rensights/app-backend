@@ -18,7 +18,8 @@ public interface DealRepository extends JpaRepository<Deal, UUID> {
     
     Page<Deal> findByStatus(Deal.DealStatus status, Pageable pageable);
     
-    @Query("SELECT d FROM Deal d WHERE d.status = 'APPROVED' AND d.active = true AND UPPER(d.city) = UPPER(:city) " +
+    // Optimized: Removed UPPER() function to allow index usage - normalize city before calling
+    @Query("SELECT d FROM Deal d WHERE d.status = 'APPROVED' AND d.active = true AND d.city = :city " +
            "AND (:area IS NULL OR d.area = :area) " +
            "AND (:bedroomCount IS NULL OR d.bedroomCount = :bedroomCount) " +
            "AND (:buildingStatus IS NULL OR d.buildingStatus = :buildingStatus)")
