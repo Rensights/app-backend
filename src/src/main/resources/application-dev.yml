@@ -72,7 +72,7 @@ jwt:
     path: ${JWT_COOKIE_PATH:/} # Cookie path
 
 cors:
-  allowed-origins: ${CORS_ORIGINS:http://localhost:3000,http://localhost:3001}
+  allowed-origins: ${CORS_ORIGINS:http://localhost:3000,http://localhost:3001,http://dev.72.62.40.154.nip.io:31416}
 
 app:
   email:

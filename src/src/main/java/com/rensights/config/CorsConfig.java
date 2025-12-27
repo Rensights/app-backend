@@ -41,10 +41,12 @@ public class CorsConfig implements WebMvcConfigurer {
                 // Special handling for nip.io domains - use wildcard pattern
                 // Spring's allowedOriginPatterns supports Ant-style patterns like *.nip.io
                 if (host.contains("nip.io")) {
-                    // For nip.io, create a pattern that matches any IP with nip.io
+                    // For nip.io, create patterns that match any subdomain with nip.io
                     // Pattern: http://*.nip.io:port or http://*.nip.io
                     // Extract the nip.io part (e.g., "72.62.40.154.nip.io" -> "nip.io")
                     String nipDomain = host.substring(host.indexOf("nip.io"));
+                    
+                    // Add pattern with wildcard for any subdomain: *.nip.io
                     String nipPattern = protocol + "://*." + nipDomain;
                     if (port != -1) {
                         nipPattern += ":" + port;
@@ -52,10 +54,27 @@ public class CorsConfig implements WebMvcConfigurer {
                     if (!patterns.contains(nipPattern)) {
                         patterns.add(nipPattern);
                     }
+                    
                     // Also add pattern without port for flexibility
                     String nipPatternNoPort = protocol + "://*." + nipDomain;
                     if (!patterns.contains(nipPatternNoPort)) {
                         patterns.add(nipPatternNoPort);
+                    }
+                    
+                    // Add pattern for multi-level subdomains (e.g., dev.72.62.40.154.nip.io)
+                    // Pattern: *.*.*.nip.io matches any three-level subdomain
+                    String multiLevelPattern = protocol + "://*.*.*." + nipDomain;
+                    if (port != -1) {
+                        multiLevelPattern += ":" + port;
+                    }
+                    if (!patterns.contains(multiLevelPattern)) {
+                        patterns.add(multiLevelPattern);
+                    }
+                    
+                    // Also add pattern without port
+                    String multiLevelPatternNoPort = protocol + "://*.*.*." + nipDomain;
+                    if (!patterns.contains(multiLevelPatternNoPort)) {
+                        patterns.add(multiLevelPatternNoPort);
                     }
                 }
                 
@@ -129,10 +148,12 @@ public class CorsConfig implements WebMvcConfigurer {
                 // Special handling for nip.io domains - use wildcard pattern
                 // Spring's allowedOriginPatterns supports Ant-style patterns like *.nip.io
                 if (host.contains("nip.io")) {
-                    // For nip.io, create a pattern that matches any IP with nip.io
+                    // For nip.io, create patterns that match any subdomain with nip.io
                     // Pattern: http://*.nip.io:port or http://*.nip.io
                     // Extract the nip.io part (e.g., "72.62.40.154.nip.io" -> "nip.io")
                     String nipDomain = host.substring(host.indexOf("nip.io"));
+                    
+                    // Add pattern with wildcard for any subdomain: *.nip.io
                     String nipPattern = protocol + "://*." + nipDomain;
                     if (port != -1) {
                         nipPattern += ":" + port;
@@ -140,10 +161,27 @@ public class CorsConfig implements WebMvcConfigurer {
                     if (!patterns.contains(nipPattern)) {
                         patterns.add(nipPattern);
                     }
+                    
                     // Also add pattern without port for flexibility
                     String nipPatternNoPort = protocol + "://*." + nipDomain;
                     if (!patterns.contains(nipPatternNoPort)) {
                         patterns.add(nipPatternNoPort);
+                    }
+                    
+                    // Add pattern for multi-level subdomains (e.g., dev.72.62.40.154.nip.io)
+                    // Pattern: *.*.*.nip.io matches any three-level subdomain
+                    String multiLevelPattern = protocol + "://*.*.*." + nipDomain;
+                    if (port != -1) {
+                        multiLevelPattern += ":" + port;
+                    }
+                    if (!patterns.contains(multiLevelPattern)) {
+                        patterns.add(multiLevelPattern);
+                    }
+                    
+                    // Also add pattern without port
+                    String multiLevelPatternNoPort = protocol + "://*.*.*." + nipDomain;
+                    if (!patterns.contains(multiLevelPatternNoPort)) {
+                        patterns.add(multiLevelPatternNoPort);
                     }
                 }
                 
