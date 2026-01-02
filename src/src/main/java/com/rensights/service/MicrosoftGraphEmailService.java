@@ -7,6 +7,7 @@ import com.microsoft.graph.models.Recipient;
 import com.microsoft.graph.models.EmailAddress;
 import com.microsoft.graph.requests.GraphServiceClient;
 import com.microsoft.graph.authentication.IAuthenticationProvider;
+import com.microsoft.graph.http.IHttpRequest;
 import com.azure.identity.ClientSecretCredential;
 import com.azure.identity.ClientSecretCredentialBuilder;
 import com.azure.core.credential.TokenRequestContext;
@@ -55,16 +56,19 @@ public class MicrosoftGraphEmailService {
                     .build();
                 
                 // Create custom authentication provider
-                IAuthenticationProvider authProvider = request -> {
-                    try {
-                        TokenRequestContext tokenRequestContext = new TokenRequestContext()
-                            .addScopes("https://graph.microsoft.com/.default");
-                        String accessToken = credential.getToken(tokenRequestContext).block().getToken();
-                        request.addHeader("Authorization", "Bearer " + accessToken);
-                        return CompletableFuture.completedFuture(request);
-                    } catch (Exception e) {
-                        logger.error("Failed to get access token", e);
-                        return CompletableFuture.failedFuture(e);
+                IAuthenticationProvider authProvider = new IAuthenticationProvider() {
+                    @Override
+                    public CompletableFuture<IHttpRequest> authenticateRequest(IHttpRequest request) {
+                        try {
+                            TokenRequestContext tokenRequestContext = new TokenRequestContext()
+                                .addScopes("https://graph.microsoft.com/.default");
+                            String accessToken = credential.getToken(tokenRequestContext).block().getToken();
+                            request.addHeader("Authorization", "Bearer " + accessToken);
+                            return CompletableFuture.completedFuture(request);
+                        } catch (Exception e) {
+                            logger.error("Failed to get access token", e);
+                            return CompletableFuture.failedFuture(e);
+                        }
                     }
                 };
                 
