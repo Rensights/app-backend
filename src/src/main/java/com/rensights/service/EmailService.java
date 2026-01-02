@@ -112,12 +112,20 @@ public class EmailService {
         );
         
         // Use Microsoft Graph API if enabled and available
-        if (useGraphApi && graphEmailService != null) {
-            try {
-                graphEmailService.sendEmail(toEmail, subject, body);
-                return;
-            } catch (Exception e) {
-                logger.warn("Failed to send via Graph API, falling back to SMTP: {}", e.getMessage());
+        if (useGraphApi) {
+            if (graphEmailService == null) {
+                logger.warn("Graph API is enabled but MicrosoftGraphEmailService is not available. Check if dependencies are loaded.");
+            } else {
+                try {
+                    logger.info("Attempting to send password reset email via Microsoft Graph API to: {}", toEmail);
+                    graphEmailService.sendEmail(toEmail, subject, body);
+                    logger.info("✅ Password reset email sent successfully via Microsoft Graph API to: {}", toEmail);
+                    return;
+                } catch (Exception e) {
+                    logger.error("❌ Failed to send via Graph API: {}", e.getMessage(), e);
+                    logger.warn("Falling back to SMTP...");
+                    // Continue to SMTP fallback
+                }
             }
         }
         
@@ -125,7 +133,7 @@ public class EmailService {
         if (mailSender == null) {
             logger.error("Neither Graph API nor SMTP is available! Email configuration may be missing.");
             logger.warn("DEV MODE: Password Reset Code for {}: [REDACTED]", toEmail);
-            return;
+            throw new RuntimeException("Email service is not available. Please configure Microsoft Graph API or SMTP.");
         }
         
         try {
@@ -171,12 +179,20 @@ public class EmailService {
         );
         
         // Use Microsoft Graph API if enabled and available
-        if (useGraphApi && graphEmailService != null) {
-            try {
-                graphEmailService.sendEmail(adminEmail, subject, body);
-                return;
-            } catch (Exception e) {
-                logger.warn("Failed to send via Graph API, falling back to SMTP: {}", e.getMessage());
+        if (useGraphApi) {
+            if (graphEmailService == null) {
+                logger.warn("Graph API is enabled but MicrosoftGraphEmailService is not available. Check if dependencies are loaded.");
+            } else {
+                try {
+                    logger.info("Attempting to send analysis request notification via Microsoft Graph API to admin: {}", adminEmail);
+                    graphEmailService.sendEmail(adminEmail, subject, body);
+                    logger.info("✅ Analysis request notification sent successfully via Microsoft Graph API to admin: {}", adminEmail);
+                    return;
+                } catch (Exception e) {
+                    logger.error("❌ Failed to send via Graph API: {}", e.getMessage(), e);
+                    logger.warn("Falling back to SMTP...");
+                    // Continue to SMTP fallback
+                }
             }
         }
         

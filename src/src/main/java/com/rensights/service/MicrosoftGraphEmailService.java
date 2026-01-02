@@ -103,8 +103,11 @@ public class MicrosoftGraphEmailService {
         if (tenantId == null || tenantId.isEmpty() || 
             clientId == null || clientId.isEmpty() || 
             clientSecret == null || clientSecret.isEmpty()) {
-            logger.error("Microsoft Graph credentials are not configured!");
-            throw new RuntimeException("Microsoft Graph credentials are not configured");
+            logger.error("Microsoft Graph credentials are not configured! Tenant: {}, Client ID: {}, Secret: {}", 
+                        tenantId != null && !tenantId.isEmpty() ? "SET" : "MISSING",
+                        clientId != null && !clientId.isEmpty() ? "SET" : "MISSING",
+                        clientSecret != null && !clientSecret.isEmpty() ? "SET" : "MISSING");
+            throw new RuntimeException("Microsoft Graph credentials are not configured. Please set MICROSOFT_TENANT_ID, MICROSOFT_CLIENT_ID, and MICROSOFT_CLIENT_SECRET environment variables.");
         }
         
         try {
