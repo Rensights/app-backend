@@ -14,3 +14,7 @@ public interface DealTranslationRepository extends JpaRepository<DealTranslation
 
 
 
+
+
+
+
