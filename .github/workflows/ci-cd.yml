@@ -275,6 +275,16 @@ jobs:
             --namespace ${DEV_NAMESPACE} \
             --dry-run=client -o yaml | kubectl apply -f -
 
+      - name: Setup microsoft-graph-credentials secret for dev
+        run: |
+          export KUBECONFIG=/tmp/kubeconfig
+          kubectl create secret generic microsoft-graph-credentials \
+            --from-literal=tenant-id='e84f3a33-9e68-4a68-aae3-bebba66459e6' \
+            --from-literal=client-id='70a6e6ef-c980-47dc-89ea-70ebd47fd56d' \
+            --from-literal=client-secret='${{ secrets.MICROSOFT_CLIENT_SECRET }}' \
+            --namespace ${DEV_NAMESPACE} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
       - name: Deploy backend to dev
         run: |
           export KUBECONFIG=/tmp/kubeconfig
@@ -478,6 +488,16 @@ jobs:
               --namespace ${PROD_NAMESPACE} \
               --dry-run=client -o yaml | kubectl apply -f -
           fi
+
+      - name: Setup microsoft-graph-credentials secret for prod
+        run: |
+          export KUBECONFIG=/tmp/kubeconfig
+          kubectl create secret generic microsoft-graph-credentials \
+            --from-literal=tenant-id='e84f3a33-9e68-4a68-aae3-bebba66459e6' \
+            --from-literal=client-id='70a6e6ef-c980-47dc-89ea-70ebd47fd56d' \
+            --from-literal=client-secret='${{ secrets.MICROSOFT_CLIENT_SECRET }}' \
+            --namespace ${PROD_NAMESPACE} \
+            --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Deploy backend to prod
         run: |

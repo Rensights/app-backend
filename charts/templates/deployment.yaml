@@ -132,6 +132,21 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.secrets.stripeSecrets }}
                   key: stripe-publishable-key
+            - name: MICROSOFT_TENANT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.microsoftGraphSecrets }}
+                  key: tenant-id
+            - name: MICROSOFT_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.microsoftGraphSecrets }}
+                  key: client-id
+            - name: MICROSOFT_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.microsoftGraphSecrets }}
+                  key: client-secret
             - name: APP_MAIN_BACKEND_URL
               value: {{ .Values.extraEnv.APP_MAIN_BACKEND_URL | quote }}
             {{- if .Values.extraEnv }}

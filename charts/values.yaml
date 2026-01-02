@@ -103,6 +103,7 @@ secrets:
   publicDbCredentials: public-db-credentials
   jwtSecret: jwt-secret
   stripeSecrets: stripe-secrets
+  microsoftGraphSecrets: microsoft-graph-credentials
 
 serviceAccount:
   create: true
