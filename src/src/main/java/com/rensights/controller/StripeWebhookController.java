@@ -59,6 +59,9 @@ public class StripeWebhookController {
                 
                 // Handle the event
                 switch (event.getType()) {
+                    case "checkout.session.completed":
+                        handleCheckoutSessionCompleted(event);
+                        break;
                     case "invoice.payment_succeeded":
                         handleInvoicePaymentSucceeded(event);
                         break;
@@ -100,6 +103,71 @@ public class StripeWebhookController {
         } catch (Exception e) {
             logger.error("Error processing webhook without verification: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Webhook processing failed");
+        }
+    }
+    
+    /**
+     * Handle checkout.session.completed event
+     * This fires when a Checkout Session is successfully completed
+     * We can send a confirmation email here as well
+     */
+    private void handleCheckoutSessionCompleted(Event event) {
+        try {
+            com.stripe.model.checkout.Session session = (com.stripe.model.checkout.Session) event.getDataObjectDeserializer()
+                    .getObject()
+                    .orElseThrow(() -> new RuntimeException("Failed to deserialize checkout session"));
+            
+            logger.info("Processing checkout.session.completed for session: {}", session.getId());
+            logger.info("Session status: {}, Customer: {}, Payment status: {}", 
+                       session.getStatus(), session.getCustomer(), session.getPaymentStatus());
+            
+            // If payment was successful, try to send confirmation email
+            if ("complete".equals(session.getStatus()) && "paid".equals(session.getPaymentStatus())) {
+                try {
+                    // Get customer email from Stripe
+                    String customerId = session.getCustomer();
+                    if (customerId != null) {
+                        com.stripe.model.Customer customer = com.stripe.model.Customer.retrieve(customerId);
+                        String customerEmail = customer.getEmail();
+                        
+                        if (customerEmail != null && !customerEmail.isEmpty()) {
+                            // Try to get invoice if available
+                            String invoiceId = session.getInvoice();
+                            String invoicePdfUrl = null;
+                            String invoiceNumber = session.getId(); // Fallback to session ID
+                            
+                            if (invoiceId != null) {
+                                try {
+                                    com.stripe.model.Invoice invoice = com.stripe.model.Invoice.retrieve(invoiceId);
+                                    invoicePdfUrl = invoice.getInvoicePdf();
+                                    invoiceNumber = invoice.getNumber() != null ? invoice.getNumber() : invoiceId;
+                                } catch (Exception e) {
+                                    logger.warn("Could not retrieve invoice {}: {}", invoiceId, e.getMessage());
+                                }
+                            }
+                            
+                            // Send confirmation email
+                            String customerName = customer.getName() != null ? customer.getName() : customerEmail;
+                            emailService.sendPaymentReceiptEmail(
+                                customerEmail,
+                                customerName,
+                                invoiceNumber,
+                                String.valueOf(session.getAmountTotal() != null ? session.getAmountTotal() / 100.0 : 0),
+                                session.getCurrency() != null ? session.getCurrency().toUpperCase() : "USD",
+                                invoicePdfUrl != null ? invoicePdfUrl : "Available in your account dashboard"
+                            );
+                            
+                            logger.info("✅ Checkout completion email sent to: {}", customerEmail);
+                        } else {
+                            logger.warn("⚠️ Customer {} has no email address - cannot send email", customerId);
+                        }
+                    }
+                } catch (Exception e) {
+                    logger.error("Error sending checkout completion email: {}", e.getMessage(), e);
+                }
+            }
+        } catch (Exception e) {
+            logger.error("Error handling checkout.session.completed: {}", e.getMessage(), e);
         }
     }
     
