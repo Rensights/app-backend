@@ -110,52 +110,82 @@ public class StripeWebhookController {
                     .orElseThrow(() -> new RuntimeException("Failed to deserialize invoice"));
             
             logger.info("Processing invoice.payment_succeeded for invoice: {}", stripeInvoice.getId());
+            logger.info("Invoice status: {}, Customer: {}, Amount: {}", 
+                       stripeInvoice.getStatus(), stripeInvoice.getCustomer(), stripeInvoice.getAmountPaid());
             
             // Process and store invoice
-            com.rensights.model.Invoice invoice = invoiceService.processStripeInvoice(stripeInvoice);
+            com.rensights.model.Invoice invoice = null;
+            try {
+                invoice = invoiceService.processStripeInvoice(stripeInvoice);
+                logger.info("Invoice processed successfully: {}", invoice != null ? invoice.getId() : "null");
+            } catch (Exception e) {
+                logger.error("Error processing invoice in database, but will still try to send email: {}", e.getMessage());
+                // Continue to send email even if invoice processing fails
+            }
             
-            // Always send payment confirmation email when payment succeeds
-            if (invoice != null && "paid".equalsIgnoreCase(invoice.getStatus())) {
-                try {
+            // Always try to send payment confirmation email when payment succeeds
+            // Use invoice data if available, otherwise use Stripe invoice data directly
+            try {
+                String customerEmail = null;
+                String customerName = null;
+                String invoiceNumber = null;
+                String amount = null;
+                String currency = null;
+                String invoicePdfUrl = null;
+                
+                if (invoice != null && invoice.getUser() != null) {
+                    // Use our processed invoice data
                     com.rensights.model.User user = invoice.getUser();
-                    
-                    // Send receipt email with Stripe invoice PDF link (if available)
-                    String customerName = (user.getFirstName() != null ? user.getFirstName() : "") + 
-                                        (user.getLastName() != null ? " " + user.getLastName() : "").trim();
+                    customerEmail = user.getEmail();
+                    customerName = (user.getFirstName() != null ? user.getFirstName() : "") + 
+                                  (user.getLastName() != null ? " " + user.getLastName() : "").trim();
                     if (customerName.isEmpty()) {
                         customerName = user.getEmail();
                     }
-                    
-                    // Use Stripe invoice PDF URL if available, otherwise use our stored PDF URL
-                    String invoicePdfUrl = invoice.getInvoicePdf();
-                    if (invoicePdfUrl == null || invoicePdfUrl.isEmpty()) {
-                        // Try to get PDF URL from Stripe invoice object
-                        if (stripeInvoice.getInvoicePdf() != null) {
-                            invoicePdfUrl = stripeInvoice.getInvoicePdf();
-                        } else if (stripeInvoice.getHostedInvoiceUrl() != null) {
-                            invoicePdfUrl = stripeInvoice.getHostedInvoiceUrl();
-                        }
+                    invoiceNumber = invoice.getInvoiceNumber();
+                    amount = invoice.getAmount().toString();
+                    currency = invoice.getCurrency();
+                    invoicePdfUrl = invoice.getInvoicePdf();
+                } else {
+                    // Fallback: Get customer email directly from Stripe
+                    try {
+                        String stripeCustomerId = stripeInvoice.getCustomer();
+                        com.stripe.model.Customer customer = com.stripe.model.Customer.retrieve(stripeCustomerId);
+                        customerEmail = customer.getEmail();
+                        customerName = customer.getName() != null ? customer.getName() : customerEmail;
+                        logger.info("Retrieved customer email from Stripe: {}", customerEmail);
+                    } catch (Exception e) {
+                        logger.error("Could not retrieve customer email from Stripe: {}", e.getMessage());
                     }
                     
+                    // Use Stripe invoice data
+                    invoiceNumber = stripeInvoice.getNumber();
+                    amount = String.valueOf(stripeInvoice.getAmountPaid() / 100.0); // Convert cents to dollars
+                    currency = stripeInvoice.getCurrency() != null ? stripeInvoice.getCurrency().toUpperCase() : "USD";
+                    invoicePdfUrl = stripeInvoice.getInvoicePdf() != null ? stripeInvoice.getInvoicePdf() : 
+                                   (stripeInvoice.getHostedInvoiceUrl() != null ? stripeInvoice.getHostedInvoiceUrl() : null);
+                }
+                
+                // Send email if we have customer email
+                if (customerEmail != null && !customerEmail.isEmpty()) {
                     emailService.sendPaymentReceiptEmail(
-                        user.getEmail(),
-                        customerName,
-                        invoice.getInvoiceNumber(),
-                        invoice.getAmount().toString(),
-                        invoice.getCurrency(),
+                        customerEmail,
+                        customerName != null ? customerName : customerEmail,
+                        invoiceNumber != null ? invoiceNumber : stripeInvoice.getId(),
+                        amount != null ? amount : "0",
+                        currency != null ? currency : "USD",
                         invoicePdfUrl != null ? invoicePdfUrl : "Available in your account dashboard"
                     );
                     
-                    logger.info("Payment confirmation email sent for invoice: {} to user: {}", 
-                               invoice.getId(), user.getEmail());
-                } catch (Exception e) {
-                    logger.error("Error sending payment confirmation email for invoice {}: {}", 
-                               invoice.getId(), e.getMessage(), e);
-                    // Don't fail the webhook if email fails, but log the error
+                    logger.info("✅ Payment confirmation email sent successfully for invoice: {} to: {}", 
+                               stripeInvoice.getId(), customerEmail);
+                } else {
+                    logger.warn("⚠️ Cannot send email - customer email not found for invoice: {}", stripeInvoice.getId());
                 }
-            } else {
-                logger.warn("Invoice not found or not paid - skipping email for invoice: {}", 
-                          stripeInvoice.getId());
+            } catch (Exception e) {
+                logger.error("❌ Error sending payment confirmation email for invoice {}: {}", 
+                           stripeInvoice.getId(), e.getMessage(), e);
+                // Don't fail the webhook if email fails, but log the error
             }
             
             logger.info("Successfully processed invoice: {}", stripeInvoice.getId());
