@@ -58,13 +58,17 @@ public class VerificationCodeService {
         // Store with expiry time
         LocalDateTime expiryTime = now.plusMinutes(CODE_EXPIRY_MINUTES);
         
-        // SECURITY: Remove old code if exists (prevent code reuse)
+        // SECURITY: Remove old code when generating new one (prevents code reuse)
+        // This ensures only the latest code is valid
         codes.remove(email);
         
+        // Store new code with expiry time
         codes.put(email, new CodeEntry(codeString, expiryTime));
         
         // Reset verification attempts for this email when new code is generated
         verificationAttempts.remove(email);
+        
+        logger.debug("Generated verification code for {} with expiry at {}", email, expiryTime);
         
         return codeString;
     }
@@ -84,16 +88,20 @@ public class VerificationCodeService {
         
         CodeEntry entry = codes.get(email);
         
-        // Remove if expired
-        if (entry != null && now.isAfter(entry.expiryTime)) {
-            codes.remove(email);
-            verificationAttempts.remove(email);
-            return false;
-        }
-        
+        // Check if code exists and is not expired
         if (entry == null) {
             // Increment attempts even for non-existent codes (prevents email enumeration)
             verificationAttempts.put(email, attempts + 1);
+            logger.debug("Verification failed for {}: no code found", email);
+            return false;
+        }
+        
+        // Check if code has expired
+        if (now.isAfter(entry.expiryTime)) {
+            // Remove expired code
+            codes.remove(email);
+            verificationAttempts.remove(email);
+            logger.debug("Verification failed for {}: code expired at {}, current time {}", email, entry.expiryTime, now);
             return false;
         }
         
@@ -106,10 +114,12 @@ public class VerificationCodeService {
             verificationAttempts.remove(email);
             generationCount.remove(email);
             generationResetTime.remove(email);
+            logger.debug("Verification successful for {}", email);
             return true;
         } else {
             // Failed verification - increment attempts
             verificationAttempts.put(email, attempts + 1);
+            logger.debug("Verification failed for {}: code mismatch", email);
             return false;
         }
     }
@@ -123,14 +133,15 @@ public class VerificationCodeService {
         
         CodeEntry entry = codes.get(email);
         
-        // Remove if expired
-        if (entry != null && now.isAfter(entry.expiryTime)) {
-            codes.remove(email);
-            verificationAttempts.remove(email);
+        if (entry == null) {
             return false;
         }
         
-        if (entry == null) {
+        // Check if code has expired
+        if (now.isAfter(entry.expiryTime)) {
+            // Remove expired code
+            codes.remove(email);
+            verificationAttempts.remove(email);
             return false;
         }
         
@@ -161,7 +172,8 @@ public class VerificationCodeService {
         
         while (iterator.hasNext()) {
             Map.Entry<String, CodeEntry> entry = iterator.next();
-            if (now.isAfter(entry.getValue().expiryTime)) {
+            CodeEntry codeEntry = entry.getValue();
+            if (codeEntry != null && now.isAfter(codeEntry.expiryTime)) {
                 iterator.remove();
                 verificationAttempts.remove(entry.getKey());
                 cleaned++;
