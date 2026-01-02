@@ -158,10 +158,24 @@ public class StripeService {
     
     /**
      * Create Stripe Checkout Session for subscription
-     * Stripe automatically sends invoice emails when payment succeeds (enabled by default in Stripe dashboard)
+     * Stripe automatically sends receipts when payment succeeds (if enabled in Stripe Dashboard)
+     * According to Stripe docs: https://docs.stripe.com/receipts
+     * - Checkout Sessions automatically send receipts when payment succeeds
+     * - Ensure "Successful payments" is enabled in Stripe Dashboard → Settings → Emails
      * We also send our own confirmation email via webhook as backup
      */
     public Session createCheckoutSession(String stripeCustomerId, String priceId, String successUrl, String cancelUrl, String customerId) throws StripeException {
+        // Retrieve customer to ensure email is set (required for receipts)
+        Customer customer = Customer.retrieve(stripeCustomerId);
+        String customerEmail = customer.getEmail();
+        
+        if (customerEmail == null || customerEmail.isEmpty()) {
+            logger.warn("Customer {} has no email set - Stripe receipts may not be sent", stripeCustomerId);
+        } else {
+            logger.info("Customer {} has email {} - Stripe will send receipts automatically if enabled in dashboard", 
+                       stripeCustomerId, customerEmail);
+        }
+        
         SessionCreateParams params = SessionCreateParams.builder()
                 .setCustomer(stripeCustomerId)
                 .setMode(SessionCreateParams.Mode.SUBSCRIPTION)
@@ -172,11 +186,15 @@ public class StripeService {
                 .setSuccessUrl(successUrl)
                 .setCancelUrl(cancelUrl)
                 .putMetadata("customer_id", customerId) // Pass our internal customer ID as metadata
+                // Note: Stripe automatically sends receipts for Checkout Sessions when payment succeeds
+                // This is controlled by Dashboard settings: Settings → Emails → "Successful payments"
                 .build();
         
         Session session = Session.create(params);
         logger.info("Created Stripe Checkout Session: {} for customer: {} (internal ID: {})", 
                    session.getId(), stripeCustomerId, customerId);
+        logger.info("Stripe will automatically send receipt to: {} (if enabled in Dashboard → Settings → Emails)", 
+                   customerEmail != null ? customerEmail : "customer email");
         return session;
     }
 }
