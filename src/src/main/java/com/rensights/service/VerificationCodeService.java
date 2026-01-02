@@ -15,7 +15,7 @@ public class VerificationCodeService {
     
     private static final Logger logger = LoggerFactory.getLogger(VerificationCodeService.class);
     private static final int CODE_LENGTH = 6;
-    private static final int CODE_EXPIRY_MINUTES = 10;
+    private static final int CODE_EXPIRY_MINUTES = 5;
     private static final SecureRandom random = new SecureRandom();
     
     // SECURITY: In-memory storage: email -> (code, expiryTime)

@@ -55,7 +55,7 @@ public class EmailService {
             message.setText(String.join("\n",
                 "Your verification code is: " + code,
                 "",
-                "This code will expire in 10 minutes.",
+                "This code will expire in 5 minutes.",
                 "",
                 "If you didn't request this code, please ignore this email."
             ));
@@ -97,7 +97,7 @@ public class EmailService {
             message.setText(String.join("\n",
                 "Your password reset code is: " + code,
                 "",
-                "This code will expire in 10 minutes.",
+                "This code will expire in 5 minutes.",
                 "",
                 "If you didn't request this code, please ignore this email.",
                 "",
