@@ -42,11 +42,18 @@ spring:
         physical_naming_strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
   
   # Email configuration
+  # For Microsoft 365/Office 365:
+  #   - Use a service account with password (recommended)
+  #   - Host: smtp.office365.com
+  #   - Port: 587
+  #   - Grant "Send As" permission to service account for shared mailbox
+  #   - Set "from" to the shared mailbox address (e.g., no-reply@yourdomain.com)
   mail:
-    host: ${SMTP_HOST:smtp.gmail.com}
+    host: ${SMTP_HOST:smtp.office365.com}
     port: ${SMTP_PORT:587}
     username: ${SMTP_USERNAME:}
     password: ${SMTP_PASSWORD:}
+    from: ${SPRING_MAIL_FROM:no-reply@yourdomain.com}
     properties:
       mail:
         smtp:
@@ -54,6 +61,9 @@ spring:
           starttls:
             enable: true
             required: true
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
   
 server:
   port: ${SERVER_PORT:8080}

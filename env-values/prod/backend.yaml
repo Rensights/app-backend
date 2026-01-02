@@ -57,3 +57,11 @@ extraEnv:
   OTEL_LOGS_EXPORTER: "none"
   OTEL_METRICS_EXPORTER: "none"
   OTEL_TRACES_EXPORTER: "none"
+  # Email configuration (Microsoft 365 SMTP)
+  # SECURITY: In production, use Kubernetes secrets instead of plain text
+  EMAIL_ENABLED: "true"
+  SMTP_HOST: "smtp.office365.com"
+  SMTP_PORT: "587"
+  SMTP_USERNAME: "info@rensights.com"
+  SMTP_PASSWORD: "V.573300278010aj"
+  SPRING_MAIL_FROM: "no-reply@rensights.com"

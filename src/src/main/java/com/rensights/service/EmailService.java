@@ -20,7 +20,7 @@ public class EmailService {
     @Autowired(required = false)
     private JavaMailSender mailSender;
     
-    @Value("${spring.mail.from:ihakhverdiyev2021@gmail.com}")
+    @Value("${spring.mail.from:no-reply@rensights.com}")
     private String fromEmail;
     
     @Value("${app.email.enabled:true}")
