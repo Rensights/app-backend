@@ -7,7 +7,6 @@ import com.microsoft.graph.models.Recipient;
 import com.microsoft.graph.models.EmailAddress;
 import com.microsoft.graph.requests.GraphServiceClient;
 import com.microsoft.graph.authentication.IAuthenticationProvider;
-import com.microsoft.graph.http.IHttpRequest;
 import com.azure.identity.ClientSecretCredential;
 import com.azure.identity.ClientSecretCredentialBuilder;
 import com.azure.core.credential.TokenRequestContext;
@@ -16,6 +15,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.net.URL;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
@@ -58,13 +58,12 @@ public class MicrosoftGraphEmailService {
                 // Create custom authentication provider
                 IAuthenticationProvider authProvider = new IAuthenticationProvider() {
                     @Override
-                    public CompletableFuture<IHttpRequest> authenticateRequest(IHttpRequest request) {
+                    public CompletableFuture<String> getAuthorizationTokenAsync(URL requestUrl) {
                         try {
                             TokenRequestContext tokenRequestContext = new TokenRequestContext()
                                 .addScopes("https://graph.microsoft.com/.default");
                             String accessToken = credential.getToken(tokenRequestContext).block().getToken();
-                            request.addHeader("Authorization", "Bearer " + accessToken);
-                            return CompletableFuture.completedFuture(request);
+                            return CompletableFuture.completedFuture(accessToken);
                         } catch (Exception e) {
                             logger.error("Failed to get access token", e);
                             return CompletableFuture.failedFuture(e);
