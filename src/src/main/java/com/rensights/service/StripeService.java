@@ -41,8 +41,8 @@ public class StripeService {
     
     /**
      * Create a Stripe customer
-     * Note: Stripe automatically sends invoices via email when payment succeeds
-     * This is enabled by default in Stripe dashboard settings
+     * Stripe automatically sends invoice emails when payment succeeds (enabled by default)
+     * We also send our own confirmation email via webhook as backup
      */
     public Customer createCustomer(String email, String name) throws StripeException {
         CustomerCreateParams params = CustomerCreateParams.builder()
@@ -52,9 +52,11 @@ public class StripeService {
         
         Customer customer = Customer.create(params);
         
-        // Stripe automatically sends invoices via email when payment succeeds
-        // This is enabled by default - no additional configuration needed
-        logger.info("Created Stripe customer {} - invoices will be automatically sent to: {}", customer.getId(), email);
+        // Stripe automatically sends invoice emails when payment succeeds
+        // This is enabled by default in Stripe dashboard settings
+        // We also send our own confirmation email via webhook as backup
+        logger.info("Created Stripe customer {} - Stripe will automatically send invoice emails to: {}", 
+                   customer.getId(), email);
         return customer;
     }
     
@@ -156,6 +158,7 @@ public class StripeService {
     
     /**
      * Create Stripe Checkout Session for subscription
+     * Configured to automatically send invoice emails via Stripe
      */
     public Session createCheckoutSession(String stripeCustomerId, String priceId, String successUrl, String cancelUrl, String customerId) throws StripeException {
         SessionCreateParams params = SessionCreateParams.builder()
@@ -168,10 +171,15 @@ public class StripeService {
                 .setSuccessUrl(successUrl)
                 .setCancelUrl(cancelUrl)
                 .putMetadata("customer_id", customerId) // Pass our internal customer ID as metadata
+                // Enable automatic invoice emails - Stripe will send invoice emails automatically
+                .setInvoiceCreation(SessionCreateParams.InvoiceCreation.builder()
+                        .setEnabled(true)
+                        .build())
                 .build();
         
         Session session = Session.create(params);
-        logger.info("Created Stripe Checkout Session: {} for customer: {} (internal ID: {})", session.getId(), stripeCustomerId, customerId);
+        logger.info("Created Stripe Checkout Session: {} for customer: {} (internal ID: {}) with automatic invoice emails enabled", 
+                   session.getId(), stripeCustomerId, customerId);
         return session;
     }
 }
