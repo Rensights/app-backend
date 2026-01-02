@@ -158,7 +158,8 @@ public class StripeService {
     
     /**
      * Create Stripe Checkout Session for subscription
-     * Configured to automatically send invoice emails via Stripe
+     * Stripe automatically sends invoice emails when payment succeeds (enabled by default in Stripe dashboard)
+     * We also send our own confirmation email via webhook as backup
      */
     public Session createCheckoutSession(String stripeCustomerId, String priceId, String successUrl, String cancelUrl, String customerId) throws StripeException {
         SessionCreateParams params = SessionCreateParams.builder()
@@ -171,14 +172,10 @@ public class StripeService {
                 .setSuccessUrl(successUrl)
                 .setCancelUrl(cancelUrl)
                 .putMetadata("customer_id", customerId) // Pass our internal customer ID as metadata
-                // Enable automatic invoice emails - Stripe will send invoice emails automatically
-                .setInvoiceCreation(SessionCreateParams.InvoiceCreation.builder()
-                        .setEnabled(true)
-                        .build())
                 .build();
         
         Session session = Session.create(params);
-        logger.info("Created Stripe Checkout Session: {} for customer: {} (internal ID: {}) with automatic invoice emails enabled", 
+        logger.info("Created Stripe Checkout Session: {} for customer: {} (internal ID: {})", 
                    session.getId(), stripeCustomerId, customerId);
         return session;
     }
