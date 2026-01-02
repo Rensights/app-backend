@@ -121,8 +121,24 @@ public class StripeWebhookController {
             logger.info("Session status: {}, Customer: {}, Payment status: {}", 
                        session.getStatus(), session.getCustomer(), session.getPaymentStatus());
             
-            // If payment was successful, try to send confirmation email
+            // If payment was successful, update subscription and send confirmation email
             if ("complete".equals(session.getStatus()) && "paid".equals(session.getPaymentStatus())) {
+                // CRITICAL: Update user tier and subscription when checkout completes
+                try {
+                    String customerId = session.getCustomer();
+                    String subscriptionId = session.getSubscription();
+                    String invoiceId = session.getInvoice();
+                    
+                    if (customerId != null) {
+                        subscriptionService.handlePaymentSuccess(customerId, subscriptionId, invoiceId);
+                        logger.info("✅ User tier and subscription updated from checkout session for customer: {}", customerId);
+                    }
+                } catch (Exception e) {
+                    logger.error("❌ Error updating user tier/subscription from checkout session: {}", e.getMessage(), e);
+                    // Don't fail the webhook, but log the error
+                }
+                
+                // Send confirmation email
                 try {
                     // Get customer email from Stripe
                     String customerId = session.getCustomer();
@@ -189,6 +205,24 @@ public class StripeWebhookController {
             } catch (Exception e) {
                 logger.error("Error processing invoice in database, but will still try to send email: {}", e.getMessage());
                 // Continue to send email even if invoice processing fails
+            }
+            
+            // CRITICAL: Update user tier and subscription when payment succeeds
+            // This ensures user gets upgraded immediately when payment is processed
+            try {
+                String stripeCustomerId = stripeInvoice.getCustomer();
+                String stripeSubscriptionId = stripeInvoice.getSubscription();
+                String stripeInvoiceId = stripeInvoice.getId();
+                
+                if (stripeCustomerId != null) {
+                    subscriptionService.handlePaymentSuccess(stripeCustomerId, stripeSubscriptionId, stripeInvoiceId);
+                    logger.info("✅ User tier and subscription updated for customer: {}", stripeCustomerId);
+                } else {
+                    logger.warn("⚠️ No customer ID in invoice - cannot update user tier");
+                }
+            } catch (Exception e) {
+                logger.error("❌ Error updating user tier/subscription for payment success: {}", e.getMessage(), e);
+                // Don't fail the webhook, but log the error
             }
             
             // Always try to send payment confirmation email when payment succeeds

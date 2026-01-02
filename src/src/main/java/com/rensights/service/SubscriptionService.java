@@ -294,5 +294,132 @@ public class SubscriptionService {
         logger.info("Payment failure handled: User {} downgraded to FREE tier, subscription {} cancelled", 
                    user.getId(), subscription.getId());
     }
+    
+    /**
+     * Handle payment success - upgrade user tier and activate subscription
+     * Called when invoice payment succeeds
+     */
+    @Transactional
+    public void handlePaymentSuccess(String stripeCustomerId, String stripeSubscriptionId, String stripeInvoiceId) {
+        logger.info("Handling payment success for Stripe customer: {}, subscription: {}", 
+                   stripeCustomerId, stripeSubscriptionId);
+        
+        try {
+            // Find user by Stripe customer ID
+            User user = userRepository.findByStripeCustomerId(stripeCustomerId)
+                    .orElse(null);
+            
+            if (user == null) {
+                logger.error("User not found for Stripe customer ID: {}", stripeCustomerId);
+                return;
+            }
+            
+            // Get subscription from Stripe to determine plan type
+            com.stripe.model.Subscription stripeSubscription = null;
+            UserTier planType = null;
+            
+            if (stripeSubscriptionId != null) {
+                try {
+                    stripeSubscription = stripeService.getSubscription(stripeSubscriptionId);
+                    
+                    // Get price ID from subscription
+                    String priceId = stripeSubscription.getItems().getData().stream()
+                            .findFirst()
+                            .map(item -> item.getPrice().getId())
+                            .orElse(null);
+                    
+                    if (priceId != null) {
+                        // Determine plan type from price ID
+                        if (priceId.equals(premiumPriceId)) {
+                            planType = UserTier.PREMIUM;
+                        } else if (priceId.equals(enterprisePriceId)) {
+                            planType = UserTier.ENTERPRISE;
+                        }
+                    }
+                } catch (StripeException e) {
+                    logger.error("Error retrieving Stripe subscription {}: {}", stripeSubscriptionId, e.getMessage());
+                }
+            }
+            
+            // If we couldn't determine plan type from subscription, try to get from invoice
+            if (planType == null && stripeInvoiceId != null) {
+                try {
+                    com.stripe.model.Invoice invoice = stripeService.getInvoice(stripeInvoiceId);
+                    String subscriptionId = invoice.getSubscription();
+                    if (subscriptionId != null) {
+                        com.stripe.model.Subscription sub = stripeService.getSubscription(subscriptionId);
+                        String priceId = sub.getItems().getData().stream()
+                                .findFirst()
+                                .map(item -> item.getPrice().getId())
+                                .orElse(null);
+                        
+                        if (priceId != null) {
+                            if (priceId.equals(premiumPriceId)) {
+                                planType = UserTier.PREMIUM;
+                            } else if (priceId.equals(enterprisePriceId)) {
+                                planType = UserTier.ENTERPRISE;
+                            }
+                        }
+                    }
+                } catch (StripeException e) {
+                    logger.error("Error retrieving invoice {}: {}", stripeInvoiceId, e.getMessage());
+                }
+            }
+            
+            if (planType == null) {
+                logger.warn("Could not determine plan type for customer {}. Defaulting to PREMIUM.", stripeCustomerId);
+                planType = UserTier.PREMIUM; // Default to PREMIUM if we can't determine
+            }
+            
+            // Cancel existing active subscription
+            Subscription existing = getCurrentSubscription(user.getId());
+            if (existing != null && existing.getStatus() == SubscriptionStatus.ACTIVE) {
+                logger.info("Cancelling existing subscription: {}", existing.getId());
+                existing.setStatus(SubscriptionStatus.CANCELLED);
+                existing.setEndDate(LocalDateTime.now());
+                subscriptionRepository.save(existing);
+            }
+            
+            // Create or update subscription
+            Subscription subscription = null;
+            if (stripeSubscriptionId != null) {
+                subscription = subscriptionRepository.findByStripeSubscriptionId(stripeSubscriptionId)
+                        .orElse(null);
+            }
+            
+            if (subscription == null) {
+                // Create new subscription
+                subscription = Subscription.builder()
+                        .user(user)
+                        .planType(planType)
+                        .status(SubscriptionStatus.ACTIVE)
+                        .startDate(LocalDateTime.now())
+                        .endDate(LocalDateTime.now().plusMonths(1))
+                        .stripeCustomerId(stripeCustomerId)
+                        .stripeSubscriptionId(stripeSubscriptionId)
+                        .build();
+                subscription = subscriptionRepository.save(subscription);
+                logger.info("Created new subscription: {} for user: {}", subscription.getId(), user.getId());
+            } else {
+                // Update existing subscription
+                subscription.setPlanType(planType);
+                subscription.setStatus(SubscriptionStatus.ACTIVE);
+                subscription.setStartDate(LocalDateTime.now());
+                subscription.setEndDate(LocalDateTime.now().plusMonths(1));
+                subscription = subscriptionRepository.save(subscription);
+                logger.info("Updated subscription: {} for user: {}", subscription.getId(), user.getId());
+            }
+            
+            // Update user tier
+            user.setUserTier(planType);
+            userRepository.save(user);
+            
+            logger.info("✅ Payment success handled: User {} upgraded to {} tier, subscription {} activated", 
+                       user.getId(), planType, subscription.getId());
+        } catch (Exception e) {
+            logger.error("Error handling payment success: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to handle payment success", e);
+        }
+    }
 }
 
