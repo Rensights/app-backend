@@ -20,16 +20,22 @@ public class EmailService {
     @Autowired(required = false)
     private JavaMailSender mailSender;
     
+    @Autowired(required = false)
+    private MicrosoftGraphEmailService graphEmailService;
+    
     @Value("${spring.mail.from:no-reply@rensights.com}")
     private String fromEmail;
     
     @Value("${app.email.enabled:true}")
     private boolean emailEnabled;
     
+    @Value("${app.email.use-graph-api:true}")
+    private boolean useGraphApi;
+    
     public void sendVerificationCode(String toEmail, String code) {
         logger.info("=== EmailService.sendVerificationCode called ===");
         logger.info("Email enabled: {}", emailEnabled);
-        logger.info("MailSender available: {}", mailSender != null);
+        logger.info("Use Graph API: {}", useGraphApi);
         logger.info("From email: {}", fromEmail);
         logger.info("To email: {}", toEmail);
         
@@ -39,9 +45,28 @@ public class EmailService {
             return;
         }
         
+        String subject = "Rensights - Device Verification Code";
+        String body = String.join("\n",
+            "Your verification code is: " + code,
+            "",
+            "This code will expire in 5 minutes.",
+            "",
+            "If you didn't request this code, please ignore this email."
+        );
+        
+        // Use Microsoft Graph API if enabled and available
+        if (useGraphApi && graphEmailService != null) {
+            try {
+                graphEmailService.sendEmail(toEmail, subject, body);
+                return;
+            } catch (Exception e) {
+                logger.warn("Failed to send via Graph API, falling back to SMTP: {}", e.getMessage());
+            }
+        }
+        
+        // Fallback to SMTP
         if (mailSender == null) {
-            logger.error("JavaMailSender is not available! Email configuration may be missing.");
-            // SECURITY FIX: Never log verification codes - even in dev mode
+            logger.error("Neither Graph API nor SMTP is available! Email configuration may be missing.");
             logger.warn("DEV MODE: Verification Code for {}: [REDACTED]", toEmail);
             return;
         }
@@ -50,19 +75,12 @@ public class EmailService {
             SimpleMailMessage message = new SimpleMailMessage();
             message.setFrom(fromEmail);
             message.setTo(toEmail);
-            message.setSubject("Rensights - Device Verification Code");
-            // Optimized: Use String.join for cleaner string building
-            message.setText(String.join("\n",
-                "Your verification code is: " + code,
-                "",
-                "This code will expire in 5 minutes.",
-                "",
-                "If you didn't request this code, please ignore this email."
-            ));
+            message.setSubject(subject);
+            message.setText(body);
             
-            logger.info("Attempting to send email to: {}", toEmail);
+            logger.info("Attempting to send email via SMTP to: {}", toEmail);
             mailSender.send(message);
-            logger.info("✅ Email sent successfully to: {}", toEmail);
+            logger.info("✅ Email sent successfully via SMTP to: {}", toEmail);
         } catch (Exception e) {
             logger.error("❌ Failed to send email to: {}", toEmail, e);
             throw new RuntimeException("Failed to send verification email: " + e.getMessage(), e);
@@ -72,7 +90,7 @@ public class EmailService {
     public void sendPasswordResetCode(String toEmail, String code) {
         logger.info("=== EmailService.sendPasswordResetCode called ===");
         logger.info("Email enabled: {}", emailEnabled);
-        logger.info("MailSender available: {}", mailSender != null);
+        logger.info("Use Graph API: {}", useGraphApi);
         logger.info("From email: {}", fromEmail);
         logger.info("To email: {}", toEmail);
         
@@ -82,9 +100,30 @@ public class EmailService {
             return;
         }
         
+        String subject = "Rensights - Password Reset Code";
+        String body = String.join("\n",
+            "Your password reset code is: " + code,
+            "",
+            "This code will expire in 5 minutes.",
+            "",
+            "If you didn't request this code, please ignore this email.",
+            "",
+            "For security reasons, please do not share this code with anyone."
+        );
+        
+        // Use Microsoft Graph API if enabled and available
+        if (useGraphApi && graphEmailService != null) {
+            try {
+                graphEmailService.sendEmail(toEmail, subject, body);
+                return;
+            } catch (Exception e) {
+                logger.warn("Failed to send via Graph API, falling back to SMTP: {}", e.getMessage());
+            }
+        }
+        
+        // Fallback to SMTP
         if (mailSender == null) {
-            logger.error("JavaMailSender is not available! Email configuration may be missing.");
-            // SECURITY FIX: Never log password reset codes - even in dev mode
+            logger.error("Neither Graph API nor SMTP is available! Email configuration may be missing.");
             logger.warn("DEV MODE: Password Reset Code for {}: [REDACTED]", toEmail);
             return;
         }
@@ -93,20 +132,12 @@ public class EmailService {
             SimpleMailMessage message = new SimpleMailMessage();
             message.setFrom(fromEmail);
             message.setTo(toEmail);
-            message.setSubject("Rensights - Password Reset Code");
-            message.setText(String.join("\n",
-                "Your password reset code is: " + code,
-                "",
-                "This code will expire in 5 minutes.",
-                "",
-                "If you didn't request this code, please ignore this email.",
-                "",
-                "For security reasons, please do not share this code with anyone."
-            ));
+            message.setSubject(subject);
+            message.setText(body);
             
-            logger.info("Attempting to send password reset email to: {}", toEmail);
+            logger.info("Attempting to send password reset email via SMTP to: {}", toEmail);
             mailSender.send(message);
-            logger.info("✅ Password reset email sent successfully to: {}", toEmail);
+            logger.info("✅ Password reset email sent successfully via SMTP to: {}", toEmail);
         } catch (Exception e) {
             logger.error("❌ Failed to send password reset email to: {}", toEmail, e);
             throw new RuntimeException("Failed to send password reset email: " + e.getMessage(), e);
@@ -116,7 +147,7 @@ public class EmailService {
     public void sendAnalysisRequestNotification(String adminEmail, String requestId, String userEmail, String propertyAddress) {
         logger.info("=== EmailService.sendAnalysisRequestNotification called ===");
         logger.info("Email enabled: {}", emailEnabled);
-        logger.info("MailSender available: {}", mailSender != null);
+        logger.info("Use Graph API: {}", useGraphApi);
         logger.info("Admin email: {}", adminEmail);
         logger.info("Request ID: {}", requestId);
         
@@ -125,8 +156,33 @@ public class EmailService {
             return;
         }
         
+        String subject = "Rensights - New Property Analysis Request";
+        String body = String.join("\n",
+            "A new property analysis request has been submitted.",
+            "",
+            "Request Details:",
+            "  Request ID: " + requestId,
+            "  User Email: " + userEmail,
+            "  Property: " + propertyAddress,
+            "",
+            "Please review the request in the admin dashboard.",
+            "",
+            "Login to admin panel to view full details and process the request."
+        );
+        
+        // Use Microsoft Graph API if enabled and available
+        if (useGraphApi && graphEmailService != null) {
+            try {
+                graphEmailService.sendEmail(adminEmail, subject, body);
+                return;
+            } catch (Exception e) {
+                logger.warn("Failed to send via Graph API, falling back to SMTP: {}", e.getMessage());
+            }
+        }
+        
+        // Fallback to SMTP
         if (mailSender == null) {
-            logger.error("JavaMailSender is not available! Email configuration may be missing.");
+            logger.error("Neither Graph API nor SMTP is available! Email configuration may be missing.");
             logger.warn("DEV MODE: New Analysis Request - ID: {}, User: {}, Property: {}", requestId, userEmail, propertyAddress);
             return;
         }
@@ -135,23 +191,12 @@ public class EmailService {
             SimpleMailMessage message = new SimpleMailMessage();
             message.setFrom(fromEmail);
             message.setTo(adminEmail);
-            message.setSubject("Rensights - New Property Analysis Request");
-            message.setText(String.join("\n",
-                "A new property analysis request has been submitted.",
-                "",
-                "Request Details:",
-                "  Request ID: " + requestId,
-                "  User Email: " + userEmail,
-                "  Property: " + propertyAddress,
-                "",
-                "Please review the request in the admin dashboard.",
-                "",
-                "Login to admin panel to view full details and process the request."
-            ));
+            message.setSubject(subject);
+            message.setText(body);
             
-            logger.info("Attempting to send analysis request notification to admin: {}", adminEmail);
+            logger.info("Attempting to send analysis request notification via SMTP to admin: {}", adminEmail);
             mailSender.send(message);
-            logger.info("✅ Analysis request notification sent successfully to admin: {}", adminEmail);
+            logger.info("✅ Analysis request notification sent successfully via SMTP to admin: {}", adminEmail);
         } catch (Exception e) {
             logger.error("❌ Failed to send analysis request notification to admin: {}", adminEmail, e);
             // Don't throw exception - email failure shouldn't block request creation
@@ -180,44 +225,61 @@ public class EmailService {
             return;
         }
         
+        String subject = "Rensights - Payment Receipt";
+        String body = String.join("\n",
+            "Dear " + (customerName != null && !customerName.isEmpty() ? customerName : "Valued Customer") + ",",
+            "",
+            "Thank you for your payment!",
+            "",
+            "Payment Details:",
+            "  Invoice Number: " + invoiceNumber,
+            "  Amount: " + currency + " " + amount,
+            "  Status: Paid",
+            "",
+            "Your payment receipt is available for download:",
+            receiptPdfUrl,
+            "",
+            "You can also download your receipt from your account page:",
+            "https://app.rensights.com/account",
+            "",
+            "This receipt serves as proof of payment for your records.",
+            "",
+            "If you have any questions or concerns, please don't hesitate to contact our support team.",
+            "",
+            "Best regards,",
+            "Rensights Team"
+        );
+        
+        // Use Microsoft Graph API if enabled and available
+        if (useGraphApi && graphEmailService != null) {
+            try {
+                graphEmailService.sendEmail(toEmail, subject, body);
+                return;
+            } catch (Exception e) {
+                logger.warn("Failed to send via Graph API, falling back to SMTP: {}", e.getMessage());
+            }
+        }
+        
+        // Fallback to SMTP
+        if (mailSender == null) {
+            logger.error("Neither Graph API nor SMTP is available! Email configuration may be missing.");
+            logger.warn("DEV MODE: Payment Receipt - Invoice: {}, Amount: {} {}, Receipt URL: {}", 
+                       invoiceNumber, currency, amount, receiptPdfUrl);
+            return;
+        }
+        
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, false, "UTF-8");
             
             helper.setFrom(fromEmail);
             helper.setTo(toEmail);
-            helper.setSubject("Rensights - Payment Receipt");
+            helper.setSubject(subject);
+            helper.setText(body, false); // Plain text email
             
-            // Email body with HTML for better formatting
-            String emailBody = String.join("\n",
-                "Dear " + (customerName != null && !customerName.isEmpty() ? customerName : "Valued Customer") + ",",
-                "",
-                "Thank you for your payment!",
-                "",
-                "Payment Details:",
-                "  Invoice Number: " + invoiceNumber,
-                "  Amount: " + currency + " " + amount,
-                "  Status: Paid",
-                "",
-                "Your payment receipt is available for download:",
-                receiptPdfUrl,
-                "",
-                "You can also download your receipt from your account page:",
-                "https://app.rensights.com/account",
-                "",
-                "This receipt serves as proof of payment for your records.",
-                "",
-                "If you have any questions or concerns, please don't hesitate to contact our support team.",
-                "",
-                "Best regards,",
-                "Rensights Team"
-            );
-            
-            helper.setText(emailBody, false); // Plain text email
-            
-            logger.info("Attempting to send payment receipt email to: {}", toEmail);
+            logger.info("Attempting to send payment receipt email via SMTP to: {}", toEmail);
             mailSender.send(message);
-            logger.info("✅ Payment receipt email sent successfully to: {}", toEmail);
+            logger.info("✅ Payment receipt email sent successfully via SMTP to: {}", toEmail);
         } catch (MessagingException e) {
             logger.error("❌ Failed to send payment receipt email to: {}", toEmail, e);
             throw new RuntimeException("Failed to send payment receipt email: " + e.getMessage(), e);

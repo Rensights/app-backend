@@ -48,6 +48,8 @@ spring:
   #   - Port: 587
   #   - Grant "Send As" permission to service account for shared mailbox
   #   - Set "from" to the shared mailbox address (e.g., no-reply@yourdomain.com)
+  #   - IMPORTANT: Enable SMTP AUTH in Exchange Admin Center for the account
+  #   - IMPORTANT: Disable MFA for service accounts or use App Passwords
   mail:
     host: ${SMTP_HOST:smtp.office365.com}
     port: ${SMTP_PORT:587}
@@ -61,9 +63,13 @@ spring:
           starttls:
             enable: true
             required: true
-          connectiontimeout: 5000
-          timeout: 5000
-          writetimeout: 5000
+          connectiontimeout: 30000
+          timeout: 30000
+          writetimeout: 30000
+          socketFactory:
+            port: 587
+            class: javax.net.ssl.SSLSocketFactory
+            fallback: false
   
 server:
   port: ${SERVER_PORT:8080}
@@ -87,8 +93,17 @@ cors:
 app:
   email:
     enabled: ${EMAIL_ENABLED:false}
+    use-graph-api: ${EMAIL_USE_GRAPH_API:true}
   email-verification-required: ${EMAIL_VERIFICATION_REQUIRED:true}
   frontend-url: ${APP_FRONTEND_URL:http://localhost:3000}
+
+# Microsoft Graph API configuration
+microsoft:
+  graph:
+    tenant-id: ${MICROSOFT_TENANT_ID:}
+    client-id: ${MICROSOFT_CLIENT_ID:}
+    client-secret: ${MICROSOFT_CLIENT_SECRET:}
+    from-email: ${MICROSOFT_FROM_EMAIL:no-reply@rensights.com}
 
 stripe:
   secret-key: ${STRIPE_SECRET_KEY:}
@@ -107,7 +122,7 @@ management:
       show-details: always
   health:
     mail:
-      enabled: ${EMAIL_ENABLED:false}
+      enabled: false  # Disable mail health check to prevent log spam if SMTP is having issues
   metrics:
     export:
       otlp:

@@ -58,8 +58,15 @@ extraEnv:
   OTEL_LOGS_EXPORTER: "none"
   OTEL_METRICS_EXPORTER: "none"
   OTEL_TRACES_EXPORTER: "none"
-  # Email configuration (Microsoft 365 SMTP)
+  # Email configuration (Microsoft Graph API)
   EMAIL_ENABLED: "true"
+  EMAIL_USE_GRAPH_API: "true"
+  # Microsoft Graph API credentials
+  MICROSOFT_TENANT_ID: "e84f3a33-9e68-4a68-aae3-bebba66459e6"
+  MICROSOFT_CLIENT_ID: "70a6e6ef-c980-47dc-89ea-70ebd47fd56d"
+  MICROSOFT_CLIENT_SECRET: "${MICROSOFT_CLIENT_SECRET}"  # Set as environment variable or Kubernetes secret
+  MICROSOFT_FROM_EMAIL: "no-reply@rensights.com"
+  # Fallback SMTP configuration (optional)
   SMTP_HOST: "smtp.office365.com"
   SMTP_PORT: "587"
   SMTP_USERNAME: "info@rensights.com"
