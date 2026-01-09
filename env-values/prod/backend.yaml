@@ -66,5 +66,5 @@ extraEnv:
   SMTP_HOST: "smtp.office365.com"
   SMTP_PORT: "587"
   SMTP_USERNAME: "info@rensights.com"
-  SMTP_PASSWORD: "V.573300278010aj"
+  SMTP_PASSWORD: "Hamidtest2025!"
   SPRING_MAIL_FROM: "no-reply@rensights.com"
