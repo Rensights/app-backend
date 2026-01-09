@@ -65,12 +65,6 @@ extraEnv:
   MICROSOFT_TENANT_ID: "e84f3a33-9e68-4a68-aae3-bebba66459e6"
   MICROSOFT_CLIENT_ID: "70a6e6ef-c980-47dc-89ea-70ebd47fd56d"
   MICROSOFT_FROM_EMAIL: "no-reply@rensights.com"
-  # Fallback SMTP configuration (optional)
-  SMTP_HOST: "smtp.office365.com"
-  SMTP_PORT: "587"
-  SMTP_USERNAME: "info@rensights.com"
-  SMTP_PASSWORD: "Hamidtest2025!"
-  SPRING_MAIL_FROM: "no-reply@rensights.com"
   # Stripe configuration (Test Mode)
   STRIPE_PREMIUM_PRICE_ID: "price_1SWcGHCasMqex534TMdpIqAA"
   # STRIPE_ENTERPRISE_PRICE_ID: ""  # Add when enterprise price is created

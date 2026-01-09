@@ -17,8 +17,6 @@ public class EmailService {
     
     private static final Logger logger = LoggerFactory.getLogger(EmailService.class);
     
-    @Autowired(required = false)
-    private JavaMailSender mailSender;
     
     @Autowired(required = false)
     private MicrosoftGraphEmailService graphEmailService;
@@ -54,35 +52,17 @@ public class EmailService {
             "If you didn't request this code, please ignore this email."
         );
         
-        // Use Microsoft Graph API if enabled and available
-        if (useGraphApi && graphEmailService != null) {
-            try {
-                graphEmailService.sendEmail(toEmail, subject, body);
-                return;
-            } catch (Exception e) {
-                logger.warn("Failed to send via Graph API, falling back to SMTP: {}", e.getMessage());
-            }
+        // Use Microsoft Graph API (required - no SMTP fallback)
+        if (!useGraphApi || graphEmailService == null) {
+            logger.error("Microsoft Graph API is not configured! Email cannot be sent.");
+            throw new RuntimeException("Microsoft Graph API is required for email sending. Please configure MICROSOFT_TENANT_ID, MICROSOFT_CLIENT_ID, and MICROSOFT_CLIENT_SECRET.");
         }
-        
-        // Fallback to SMTP
-        if (mailSender == null) {
-            logger.error("Neither Graph API nor SMTP is available! Email configuration may be missing.");
-            logger.warn("DEV MODE: Verification Code for {}: [REDACTED]", toEmail);
-            return;
-        }
-        
+
         try {
-            SimpleMailMessage message = new SimpleMailMessage();
-            message.setFrom(fromEmail);
-            message.setTo(toEmail);
-            message.setSubject(subject);
-            message.setText(body);
-            
-            logger.info("Attempting to send email via SMTP to: {}", toEmail);
-            mailSender.send(message);
-            logger.info("✅ Email sent successfully via SMTP to: {}", toEmail);
+            graphEmailService.sendEmail(toEmail, subject, body);
+            logger.info("✅ Email sent successfully via Microsoft Graph to: {}", toEmail);
         } catch (Exception e) {
-            logger.error("❌ Failed to send email to: {}", toEmail, e);
+            logger.error("❌ Failed to send email via Microsoft Graph to: {}", toEmail, e);
             throw new RuntimeException("Failed to send verification email: " + e.getMessage(), e);
         }
     }
@@ -111,43 +91,18 @@ public class EmailService {
             "For security reasons, please do not share this code with anyone."
         );
         
-        // Use Microsoft Graph API if enabled and available
-        if (useGraphApi) {
-            if (graphEmailService == null) {
-                logger.warn("Graph API is enabled but MicrosoftGraphEmailService is not available. Check if dependencies are loaded.");
-            } else {
-                try {
-                    logger.info("Attempting to send password reset email via Microsoft Graph API to: {}", toEmail);
-                    graphEmailService.sendEmail(toEmail, subject, body);
-                    logger.info("✅ Password reset email sent successfully via Microsoft Graph API to: {}", toEmail);
-                    return;
-                } catch (Exception e) {
-                    logger.error("❌ Failed to send via Graph API: {}", e.getMessage(), e);
-                    logger.warn("Falling back to SMTP...");
-                    // Continue to SMTP fallback
-                }
-            }
+        // Use Microsoft Graph API (required - no SMTP fallback)
+        if (!useGraphApi || graphEmailService == null) {
+            logger.error("Microsoft Graph API is not configured! Password reset email cannot be sent.");
+            throw new RuntimeException("Microsoft Graph API is required for email sending. Please configure MICROSOFT_TENANT_ID, MICROSOFT_CLIENT_ID, and MICROSOFT_CLIENT_SECRET.");
         }
-        
-        // Fallback to SMTP
-        if (mailSender == null) {
-            logger.error("Neither Graph API nor SMTP is available! Email configuration may be missing.");
-            logger.warn("DEV MODE: Password Reset Code for {}: [REDACTED]", toEmail);
-            throw new RuntimeException("Email service is not available. Please configure Microsoft Graph API or SMTP.");
-        }
-        
+
         try {
-            SimpleMailMessage message = new SimpleMailMessage();
-            message.setFrom(fromEmail);
-            message.setTo(toEmail);
-            message.setSubject(subject);
-            message.setText(body);
-            
-            logger.info("Attempting to send password reset email via SMTP to: {}", toEmail);
-            mailSender.send(message);
-            logger.info("✅ Password reset email sent successfully via SMTP to: {}", toEmail);
+            logger.info("Sending password reset email via Microsoft Graph API to: {}", toEmail);
+            graphEmailService.sendEmail(toEmail, subject, body);
+            logger.info("✅ Password reset email sent successfully via Microsoft Graph API to: {}", toEmail);
         } catch (Exception e) {
-            logger.error("❌ Failed to send password reset email to: {}", toEmail, e);
+            logger.error("❌ Failed to send password reset email via Microsoft Graph API to: {}", toEmail, e);
             throw new RuntimeException("Failed to send password reset email: " + e.getMessage(), e);
         }
     }
@@ -178,43 +133,19 @@ public class EmailService {
             "Login to admin panel to view full details and process the request."
         );
         
-        // Use Microsoft Graph API if enabled and available
-        if (useGraphApi) {
-            if (graphEmailService == null) {
-                logger.warn("Graph API is enabled but MicrosoftGraphEmailService is not available. Check if dependencies are loaded.");
-            } else {
-                try {
-                    logger.info("Attempting to send analysis request notification via Microsoft Graph API to admin: {}", adminEmail);
-                    graphEmailService.sendEmail(adminEmail, subject, body);
-                    logger.info("✅ Analysis request notification sent successfully via Microsoft Graph API to admin: {}", adminEmail);
-                    return;
-                } catch (Exception e) {
-                    logger.error("❌ Failed to send via Graph API: {}", e.getMessage(), e);
-                    logger.warn("Falling back to SMTP...");
-                    // Continue to SMTP fallback
-                }
-            }
-        }
-        
-        // Fallback to SMTP
-        if (mailSender == null) {
-            logger.error("Neither Graph API nor SMTP is available! Email configuration may be missing.");
+        // Use Microsoft Graph API (required - no SMTP fallback)
+        if (!useGraphApi || graphEmailService == null) {
+            logger.error("Microsoft Graph API is not configured! Analysis request notification cannot be sent.");
             logger.warn("DEV MODE: New Analysis Request - ID: {}, User: {}, Property: {}", requestId, userEmail, propertyAddress);
             return;
         }
-        
+
         try {
-            SimpleMailMessage message = new SimpleMailMessage();
-            message.setFrom(fromEmail);
-            message.setTo(adminEmail);
-            message.setSubject(subject);
-            message.setText(body);
-            
-            logger.info("Attempting to send analysis request notification via SMTP to admin: {}", adminEmail);
-            mailSender.send(message);
-            logger.info("✅ Analysis request notification sent successfully via SMTP to admin: {}", adminEmail);
+            logger.info("Sending analysis request notification via Microsoft Graph API to admin: {}", adminEmail);
+            graphEmailService.sendEmail(adminEmail, subject, body);
+            logger.info("✅ Analysis request notification sent successfully via Microsoft Graph API to admin: {}", adminEmail);
         } catch (Exception e) {
-            logger.error("❌ Failed to send analysis request notification to admin: {}", adminEmail, e);
+            logger.error("❌ Failed to send analysis request notification via Microsoft Graph API to admin: {}", adminEmail, e);
             // Don't throw exception - email failure shouldn't block request creation
         }
     }
@@ -224,20 +155,13 @@ public class EmailService {
                                         String currency, String receiptPdfUrl) {
         logger.info("=== EmailService.sendPaymentReceiptEmail called ===");
         logger.info("Email enabled: {}", emailEnabled);
-        logger.info("MailSender available: {}", mailSender != null);
+        logger.info("Use Graph API: {}", useGraphApi);
         logger.info("To email: {}", toEmail);
         logger.info("Invoice number: {}", invoiceNumber);
         logger.info("Receipt PDF URL: {}", receiptPdfUrl);
-        
+
         if (!emailEnabled) {
             logger.warn("Email is disabled. Payment receipt for {}: Invoice {}", toEmail, invoiceNumber);
-            return;
-        }
-        
-        if (mailSender == null) {
-            logger.error("JavaMailSender is not available! Email configuration may be missing.");
-            logger.warn("DEV MODE: Payment Receipt - Invoice: {}, Amount: {} {}, Receipt URL: {}", 
-                       invoiceNumber, currency, amount, receiptPdfUrl);
             return;
         }
         
@@ -266,41 +190,20 @@ public class EmailService {
             "Rensights Team"
         );
         
-        // Use Microsoft Graph API if enabled and available
-        if (useGraphApi && graphEmailService != null) {
-            try {
-                graphEmailService.sendEmail(toEmail, subject, body);
-                return;
-            } catch (Exception e) {
-                logger.warn("Failed to send via Graph API, falling back to SMTP: {}", e.getMessage());
-            }
-        }
-        
-        // Fallback to SMTP
-        if (mailSender == null) {
-            logger.error("Neither Graph API nor SMTP is available! Email configuration may be missing.");
-            logger.warn("DEV MODE: Payment Receipt - Invoice: {}, Amount: {} {}, Receipt URL: {}", 
+        // Use Microsoft Graph API (required - no SMTP fallback)
+        if (!useGraphApi || graphEmailService == null) {
+            logger.error("Microsoft Graph API is not configured! Payment receipt email cannot be sent.");
+            logger.warn("DEV MODE: Payment Receipt - Invoice: {}, Amount: {} {}, Receipt URL: {}",
                        invoiceNumber, currency, amount, receiptPdfUrl);
             return;
         }
-        
+
         try {
-            MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, false, "UTF-8");
-            
-            helper.setFrom(fromEmail);
-            helper.setTo(toEmail);
-            helper.setSubject(subject);
-            helper.setText(body, false); // Plain text email
-            
-            logger.info("Attempting to send payment receipt email via SMTP to: {}", toEmail);
-            mailSender.send(message);
-            logger.info("✅ Payment receipt email sent successfully via SMTP to: {}", toEmail);
-        } catch (MessagingException e) {
-            logger.error("❌ Failed to send payment receipt email to: {}", toEmail, e);
-            throw new RuntimeException("Failed to send payment receipt email: " + e.getMessage(), e);
+            logger.info("Sending payment receipt email via Microsoft Graph API to: {}", toEmail);
+            graphEmailService.sendEmail(toEmail, subject, body);
+            logger.info("✅ Payment receipt email sent successfully via Microsoft Graph API to: {}", toEmail);
         } catch (Exception e) {
-            logger.error("❌ Failed to send payment receipt email to: {}", toEmail, e);
+            logger.error("❌ Failed to send payment receipt email via Microsoft Graph API to: {}", toEmail, e);
             throw new RuntimeException("Failed to send payment receipt email: " + e.getMessage(), e);
         }
     }
