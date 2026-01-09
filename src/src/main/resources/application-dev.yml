@@ -66,10 +66,10 @@ spring:
           connectiontimeout: 30000
           timeout: 30000
           writetimeout: 30000
+          ssl:
+            trust: "*"
           socketFactory:
-            port: 587
             class: javax.net.ssl.SSLSocketFactory
-            fallback: false
   
 server:
   port: ${SERVER_PORT:8080}
