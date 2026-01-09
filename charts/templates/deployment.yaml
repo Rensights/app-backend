@@ -80,16 +80,6 @@ spec:
                   key: postgres-password
             - name: DATABASE_URL
               value: "jdbc:postgresql://$(POSTGRES_HOST):$(POSTGRES_PORT)/$(POSTGRES_DATABASE)"
-            - name: DATABASE_USER
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.secrets.dbCredentials }}
-                  key: postgres-username
-            - name: DATABASE_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.secrets.dbCredentials }}
-                  key: postgres-password
             - name: JWT_SECRET
               valueFrom:
                 secretKeyRef:

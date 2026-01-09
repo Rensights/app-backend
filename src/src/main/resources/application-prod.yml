@@ -4,8 +4,8 @@ spring:
   
   datasource:
     url: ${DATABASE_URL:jdbc:postgresql://postgres:5432/rensights}
-    username: ${DATABASE_USER:rensights}
-    password: ${DATABASE_PASSWORD}
+    username: ${POSTGRES_USERNAME:rensights}
+    password: ${POSTGRES_PASSWORD}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 20
@@ -15,7 +15,7 @@ spring:
   
   jpa:
     hibernate:
-      ddl-auto: create
+      ddl-auto: update
     show-sql: false
     properties:
       hibernate:
