@@ -62,9 +62,3 @@ extraEnv:
   EMAIL_USE_GRAPH_API: "true"
   # Microsoft Graph API credentials (loaded from Kubernetes secret)
   MICROSOFT_FROM_EMAIL: "no-reply@rensights.com"
-  # Fallback SMTP configuration (optional)
-  SMTP_HOST: "smtp.office365.com"
-  SMTP_PORT: "587"
-  SMTP_USERNAME: "info@rensights.com"
-  SMTP_PASSWORD: "Hamidtest2025!"
-  SPRING_MAIL_FROM: "no-reply@rensights.com"

@@ -100,7 +100,6 @@ cors:
 
 secrets:
   dbCredentials: admin-db-credentials
-  publicDbCredentials: public-db-credentials
   jwtSecret: jwt-secret
   stripeSecrets: stripe-secrets
   microsoftGraphSecrets: microsoft-graph-credentials

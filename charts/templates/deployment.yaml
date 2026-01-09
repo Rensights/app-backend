@@ -90,33 +90,6 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.secrets.dbCredentials }}
                   key: postgres-password
-            - name: PUBLIC_DATABASE_USER
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.secrets.publicDbCredentials }}
-                  key: postgres-username
-            - name: PUBLIC_DATABASE_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.secrets.publicDbCredentials }}
-                  key: postgres-password
-            - name: PUBLIC_DATABASE_POSTGRES_HOST
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.secrets.publicDbCredentials }}
-                  key: postgres-host
-            - name: PUBLIC_DATABASE_POSTGRES_PORT
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.secrets.publicDbCredentials }}
-                  key: postgres-port
-            - name: PUBLIC_DATABASE_POSTGRES_DATABASE
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.secrets.publicDbCredentials }}
-                  key: postgres-database
-            - name: PUBLIC_DATABASE_URL
-              value: "jdbc:postgresql://$(PUBLIC_DATABASE_POSTGRES_HOST):$(PUBLIC_DATABASE_POSTGRES_PORT)/$(PUBLIC_DATABASE_POSTGRES_DATABASE)"
             - name: JWT_SECRET
               valueFrom:
                 secretKeyRef:
