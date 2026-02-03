@@ -228,60 +228,65 @@ public class DealController {
                 
                 // Extract property information
                 JsonNode property = item.get("property");
-                String buildingName = property != null && property.has("building_name") 
+                String buildingName = property != null && !property.isNull() && property.has("building_name") 
                     ? property.get("building_name").asText() : "";
-                String dealArea = property != null && property.has("area") 
-                    ? property.get("area").asText() : item.get("area").asText("");
-                String dealBuildingStatus = property != null && property.has("building_status") 
-                    ? property.get("building_status").asText() : item.get("building_status").asText("");
+                String dealArea = property != null && !property.isNull() && property.has("area") 
+                    ? property.get("area").asText() : (item.has("area") ? item.get("area").asText() : "");
+                String dealBuildingStatus = property != null && !property.isNull() && property.has("building_status") 
+                    ? property.get("building_status").asText() : (item.has("building_status") ? item.get("building_status").asText() : "");
                 
                 // Map API fields to your DTO structure
-                deal.put("id", item.get("listing_id").asText());
+                deal.put("id", item.has("listing_id") ? item.get("listing_id").asText() : UUID.randomUUID().toString());
                 deal.put("name", buildingName);
                 deal.put("location", dealArea); // Using area as location
                 deal.put("city", "Dubai"); // Default to Dubai as per your data
                 deal.put("area", dealArea);
-                deal.put("bedrooms", item.get("bedrooms").asText());
-                deal.put("bedroomCount", item.get("bedrooms").asText());
-                deal.put("size", item.get("size").asInt());
-                deal.put("listedPrice", parsePrice(item.get("listed_price").asText()));
-                deal.put("priceValue", parsePrice(item.get("listed_price").asText()));
+                deal.put("bedrooms", item.has("bedrooms") ? item.get("bedrooms").asText() : "N/A");
+                deal.put("bedroomCount", item.has("bedrooms") ? item.get("bedrooms").asText() : "N/A");
+
+                // Handle size - API may return very large numbers, normalize to reasonable sqft
+                int rawSize = item.has("size") ? item.get("size").asInt() : 0;
+                int normalizedSize = rawSize > 50000 ? rawSize / 1000 : rawSize;
+                deal.put("size", normalizedSize);
+                
+                String listedPriceStr = item.has("listed_price") ? item.get("listed_price").asText() : "0";
+                long listedPrice = parsePrice(listedPriceStr);
+                deal.put("listedPrice", listedPrice);
+                deal.put("priceValue", listedPrice);
                 
                 // Parse estimate range
-                String estimate = item.get("our_estimate").asText();
+                String estimate = item.has("our_estimate") ? item.get("our_estimate").asText() : "";
                 Map<String, Long> estimateValues = parseEstimateRange(estimate);
                 deal.put("estimateMin", estimateValues.get("min"));
                 deal.put("estimateMax", estimateValues.get("max"));
                 deal.put("estimateRange", estimate);
                 
                 // Calculate discount
-                long listedPrice = parsePrice(item.get("listed_price").asText());
                 long estimateMin = estimateValues.get("min");
                 String discount = calculateDiscount(listedPrice, estimateMin, estimateValues.get("max"));
                 deal.put("discount", discount);
                 
-                deal.put("rentalYield", item.get("rental_yield").asText());
-                deal.put("grossRentalYield", item.get("rental_yield").asText());
+                deal.put("rentalYield", item.has("rental_yield") ? item.get("rental_yield").asText() : "N/A");
+                deal.put("grossRentalYield", item.has("rental_yield") ? item.get("rental_yield").asText() : "N/A");
                 deal.put("buildingStatus", dealBuildingStatus);
                 deal.put("propertyType", ""); // Not available in API
-                deal.put("priceVsEstimations", item.get("price_vs_market").asText());
-                
-                // Calculate price per sqft
-                int size = item.get("size").asInt();
-                if (size > 0) {
-                    long pricePerSqft = listedPrice / size;
+                deal.put("priceVsEstimations", item.has("price_vs_market") ? item.get("price_vs_market").asText() : "N/A");
+
+                // Calculate price per sqft using normalized size
+                if (normalizedSize > 0) {
+                    long pricePerSqft = listedPrice / normalizedSize;
                     deal.put("pricePerSqft", pricePerSqft);
                 } else {
                     deal.put("pricePerSqft", 0);
                 }
-                
-                deal.put("pricePerSqftVsMarket", item.get("price_vs_market").asText());
+
+                deal.put("pricePerSqftVsMarket", item.has("price_vs_market") ? item.get("price_vs_market").asText() : "N/A");
                 deal.put("propertyDescription", "");
                 deal.put("buildingFeatures", "");
                 deal.put("serviceCharge", "");
                 deal.put("developer", "");
                 deal.put("propertyLink", "");
-                deal.put("propertyId", item.get("listing_id").asText());
+                deal.put("propertyId", item.has("listing_id") ? item.get("listing_id").asText() : "");
                 
                 allDeals.add(deal);
             }
@@ -408,66 +413,186 @@ public class DealController {
     }
     
     /**
-     * Get deal by ID
+     * Get deal by ID - fetches from third-party API
      */
     @GetMapping("/{dealId}")
     public ResponseEntity<?> getDealById(
             Authentication authentication,
-            @PathVariable UUID dealId) {
+            @PathVariable String dealId) {
         // Check if user has access (not FREE tier)
         ResponseEntity<?> accessCheck = checkUserAccess(authentication);
         if (accessCheck != null) {
             return accessCheck;
         }
-        
+
         try {
-            // Fetch deal with relationships (listed deals and recent sales)
-            Deal deal = dealRepository.findByIdWithRelationships(dealId)
-                    .orElseThrow(() -> new RuntimeException("Deal not found"));
-            
-            if (deal.getStatus() != Deal.DealStatus.APPROVED || !deal.getActive()) {
+            // Fetch data from third-party API
+            RestTemplate restTemplate = new RestTemplate();
+            String apiUrl = "http://72.62.40.154:8000/deals/" + dealId;
+
+            JsonNode apiResponse;
+            try {
+                apiResponse = restTemplate.getForObject(apiUrl, JsonNode.class);
+            } catch (HttpClientErrorException | HttpServerErrorException e) {
+                logger.error("Error fetching deal from API: {}", e.getMessage());
+                if (e.getStatusCode().value() == 404) {
+                    return ResponseEntity.status(404).body(Map.of("error", "Deal not found"));
+                }
+                return ResponseEntity.status(e.getStatusCode())
+                    .body(Map.of("error", "Failed to fetch deal from external API: " + e.getMessage()));
+            } catch (Exception e) {
+                logger.error("Unexpected error calling API: {}", e.getMessage(), e);
+                return ResponseEntity.status(500)
+                    .body(Map.of("error", "Failed to connect to deals API"));
+            }
+
+            if (apiResponse == null) {
                 return ResponseEntity.status(404).body(Map.of("error", "Deal not found"));
             }
-            
+
+            // Build deal DTO
             Map<String, Object> dto = new HashMap<>();
-            dto.put("id", deal.getId().toString());
-            dto.put("name", deal.getName()); // Building name
-            dto.put("location", deal.getLocation());
-            dto.put("city", deal.getCity());
-            dto.put("area", deal.getArea());
-            dto.put("bedrooms", deal.getBedrooms());
-            dto.put("bedroomCount", deal.getBedroomCount());
-            dto.put("size", deal.getSize()); // Size, sqft
-            dto.put("listedPrice", deal.getListedPrice()); // Listed price, AED
-            dto.put("priceValue", deal.getPriceValue());
-            dto.put("estimateMin", deal.getEstimateMin()); // Our price estimate (min)
-            dto.put("estimateMax", deal.getEstimateMax()); // Our price estimate (max)
-            dto.put("estimateRange", deal.getEstimateRange());
-            dto.put("discount", deal.getDiscount()); // Potential savings range
-            dto.put("rentalYield", deal.getRentalYield());
-            dto.put("grossRentalYield", deal.getGrossRentalYield()); // Gross rental yield
-            dto.put("buildingStatus", deal.getBuildingStatus().name().toLowerCase().replace("_", "-")); // Building status
-            dto.put("propertyType", deal.getPropertyType()); // Property type
-            dto.put("priceVsEstimations", deal.getPriceVsEstimations()); // Price vs. Estimations
-            dto.put("pricePerSqft", deal.getPricePerSqft()); // Price per sqft
-            dto.put("pricePerSqftVsMarket", deal.getPricePerSqftVsMarket()); // Price per sqft (vs. market)
-            dto.put("propertyDescription", deal.getPropertyDescription()); // Property description
-            dto.put("buildingFeatures", deal.getBuildingFeatures()); // Building features
-            dto.put("serviceCharge", deal.getServiceCharge()); // Service charge
-            dto.put("developer", deal.getDeveloper()); // Developer
-            dto.put("propertyLink", deal.getPropertyLink()); // Link for the property
-            dto.put("propertyId", deal.getPropertyId()); // Property id
-            
-            // Add listed deals
-            if (deal.getListedDeals() != null && !deal.getListedDeals().isEmpty()) {
-                dto.put("listedDeals", deal.getListedDeals().stream().map(this::dealToMap).collect(java.util.stream.Collectors.toList()));
+
+            // Basic information
+            dto.put("id", apiResponse.get("listing_id").asText());
+            dto.put("name", apiResponse.has("building_name") ? apiResponse.get("building_name").asText() : "");
+            dto.put("location", apiResponse.has("area") ? apiResponse.get("area").asText() : "");
+            dto.put("city", apiResponse.has("city") ? apiResponse.get("city").asText() : "Dubai");
+            dto.put("area", apiResponse.has("area") ? apiResponse.get("area").asText() : "");
+            dto.put("bedrooms", apiResponse.has("bedrooms") ? apiResponse.get("bedrooms").asText() : "0");
+            dto.put("bedroomCount", apiResponse.has("bedrooms") ? apiResponse.get("bedrooms").asText() : "0");
+
+            // Size - normalize if needed
+            int rawSize = apiResponse.has("size_sqft") ? apiResponse.get("size_sqft").asInt() : 0;
+            int normalizedSize = rawSize > 50000 ? rawSize / 1000 : rawSize;
+            dto.put("size", normalizedSize);
+
+            // Price information
+            long listedPrice = apiResponse.has("listed_price_aed")
+                ? parsePrice(apiResponse.get("listed_price_aed").asText())
+                : 0;
+            dto.put("listedPrice", listedPrice);
+            dto.put("priceValue", listedPrice);
+
+            // Estimate range
+            String estimate = apiResponse.has("our_price_estimate")
+                ? apiResponse.get("our_price_estimate").asText()
+                : "";
+            Map<String, Long> estimateValues = parseEstimateRange(estimate);
+            dto.put("estimateMin", estimateValues.get("min"));
+            dto.put("estimateMax", estimateValues.get("max"));
+            dto.put("estimateRange", estimate);
+
+            // Discount/Savings
+            String discount = apiResponse.has("potential_savings")
+                ? apiResponse.get("potential_savings").asText()
+                : "N/A";
+            dto.put("discount", discount);
+
+            // Rental yield
+            String rentalYield = apiResponse.has("rental_yield_estimate")
+                ? apiResponse.get("rental_yield_estimate").asText()
+                : apiResponse.has("gross_rental_yield")
+                    ? apiResponse.get("gross_rental_yield").asText()
+                    : "N/A";
+            dto.put("rentalYield", rentalYield);
+            dto.put("grossRentalYield", rentalYield);
+
+            // Building status
+            String buildingStatus = apiResponse.has("building_status")
+                ? apiResponse.get("building_status").asText()
+                : "";
+            dto.put("buildingStatus", buildingStatus);
+
+            // Property type
+            String propertyType = apiResponse.has("property_type")
+                ? apiResponse.get("property_type").asText()
+                : "";
+            if (apiResponse.has("property_sub_type")) {
+                propertyType += " - " + apiResponse.get("property_sub_type").asText();
             }
-            
-            // Add recent sales
-            if (deal.getRecentSales() != null && !deal.getRecentSales().isEmpty()) {
-                dto.put("recentSales", deal.getRecentSales().stream().map(this::dealToMap).collect(java.util.stream.Collectors.toList()));
+            dto.put("propertyType", propertyType);
+
+            // Price vs market
+            String priceVsMarket = apiResponse.has("price_vs_estimations")
+                ? apiResponse.get("price_vs_estimations").asText()
+                : apiResponse.has("price_per_sqft_vs_market")
+                    ? apiResponse.get("price_per_sqft_vs_market").asText()
+                    : "N/A";
+            dto.put("priceVsEstimations", priceVsMarket);
+
+            // Price per sqft
+            long pricePerSqft = apiResponse.has("price_per_sqft")
+                ? Long.parseLong(apiResponse.get("price_per_sqft").asText().replace(",", ""))
+                : (normalizedSize > 0 ? listedPrice / normalizedSize : 0);
+            dto.put("pricePerSqft", pricePerSqft);
+            dto.put("pricePerSqftVsMarket", priceVsMarket);
+
+            // Additional details
+            dto.put("propertyDescription", apiResponse.has("property_description")
+                ? apiResponse.get("property_description").asText() : "");
+            dto.put("buildingFeatures", apiResponse.has("building_features")
+                ? apiResponse.get("building_features").asText() : "");
+            dto.put("serviceCharge", apiResponse.has("service_charge")
+                ? apiResponse.get("service_charge").asText() : "");
+            dto.put("developer", apiResponse.has("developer")
+                ? apiResponse.get("developer").asText() : "");
+            dto.put("propertyLink", apiResponse.has("link_for_property")
+                ? apiResponse.get("link_for_property").asText() : "");
+            dto.put("propertyId", apiResponse.get("listing_id").asText());
+
+            // Additional fields from API
+            if (apiResponse.has("view")) {
+                dto.put("view", apiResponse.get("view").asText());
             }
-            
+            if (apiResponse.has("furnishing")) {
+                dto.put("furnishing", apiResponse.get("furnishing").asText());
+            }
+            if (apiResponse.has("rensights_score")) {
+                dto.put("rensightsScore", apiResponse.get("rensights_score").asText());
+            }
+            if (apiResponse.has("investment_appeal")) {
+                dto.put("investmentAppeal", apiResponse.get("investment_appeal").asText());
+            }
+            if (apiResponse.has("market_position")) {
+                dto.put("marketPosition", apiResponse.get("market_position").asText());
+            }
+            if (apiResponse.has("nearest_landmark")) {
+                dto.put("nearestLandmark", apiResponse.get("nearest_landmark").asText());
+            }
+
+            // Parse comparables (listing_comparables)
+            if (apiResponse.has("listing_comparables")) {
+                try {
+                    String comparablesJson = apiResponse.get("listing_comparables").asText();
+                    ObjectMapper mapper = new ObjectMapper();
+                    List<Map<String, Object>> comparables = mapper.readValue(
+                        comparablesJson,
+                        new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, Object>>>(){}
+                    );
+                    dto.put("listedDeals", comparables);
+                } catch (Exception e) {
+                    logger.warn("Failed to parse listing_comparables: {}", e.getMessage());
+                    dto.put("listedDeals", new ArrayList<>());
+                }
+            }
+
+            // Parse transaction comparables (transaction_comparables)
+            if (apiResponse.has("transaction_comparables")) {
+                try {
+                    String transactionsJson = apiResponse.get("transaction_comparables").asText();
+                    ObjectMapper mapper = new ObjectMapper();
+                    List<Map<String, Object>> transactions = mapper.readValue(
+                        transactionsJson,
+                        new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, Object>>>(){}
+                    );
+                    dto.put("recentSales", transactions);
+                } catch (Exception e) {
+                    logger.warn("Failed to parse transaction_comparables: {}", e.getMessage());
+                    dto.put("recentSales", new ArrayList<>());
+                }
+            }
+
             return ResponseEntity.ok(dto);
         } catch (Exception e) {
             logger.error("Error fetching deal: {}", e.getMessage(), e);
