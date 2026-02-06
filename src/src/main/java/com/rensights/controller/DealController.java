@@ -8,6 +8,7 @@ import com.rensights.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -36,6 +37,9 @@ public class DealController {
     
     private final DealRepository dealRepository;
     private final UserRepository userRepository;
+    
+    @Value("${deals.api.url}")
+    private String dealsApiUrl;
     
     // Constructor injection (better performance and testability)
     public DealController(DealRepository dealRepository, UserRepository userRepository) {
@@ -193,7 +197,7 @@ public class DealController {
         try {
             // Fetch data from third-party API
             RestTemplate restTemplate = new RestTemplate();
-            String apiUrl = "http://72.62.40.154:8000/deals";
+            String apiUrl = dealsApiUrl;
             
             JsonNode apiResponse;
             try {

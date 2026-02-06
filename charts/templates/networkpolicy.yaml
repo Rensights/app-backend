@@ -51,6 +51,11 @@ spec:
     ports:
     - protocol: TCP
       port: 443  # HTTPS for external APIs like Stripe
+  # Allow egress to external Deals API
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 8000  # Deals API
   {{- if .Values.networkPolicy.allowIngress }}
   ingress:
   - from:

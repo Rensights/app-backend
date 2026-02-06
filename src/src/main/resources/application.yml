@@ -69,6 +69,11 @@ management:
     tracing:
       endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://signoz-otel-collector.platform.svc.cluster.local:4318/v1/traces}
 
+# External API Configuration
+deals:
+  api:
+    url: ${DEALS_API_URL:http://72.62.40.154:8000/deals}
+
 logging:
   level:
     root: INFO
