@@ -362,6 +362,7 @@ public class SubscriptionController {
                 .status(subscription.getStatus())
                 .startDate(subscription.getStartDate())
                 .endDate(subscription.getEndDate())
+                .cancelAtPeriodEnd(subscription.getCancelAtPeriodEnd())
                 .createdAt(subscription.getCreatedAt())
                 .build();
     }

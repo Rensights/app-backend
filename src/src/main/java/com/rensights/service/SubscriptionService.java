@@ -175,14 +175,15 @@ public class SubscriptionService {
     }
     
     /**
-     * Cancel subscription
+     * Cancel subscription - schedules cancellation at period end
+     * User maintains access until the end of their billing period
      */
     @Transactional
     public Subscription cancelSubscription(UUID userId) {
         Subscription subscription = subscriptionRepository.findByUserIdAndStatus(userId, SubscriptionStatus.ACTIVE)
                 .orElseThrow(() -> new RuntimeException("No active subscription found"));
-        
-        // Optimized: Use Optional for cleaner null checks
+
+        // Schedule cancellation at period end in Stripe
         java.util.Optional.ofNullable(subscription.getStripeSubscriptionId())
                 .ifPresent(subId -> {
                     try {
@@ -192,16 +193,20 @@ public class SubscriptionService {
                         throw new RuntimeException("Failed to cancel subscription", e);
                     }
                 });
-        
-        subscription.setStatus(SubscriptionStatus.CANCELLED);
-        subscription.setEndDate(LocalDateTime.now());
+
+        // Mark subscription as scheduled for cancellation
+        subscription.setCancelAtPeriodEnd(true);
         subscription = subscriptionRepository.save(subscription);
-        
-        // Update user tier to FREE
-        User user = subscription.getUser();
-        user.setUserTier(UserTier.FREE);
-        userRepository.save(user);
-        
+
+        // Keep subscription ACTIVE until period end
+        // Don't change status or endDate - let it expire naturally
+        // The Stripe webhook will handle the actual cancellation when the period ends
+        logger.info("Subscription {} scheduled to cancel at period end: {}",
+                   subscription.getId(), subscription.getEndDate());
+
+        // Don't downgrade user immediately - they keep access until endDate
+        // The scheduled job or webhook will downgrade them when subscription expires
+
         return subscription;
     }
     

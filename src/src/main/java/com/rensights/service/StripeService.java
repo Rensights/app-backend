@@ -122,12 +122,15 @@ public class StripeService {
     }
     
     /**
-     * Cancel a subscription
+     * Cancel a subscription at period end (doesn't cancel immediately)
+     * This allows the user to keep access until their billing period ends
      */
     public Subscription cancelSubscription(String subscriptionId) throws StripeException {
         Subscription subscription = Subscription.retrieve(subscriptionId);
-        subscription = subscription.cancel();
-        logger.info("Cancelled Stripe subscription: {}", subscriptionId);
+        Map<String, Object> params = new HashMap<>();
+        params.put("cancel_at_period_end", true);
+        subscription = subscription.update(params);
+        logger.info("Scheduled Stripe subscription {} to cancel at period end", subscriptionId);
         return subscription;
     }
     

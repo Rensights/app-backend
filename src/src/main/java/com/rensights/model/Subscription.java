@@ -47,7 +47,11 @@ public class Subscription {
     
     @Column(name = "stripe_payment_method_id")
     private String stripePaymentMethodId;
-    
+
+    @Column(name = "cancel_at_period_end")
+    @Builder.Default
+    private Boolean cancelAtPeriodEnd = false;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
     

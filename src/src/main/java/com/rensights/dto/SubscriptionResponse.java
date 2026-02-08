@@ -15,6 +15,7 @@ public class SubscriptionResponse {
     private SubscriptionStatus status;
     private LocalDateTime startDate;
     private LocalDateTime endDate;
+    private Boolean cancelAtPeriodEnd;
     private LocalDateTime createdAt;
 }
 
