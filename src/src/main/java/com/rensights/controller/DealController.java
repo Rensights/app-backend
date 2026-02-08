@@ -432,7 +432,7 @@ public class DealController {
         try {
             // Fetch data from third-party API
             RestTemplate restTemplate = new RestTemplate();
-            String apiUrl = "http://72.62.40.154:8000/deals/" + dealId;
+            String apiUrl = "http://10.42.0.1:8000/deals/" + dealId;
 
             JsonNode apiResponse;
             try {

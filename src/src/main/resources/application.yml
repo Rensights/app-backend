@@ -72,7 +72,7 @@ management:
 # External API Configuration
 deals:
   api:
-    url: ${DEALS_API_URL:http://72.62.40.154:8000/deals}
+    url: ${DEALS_API_URL:http://10.42.0.1:8000/deals}
 
 logging:
   level:
