@@ -57,6 +57,7 @@ extraEnv:
   OTEL_LOGS_EXPORTER: "none"
   OTEL_METRICS_EXPORTER: "none"
   OTEL_TRACES_EXPORTER: "none"
+  ADMIN_JWT_SECRET: "${ADMIN_JWT_SECRET}"
   # Email configuration (Microsoft Graph API)
   EMAIL_ENABLED: "true"
   EMAIL_USE_GRAPH_API: "true"
