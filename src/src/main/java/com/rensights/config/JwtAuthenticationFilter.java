@@ -30,6 +30,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     
     @Autowired
     private JwtService jwtService;
+
+    @Autowired
+    private com.rensights.service.AdminJwtService adminJwtService;
     
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
@@ -64,26 +67,40 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
         
         // Validate and authenticate if token is present
-        if (token != null && jwtService.validateToken(token)) {
-            try {
-                UUID userId = jwtService.getUserIdFromToken(token);
-                
-                // Create authentication object
-                UsernamePasswordAuthenticationToken authentication = 
-                    new UsernamePasswordAuthenticationToken(
-                        userId.toString(), 
-                        null, 
-                        Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER"))
-                    );
-                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                
-                SecurityContextHolder.getContext().setAuthentication(authentication);
-            } catch (Exception e) {
-                // Invalid token, continue without authentication
+        if (token != null) {
+            if (jwtService.validateToken(token)) {
+                try {
+                    UUID userId = jwtService.getUserIdFromToken(token);
+                    
+                    UsernamePasswordAuthenticationToken authentication = 
+                        new UsernamePasswordAuthenticationToken(
+                            userId.toString(), 
+                            null, 
+                            Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER"))
+                        );
+                    authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                } catch (Exception e) {
+                    // Invalid token, continue without authentication
+                }
+            } else if (adminJwtService.validateToken(token)) {
+                try {
+                    UUID adminId = adminJwtService.getUserIdFromToken(token);
+                    UsernamePasswordAuthenticationToken authentication = 
+                        new UsernamePasswordAuthenticationToken(
+                            adminId.toString(), 
+                            null, 
+                            Collections.singletonList(new SimpleGrantedAuthority("ROLE_ADMIN"))
+                        );
+                    authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                } catch (Exception e) {
+                    // Invalid token, continue without authentication
+                }
             }
         }
         
         filterChain.doFilter(request, response);
     }
 }
-
