@@ -65,6 +65,7 @@ public class SecurityConfig {
                 // OPTIONS requests must be permitted first for CORS preflight
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers("/api/auth/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/landing-page/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/analysis-requests").permitAll() // Allow submission without auth
                 // SECURITY: Webhook endpoint must be public for Stripe to call it, but signature verification is performed
                 // Allow both with and without trailing slash
