@@ -6,7 +6,9 @@ import com.stripe.model.Customer;
 import com.stripe.model.PaymentIntent;
 import com.stripe.model.PaymentMethod;
 import com.stripe.model.Subscription;
+import com.stripe.model.billingportal.Session;
 import com.stripe.model.checkout.Session;
+import com.stripe.param.billingportal.SessionCreateParams;
 import com.stripe.param.checkout.SessionCreateParams;
 import com.stripe.param.CustomerCreateParams;
 import com.stripe.param.PaymentIntentCreateParams;
@@ -200,5 +202,18 @@ public class StripeService {
                    customerEmail != null ? customerEmail : "customer email");
         return session;
     }
-}
 
+    /**
+     * Create a Stripe Customer Portal session for subscription management.
+     */
+    public Session createCustomerPortalSession(String stripeCustomerId, String returnUrl) throws StripeException {
+        SessionCreateParams params = SessionCreateParams.builder()
+                .setCustomer(stripeCustomerId)
+                .setReturnUrl(returnUrl)
+                .build();
+
+        Session session = Session.create(params);
+        logger.info("Created Stripe Customer Portal session: {} for customer: {}", session.getId(), stripeCustomerId);
+        return session;
+    }
+}

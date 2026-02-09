@@ -345,6 +345,48 @@ public class SubscriptionController {
                     .body(new ErrorResponse("Failed to cancel subscription"));
         }
     }
+
+    /**
+     * Create Stripe Customer Portal session for managing subscriptions.
+     */
+    @PostMapping("/portal-session")
+    public ResponseEntity<?> createPortalSession() {
+        try {
+            UUID userId = getCurrentUserId();
+            User user = userRepository.findById(userId)
+                    .orElseThrow(() -> new RuntimeException("User not found"));
+
+            String stripeCustomerId = java.util.Optional.ofNullable(user.getStripeCustomerId())
+                    .filter(id -> !id.isEmpty())
+                    .orElseGet(() -> subscriptionRepository.findByUserId(userId)
+                            .stream()
+                            .map(Subscription::getStripeCustomerId)
+                            .filter(id -> id != null && !id.isEmpty())
+                            .findFirst()
+                            .orElse(null));
+
+            if (stripeCustomerId == null) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(new ErrorResponse("Stripe customer not found for this user"));
+            }
+
+            String returnUrl = frontendUrl + "/account";
+            com.stripe.model.billingportal.Session session = stripeService.createCustomerPortalSession(
+                    stripeCustomerId,
+                    returnUrl
+            );
+
+            return ResponseEntity.ok(new CheckoutSessionResponse(session.getUrl()));
+        } catch (StripeException e) {
+            logger.error("Stripe error creating portal session: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ErrorResponse("Failed to open Stripe portal. Please try again later."));
+        } catch (Exception e) {
+            logger.error("Error creating portal session: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ErrorResponse("Failed to open Stripe portal. Please try again later."));
+        }
+    }
     
     private UUID getCurrentUserId() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -402,4 +444,3 @@ public class SubscriptionController {
         public String getUrl() { return url; }
     }
 }
-
