@@ -23,8 +23,6 @@ public class SecurityConfig {
     @Autowired
     private JwtAuthenticationFilter jwtAuthenticationFilter;
     
-    @Autowired
-    private RateLimitFilter rateLimitFilter;
     
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -59,8 +57,6 @@ public class SecurityConfig {
             // SECURITY: Add filters in correct order
             // First add JWT filter before Spring Security's authentication filter
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
-            // Then add rate limit filter before JWT filter (rate limiting happens first)
-            .addFilterBefore(rateLimitFilter, JwtAuthenticationFilter.class)
             .authorizeHttpRequests(auth -> auth
                 // OPTIONS requests must be permitted first for CORS preflight
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
