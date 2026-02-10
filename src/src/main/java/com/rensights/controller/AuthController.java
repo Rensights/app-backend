@@ -52,6 +52,7 @@ public class AuthController {
     public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest request, 
                                      HttpServletRequest httpRequest, 
                                      HttpServletResponse httpResponse) {
+        request.setEmail(normalizeEmail(request.getEmail()));
         logger.info("=== Register called for: {}", request.getEmail());
         try {
             // Generate device fingerprint if not provided
@@ -91,6 +92,7 @@ public class AuthController {
     public ResponseEntity<?> verifyEmail(@Valid @RequestBody VerifyEmailRequest request, 
                                         HttpServletRequest httpRequest,
                                         HttpServletResponse httpResponse) {
+        request.setEmail(normalizeEmail(request.getEmail()));
         logger.info("=== Verify email called for: {}", request.getEmail());
         
         // Generate device fingerprint if not provided
@@ -130,6 +132,7 @@ public class AuthController {
     public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request, 
                                    HttpServletRequest httpRequest,
                                    HttpServletResponse httpResponse) {
+        request.setEmail(normalizeEmail(request.getEmail()));
         logger.info("=== Login called for: {}", request.getEmail());
         
         // Generate device fingerprint if not provided
@@ -170,6 +173,7 @@ public class AuthController {
     public ResponseEntity<?> verifyDevice(@Valid @RequestBody VerifyDeviceRequest request, 
                                          HttpServletRequest httpRequest,
                                          HttpServletResponse httpResponse) {
+        request.setEmail(normalizeEmail(request.getEmail()));
         logger.info("=== Verify device called for: {}", request.getEmail());
         
         try {
@@ -199,6 +203,7 @@ public class AuthController {
      */
     @PostMapping("/resend-verification-code")
     public ResponseEntity<?> resendVerificationCode(@Valid @RequestBody SendVerificationCodeRequest request) {
+        request.setEmail(normalizeEmail(request.getEmail()));
         logger.info("=== Resend verification code called for: {}", request.getEmail());
         
         try {
@@ -227,6 +232,7 @@ public class AuthController {
      */
     @PostMapping("/forgot-password")
     public ResponseEntity<?> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        request.setEmail(normalizeEmail(request.getEmail()));
         logger.info("=== Forgot password called for: {}", request.getEmail());
         
         try {
@@ -251,6 +257,7 @@ public class AuthController {
      */
     @PostMapping("/verify-reset-code")
     public ResponseEntity<?> verifyResetCode(@Valid @RequestBody VerifyResetCodeRequest request) {
+        request.setEmail(normalizeEmail(request.getEmail()));
         logger.info("=== Verify reset code called for: {}", request.getEmail());
         
         try {
@@ -275,6 +282,7 @@ public class AuthController {
      */
     @PostMapping("/reset-password")
     public ResponseEntity<?> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        request.setEmail(normalizeEmail(request.getEmail()));
         logger.info("=== Reset password called for: {}", request.getEmail());
         
         try {
@@ -352,5 +360,9 @@ public class AuthController {
         public String getFirstName() { return firstName; }
         public String getLastName() { return lastName; }
         public String getDeviceFingerprint() { return deviceFingerprint; }
+    }
+
+    private String normalizeEmail(String email) {
+        return email == null ? null : email.trim().toLowerCase();
     }
 }
