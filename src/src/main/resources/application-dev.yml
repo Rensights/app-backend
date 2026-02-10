@@ -137,7 +137,7 @@ logging:
     org.springframework.security.web.authentication: WARN
     org.springframework.security.web.authentication.AnonymousAuthenticationFilter: WARN
     org.springframework.mail: DEBUG
-    org.hibernate.SQL: DEBUG
-    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+    org.hibernate.SQL: OFF
+    org.hibernate.type.descriptor.sql.BasicBinder: OFF
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
