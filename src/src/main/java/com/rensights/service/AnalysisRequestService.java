@@ -5,6 +5,7 @@ import com.rensights.model.User;
 import com.rensights.repository.AnalysisRequestRepository;
 import com.rensights.repository.UserRepository;
 import com.rensights.util.InputValidationUtil;
+import com.fasterxml.jackson.databind.JsonNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,7 +15,13 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.web.client.RestTemplate;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.List;
 import java.util.UUID;
 
@@ -37,6 +44,9 @@ public class AnalysisRequestService {
     
     @Value("${app.admin.email:admin@rensights.com}")
     private String adminEmail;
+
+    @Value("${analysis.api.url:http://10.42.0.1:8000}")
+    private String analysisApiUrl;
     
     @Transactional
     public AnalysisRequest createAnalysisRequest(
@@ -173,6 +183,16 @@ public class AnalysisRequestService {
                 // Continue without files rather than failing the entire request
             }
         }
+
+        try {
+            String analysisId = submitExternalAnalysis(request);
+            if (analysisId != null && !analysisId.isBlank()) {
+                request.setAnalysisId(analysisId);
+                request = analysisRequestRepository.save(request);
+            }
+        } catch (Exception e) {
+            logger.error("Error submitting external analysis for request: {}", request.getId(), e);
+        }
         
         logger.info("Created analysis request: {} for email: {}", request.getId(), email);
         
@@ -194,6 +214,61 @@ public class AnalysisRequestService {
         }
         
         return request;
+    }
+
+    private String submitExternalAnalysis(AnalysisRequest request) {
+        RestTemplate restTemplate = new RestTemplate();
+        String url = analysisApiUrl + "/analyse";
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("analysis_request_id", request.getId().toString());
+        payload.put("email", request.getEmail());
+        payload.put("city", request.getCity());
+        payload.put("area", request.getArea());
+        payload.put("buildingName", request.getBuildingName());
+        payload.put("listingUrl", request.getListingUrl());
+        payload.put("propertyType", request.getPropertyType());
+        payload.put("bedrooms", request.getBedrooms());
+        payload.put("size", request.getSize());
+        payload.put("plotSize", request.getPlotSize());
+        payload.put("floor", request.getFloor());
+        payload.put("totalFloors", request.getTotalFloors());
+        payload.put("buildingStatus", request.getBuildingStatus());
+        payload.put("condition", request.getCondition());
+        payload.put("latitude", request.getLatitude());
+        payload.put("longitude", request.getLongitude());
+        payload.put("askingPrice", request.getAskingPrice());
+        payload.put("serviceCharge", request.getServiceCharge());
+        payload.put("handoverDate", request.getHandoverDate());
+        payload.put("developer", request.getDeveloper());
+        payload.put("paymentPlan", request.getPaymentPlan());
+        payload.put("features", request.getFeatures());
+        payload.put("view", request.getView());
+        payload.put("furnishing", request.getFurnishing());
+        payload.put("additionalNotes", request.getAdditionalNotes());
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        HttpEntity<Map<String, Object>> httpEntity = new HttpEntity<>(payload, headers);
+        JsonNode response = restTemplate.postForObject(url, httpEntity, JsonNode.class);
+        return extractAnalysisId(response);
+    }
+
+    private String extractAnalysisId(JsonNode response) {
+        if (response == null || response.isNull()) {
+            return null;
+        }
+        if (response.hasNonNull("analysis_id")) {
+            return response.get("analysis_id").asText();
+        }
+        if (response.hasNonNull("analysisId")) {
+            return response.get("analysisId").asText();
+        }
+        if (response.hasNonNull("id")) {
+            return response.get("id").asText();
+        }
+        return null;
     }
     
     public Page<AnalysisRequest> getAllRequests(Pageable pageable) {
@@ -277,4 +352,3 @@ public class AnalysisRequestService {
         return analysisRequestRepository.countByStatus(AnalysisRequest.AnalysisRequestStatus.PENDING);
     }
 }
-

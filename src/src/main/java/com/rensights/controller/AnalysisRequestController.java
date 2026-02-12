@@ -9,7 +9,6 @@ import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,6 +24,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/analysis-requests")
@@ -197,8 +197,11 @@ public class AnalysisRequestController {
             }
             
             List<AnalysisRequest> requests = analysisRequestService.getRequestsByUserId(userId);
-            logger.info("✅ Retrieved {} analysis requests for user: {}", requests.size(), userId);
-            return ResponseEntity.ok(requests);
+            List<AnalysisRequestResponse> response = requests.stream()
+                .map(request -> toResponse(request, request.getStatus() == AnalysisRequest.AnalysisRequestStatus.COMPLETED))
+                .collect(Collectors.toList());
+            logger.info("✅ Retrieved {} analysis requests for user: {}", response.size(), userId);
+            return ResponseEntity.ok(response);
         } catch (IllegalArgumentException e) {
             logger.error("❌ Invalid argument error getting user requests: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
@@ -208,6 +211,111 @@ public class AnalysisRequestController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new ErrorResponse("Failed to get requests. Please try again later."));
         }
+    }
+
+    @GetMapping("/{requestId}")
+    public ResponseEntity<?> getRequestById(@PathVariable UUID requestId, Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(new ErrorResponse("Authentication required"));
+        }
+
+        try {
+            String userIdStr = authentication.getName();
+            if (userIdStr == null || userIdStr.isEmpty()) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(new ErrorResponse("Invalid authentication"));
+            }
+            UUID userId = UUID.fromString(userIdStr);
+            AnalysisRequest request = analysisRequestService.getRequestById(requestId);
+
+            if (request.getUser() == null || request.getUser().getId() == null || !request.getUser().getId().equals(userId)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(new ErrorResponse("Access denied"));
+            }
+
+            boolean includeResult = request.getStatus() == AnalysisRequest.AnalysisRequestStatus.COMPLETED;
+            return ResponseEntity.ok(toResponse(request, includeResult));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ErrorResponse("Invalid request parameters"));
+        } catch (Exception e) {
+            logger.error("❌ Error getting analysis request: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new ErrorResponse("Failed to get request. Please try again later."));
+        }
+    }
+
+    private AnalysisRequestResponse toResponse(AnalysisRequest request, boolean includeResult) {
+        return AnalysisRequestResponse.builder()
+            .id(request.getId().toString())
+            .email(request.getEmail())
+            .city(request.getCity())
+            .area(request.getArea())
+            .buildingName(request.getBuildingName())
+            .listingUrl(request.getListingUrl())
+            .propertyType(request.getPropertyType())
+            .bedrooms(request.getBedrooms())
+            .size(request.getSize())
+            .plotSize(request.getPlotSize())
+            .floor(request.getFloor())
+            .totalFloors(request.getTotalFloors())
+            .buildingStatus(request.getBuildingStatus())
+            .condition(request.getCondition())
+            .latitude(request.getLatitude())
+            .longitude(request.getLongitude())
+            .askingPrice(request.getAskingPrice())
+            .serviceCharge(request.getServiceCharge())
+            .handoverDate(request.getHandoverDate())
+            .developer(request.getDeveloper())
+            .paymentPlan(request.getPaymentPlan())
+            .features(request.getFeatures())
+            .view(request.getView())
+            .furnishing(request.getFurnishing())
+            .additionalNotes(request.getAdditionalNotes())
+            .filePaths(request.getFilePaths())
+            .status(request.getStatus() != null ? request.getStatus().name() : "PENDING")
+            .analysisResult(includeResult ? request.getAnalysisResult() : null)
+            .createdAt(request.getCreatedAt() != null ? request.getCreatedAt().toString() : "")
+            .updatedAt(request.getUpdatedAt() != null ? request.getUpdatedAt().toString() : "")
+            .build();
+    }
+
+    @lombok.Data
+    @lombok.Builder
+    @lombok.NoArgsConstructor
+    @lombok.AllArgsConstructor
+    private static class AnalysisRequestResponse {
+        private String id;
+        private String email;
+        private String city;
+        private String area;
+        private String buildingName;
+        private String listingUrl;
+        private String propertyType;
+        private String bedrooms;
+        private String size;
+        private String plotSize;
+        private String floor;
+        private String totalFloors;
+        private String buildingStatus;
+        private String condition;
+        private String latitude;
+        private String longitude;
+        private String askingPrice;
+        private String serviceCharge;
+        private String handoverDate;
+        private String developer;
+        private String paymentPlan;
+        private List<String> features;
+        private String view;
+        private String furnishing;
+        private String additionalNotes;
+        private List<String> filePaths;
+        private String status;
+        private Object analysisResult;
+        private String createdAt;
+        private String updatedAt;
     }
     
     @GetMapping("/report-count")
@@ -340,4 +448,3 @@ public class AnalysisRequestController {
         }
     }
 }
-
