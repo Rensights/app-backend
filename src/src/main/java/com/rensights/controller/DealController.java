@@ -5,6 +5,7 @@ import com.rensights.model.User;
 import com.rensights.model.UserTier;
 import com.rensights.repository.DealRepository;
 import com.rensights.repository.UserRepository;
+import com.rensights.service.WeeklyDealsSettingsService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,14 +38,28 @@ public class DealController {
     
     private final DealRepository dealRepository;
     private final UserRepository userRepository;
+    private final WeeklyDealsSettingsService weeklyDealsSettingsService;
     
     @Value("${deals.api.url}")
     private String dealsApiUrl;
     
     // Constructor injection (better performance and testability)
-    public DealController(DealRepository dealRepository, UserRepository userRepository) {
+    public DealController(DealRepository dealRepository, UserRepository userRepository, WeeklyDealsSettingsService weeklyDealsSettingsService) {
         this.dealRepository = dealRepository;
         this.userRepository = userRepository;
+        this.weeklyDealsSettingsService = weeklyDealsSettingsService;
+    }
+
+    private ResponseEntity<?> checkWeeklyDealsEnabled() {
+        if (!weeklyDealsSettingsService.isWeeklyDealsEnabled()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+        return null;
+    }
+
+    @GetMapping("/enabled")
+    public ResponseEntity<?> getWeeklyDealsEnabled() {
+        return ResponseEntity.ok(Map.of("enabled", weeklyDealsSettingsService.isWeeklyDealsEnabled()));
     }
     
     /**
@@ -188,6 +203,11 @@ public class DealController {
             @RequestParam(required = false) String bedroomCount,
             @RequestParam(required = false) String buildingStatus) {
         
+        ResponseEntity<?> enabledCheck = checkWeeklyDealsEnabled();
+        if (enabledCheck != null) {
+            return enabledCheck;
+        }
+
         // Check if user has access (not FREE tier)
         ResponseEntity<?> accessCheck = checkUserAccess(authentication);
         if (accessCheck != null) {
@@ -423,6 +443,11 @@ public class DealController {
     public ResponseEntity<?> getDealById(
             Authentication authentication,
             @PathVariable String dealId) {
+        ResponseEntity<?> enabledCheck = checkWeeklyDealsEnabled();
+        if (enabledCheck != null) {
+            return enabledCheck;
+        }
+
         // Check if user has access (not FREE tier)
         ResponseEntity<?> accessCheck = checkUserAccess(authentication);
         if (accessCheck != null) {
@@ -639,4 +664,3 @@ public class DealController {
         return dealMap;
     }
 }
-
