@@ -95,6 +95,11 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.secrets.stripeSecrets }}
                   key: stripe-publishable-key
+            - name: STRIPE_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.stripeSecrets }}
+                  key: stripe-webhook-secret
             - name: MICROSOFT_TENANT_ID
               valueFrom:
                 secretKeyRef:
@@ -142,4 +147,3 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-
