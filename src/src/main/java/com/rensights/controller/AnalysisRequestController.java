@@ -156,9 +156,10 @@ public class AnalysisRequestController {
             );
             
             logger.info("✅ Analysis request created successfully: {}", request.getId());
-            return ResponseEntity.ok(new MessageResponse(
+            return ResponseEntity.ok(new SubmitResponse(
                     "Your property price analysis request has been submitted successfully! " +
-                    "You will receive a comprehensive price analysis report via email within 24-48 hours."
+                    "You will receive a comprehensive price analysis report via email within 24-48 hours.",
+                    request.getId().toString()
             ));
         } catch (IllegalArgumentException e) {
             logger.error("❌ Validation error: {}", e.getMessage());
@@ -316,6 +317,13 @@ public class AnalysisRequestController {
         private Object analysisResult;
         private String createdAt;
         private String updatedAt;
+    }
+
+    @lombok.Data
+    @lombok.AllArgsConstructor
+    private static class SubmitResponse {
+        private String message;
+        private String requestId;
     }
     
     @GetMapping("/report-count")
