@@ -426,5 +426,57 @@ public class SubscriptionService {
             throw new RuntimeException("Failed to handle payment success", e);
         }
     }
-}
 
+    /**
+     * Force sync subscription status with Stripe for the current user.
+     * This is used on login to ensure local state reflects Stripe truth.
+     */
+    @Transactional
+    public Subscription syncCurrentSubscription(UUID userId) {
+        Subscription subscription = subscriptionRepository.findByUserIdAndStatus(userId, SubscriptionStatus.ACTIVE)
+                .orElse(null);
+        
+        if (subscription == null) {
+            return null;
+        }
+        
+        String stripeSubscriptionId = subscription.getStripeSubscriptionId();
+        if (stripeSubscriptionId == null || stripeSubscriptionId.isEmpty()) {
+            return subscription;
+        }
+        
+        try {
+            com.stripe.model.Subscription stripeSub = stripeService.getSubscription(stripeSubscriptionId);
+            String status = stripeSub.getStatus();
+            
+            if ("active".equals(status) || "trialing".equals(status)) {
+                if (subscription.getStatus() != SubscriptionStatus.ACTIVE) {
+                    subscription.setStatus(SubscriptionStatus.ACTIVE);
+                }
+                User user = subscription.getUser();
+                if (user != null && user.getUserTier() != subscription.getPlanType()) {
+                    user.setUserTier(subscription.getPlanType());
+                    userRepository.save(user);
+                }
+                return subscriptionRepository.save(subscription);
+            }
+            
+            // Any non-active status is treated as downgrade
+            subscription.setStatus(SubscriptionStatus.CANCELLED);
+            subscription.setEndDate(LocalDateTime.now());
+            subscription = subscriptionRepository.save(subscription);
+            
+            User user = subscription.getUser();
+            if (user != null && user.getUserTier() != UserTier.FREE) {
+                user.setUserTier(UserTier.FREE);
+                userRepository.save(user);
+            }
+            
+            logger.warn("Synced Stripe subscription {} status {} -> downgraded to FREE", stripeSubscriptionId, status);
+            return subscription;
+        } catch (StripeException e) {
+            logger.error("Failed to sync Stripe subscription {}: {}", stripeSubscriptionId, e.getMessage());
+            return subscription;
+        }
+    }
+}

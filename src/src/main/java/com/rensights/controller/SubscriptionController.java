@@ -286,6 +286,30 @@ public class SubscriptionController {
                     .body(new ErrorResponse("Failed to get subscription"));
         }
     }
+
+    /**
+     * Force sync current subscription with Stripe (used on login)
+     */
+    @PostMapping("/refresh")
+    public ResponseEntity<?> refreshCurrentSubscription() {
+        try {
+            UUID userId = getCurrentUserId();
+            Subscription subscription = subscriptionService.syncCurrentSubscription(userId);
+            
+            if (subscription == null) {
+                return ResponseEntity.ok(SubscriptionResponse.builder()
+                        .planType(UserTier.FREE)
+                        .status(com.rensights.model.SubscriptionStatus.ACTIVE)
+                        .build());
+            }
+            
+            return ResponseEntity.ok(toResponse(subscription));
+        } catch (Exception e) {
+            logger.error("Error refreshing subscription: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ErrorResponse("Failed to refresh subscription"));
+        }
+    }
     
     /**
      * Purchase/Subscribe to a plan
