@@ -5,8 +5,8 @@ import com.rensights.dto.LoginRequest;
 import com.rensights.dto.RegisterRequest;
 import com.rensights.model.User;
 import com.rensights.repository.UserRepository;
-import com.rensights.service.StripeService;
-import com.stripe.exception.StripeException;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.time.LocalDateTime;
 
@@ -42,6 +42,9 @@ public class AuthService {
     
     @Autowired
     private StripeService stripeService;
+
+    @Autowired
+    private ObjectMapper objectMapper;
     
     @org.springframework.beans.factory.annotation.Value("${app.email-verification-required:true}")
     private boolean emailVerificationRequired;
@@ -91,6 +94,11 @@ public class AuthService {
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
                 .firstName(request.getFirstName())
                 .lastName(request.getLastName())
+                .phone(request.getPhone())
+                .budget(request.getBudget())
+                .portfolio(request.getPortfolio())
+                .goalsJson(writeJson(request.getGoals()))
+                .registrationPlan(request.getPlan())
                 .customerId(customerId)
                 .stripeCustomerId(stripeCustomerId) // Store Stripe customer ID
                 .isActive(true)
@@ -233,6 +241,17 @@ public class AuthService {
                     .requiresVerification(true)
                     .email(finalUser.getEmail())
                     .build();
+        }
+    }
+
+    private String writeJson(java.util.List<String> values) {
+        if (values == null) {
+            return "[]";
+        }
+        try {
+            return objectMapper.writeValueAsString(values);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException("Failed to serialize list", e);
         }
     }
     

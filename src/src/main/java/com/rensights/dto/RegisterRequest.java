@@ -5,6 +5,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
+import java.util.List;
+
 @Data
 public class RegisterRequest {
     @NotBlank(message = "Email is required")
@@ -22,4 +24,9 @@ public class RegisterRequest {
     private String firstName;
     private String lastName;
     private String deviceFingerprint; // Optional device fingerprint
+    private String phone;
+    private String budget;
+    private String portfolio;
+    private List<String> goals;
+    private String plan;
 }

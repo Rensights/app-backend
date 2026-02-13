@@ -31,6 +31,21 @@ public class User {
     
     @Column(name = "last_name")
     private String lastName;
+
+    @Column(name = "phone")
+    private String phone;
+
+    @Column(name = "budget")
+    private String budget;
+
+    @Column(name = "portfolio")
+    private String portfolio;
+
+    @Column(name = "goals_json", columnDefinition = "TEXT")
+    private String goalsJson;
+
+    @Column(name = "registration_plan")
+    private String registrationPlan;
     
     @Column(name = "is_active", nullable = false)
     @Builder.Default
