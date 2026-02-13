@@ -218,7 +218,7 @@ public class AnalysisRequestService {
 
     private String submitExternalAnalysis(AnalysisRequest request) {
         RestTemplate restTemplate = new RestTemplate();
-        String url = analysisApiUrl + "/analyse";
+        String url = analysisApiUrl + "/analysis_request";
 
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("analysis_request_id", request.getId().toString());
