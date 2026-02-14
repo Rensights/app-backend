@@ -222,30 +222,36 @@ public class AnalysisRequestService {
 
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("analysis_request_id", request.getId().toString());
-        payload.put("email", request.getEmail());
-        payload.put("city", request.getCity());
+        payload.put("user_id", request.getUser() != null ? request.getUser().getId().toString() : null);
+        payload.put("building_name", request.getBuildingName());
         payload.put("area", request.getArea());
-        payload.put("buildingName", request.getBuildingName());
-        payload.put("listingUrl", request.getListingUrl());
-        payload.put("propertyType", request.getPropertyType());
-        payload.put("bedrooms", request.getBedrooms());
-        payload.put("size", request.getSize());
-        payload.put("plotSize", request.getPlotSize());
-        payload.put("floor", request.getFloor());
-        payload.put("totalFloors", request.getTotalFloors());
-        payload.put("buildingStatus", request.getBuildingStatus());
-        payload.put("condition", request.getCondition());
-        payload.put("latitude", request.getLatitude());
-        payload.put("longitude", request.getLongitude());
-        payload.put("askingPrice", request.getAskingPrice());
-        payload.put("serviceCharge", request.getServiceCharge());
-        payload.put("handoverDate", request.getHandoverDate());
-        payload.put("developer", request.getDeveloper());
-        payload.put("paymentPlan", request.getPaymentPlan());
-        payload.put("features", request.getFeatures());
-        payload.put("view", request.getView());
+        payload.put("city", request.getCity());
+        payload.put("property_type", request.getPropertyType());
+        payload.put("bedrooms", parseInteger(request.getBedrooms()));
+        payload.put("size_sqft", parseInteger(request.getSize()));
+        payload.put("building_status", request.getBuildingStatus());
+        payload.put("current_asking_price", request.getAskingPrice());
+        payload.put("property_condition", request.getCondition());
+        Double latitude = parseDouble(request.getLatitude());
+        Double longitude = parseDouble(request.getLongitude());
+        if (latitude == null || longitude == null) {
+            // Dummy coordinates (Dubai) when missing
+            latitude = 25.2048;
+            longitude = 55.2708;
+        }
+        payload.put("latitude", latitude);
+        payload.put("longitude", longitude);
         payload.put("furnishing", request.getFurnishing());
-        payload.put("additionalNotes", request.getAdditionalNotes());
+        payload.put("link_for_property", request.getListingUrl());
+        payload.put("developer", request.getDeveloper());
+        payload.put("view", request.getView());
+        payload.put("floor_number", parseInteger(request.getFloor()));
+        payload.put("total_floors", parseInteger(request.getTotalFloors()));
+        payload.put("annual_service_charge", request.getServiceCharge());
+        payload.put("expected_handover_date", request.getHandoverDate());
+        payload.put("payment_plan", request.getPaymentPlan());
+        payload.put("additional_notes", request.getAdditionalNotes());
+        payload.put("property_features", request.getFeatures());
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
@@ -253,6 +259,28 @@ public class AnalysisRequestService {
         HttpEntity<Map<String, Object>> httpEntity = new HttpEntity<>(payload, headers);
         JsonNode response = restTemplate.postForObject(url, httpEntity, JsonNode.class);
         return extractAnalysisId(response);
+    }
+
+    private Integer parseInteger(String value) {
+        if (value == null || value.trim().isEmpty()) {
+            return null;
+        }
+        try {
+            return Integer.valueOf(value.trim());
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private Double parseDouble(String value) {
+        if (value == null || value.trim().isEmpty()) {
+            return null;
+        }
+        try {
+            return Double.valueOf(value.trim());
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     private String extractAnalysisId(JsonNode response) {
