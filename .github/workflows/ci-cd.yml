@@ -331,6 +331,8 @@ jobs:
             --create-namespace \
             -f env-values/dev/global.yaml \
             -f env-values/dev/backend.yaml \
+            --set reports.storage.path=/data/reports \
+            --set reports.storage.existingClaim=reports-storage \
             --set image.tag=${IMAGE_TAG} \
             --set image.pullPolicy=Always \
             --set image.repository=${EXPECTED_REPO} \
