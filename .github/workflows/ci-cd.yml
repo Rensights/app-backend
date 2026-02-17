@@ -244,6 +244,24 @@ jobs:
           export KUBECONFIG=/tmp/kubeconfig
           kubectl cluster-info
 
+      - name: Ensure reports PVC exists (dev)
+        run: |
+          export KUBECONFIG=/tmp/kubeconfig
+          kubectl apply -f - <<'EOF'
+          apiVersion: v1
+          kind: PersistentVolumeClaim
+          metadata:
+            name: reports-storage
+            namespace: dev
+          spec:
+            accessModes:
+              - ReadWriteOnce
+            resources:
+              requests:
+                storage: 5Gi
+            storageClassName: local-path
+          EOF
+
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
