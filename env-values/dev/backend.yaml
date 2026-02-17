@@ -76,3 +76,4 @@ extraEnv:
 reports:
   storage:
     path: /data/reports
+    existingClaim: reports-storage
