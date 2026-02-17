@@ -79,6 +79,11 @@ tolerations: []
 
 extraEnv: {}
 
+reports:
+  storage:
+    path: /data/reports
+    existingClaim: ""
+
 cors:
   # CORS origins for KongPlugin (if not set, will use extraEnv.CORS_ORIGINS)
   origins: []
@@ -113,4 +118,3 @@ networkPolicy:
   enabled: true
   databasePort: 5432
   allowIngress: false
-

@@ -117,6 +117,8 @@ spec:
                   key: client-secret
             - name: APP_MAIN_BACKEND_URL
               value: {{ .Values.extraEnv.APP_MAIN_BACKEND_URL | quote }}
+            - name: REPORTS_STORAGE_PATH
+              value: {{ .Values.reports.storage.path | quote }}
             {{- if .Values.extraEnv }}
             {{- range $key, $value := .Values.extraEnv }}
             {{- if and $value (not (eq $key "SPRING_PROFILES_ACTIVE")) (not (eq $key "SERVER_PORT")) (not (eq $key "CORS_ORIGINS")) (not (eq $key "APP_MAIN_BACKEND_URL")) }}
@@ -135,6 +137,9 @@ spec:
           {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: reports-storage
+              mountPath: {{ .Values.reports.storage.path | quote }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -147,3 +152,11 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      volumes:
+        - name: reports-storage
+          {{- if .Values.reports.storage.existingClaim }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.reports.storage.existingClaim | quote }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
