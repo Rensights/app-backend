@@ -121,7 +121,7 @@ spec:
               value: {{ .Values.reports.storage.path | quote }}
             {{- if .Values.extraEnv }}
             {{- range $key, $value := .Values.extraEnv }}
-            {{- if and $value (not (eq $key "SPRING_PROFILES_ACTIVE")) (not (eq $key "SERVER_PORT")) (not (eq $key "CORS_ORIGINS")) (not (eq $key "APP_MAIN_BACKEND_URL")) }}
+            {{- if and $value (not (eq $key "SPRING_PROFILES_ACTIVE")) (not (eq $key "SERVER_PORT")) (not (eq $key "CORS_ORIGINS")) (not (eq $key "APP_MAIN_BACKEND_URL")) (not (eq $key "REPORTS_STORAGE_PATH")) }}
             - name: {{ $key }}
               value: {{ $value | quote }}
             {{- end }}
