@@ -14,6 +14,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @RestController
@@ -43,7 +44,14 @@ public class ReportController {
     public ResponseEntity<Resource> getDocument(@PathVariable UUID documentId) {
         ReportDocument doc = reportDocumentRepository.findById(documentId)
             .orElseThrow(() -> new RuntimeException("Document not found"));
+        Optional<java.nio.file.Path> path = reportStorageService.resolvePath(doc.getFilePath());
+        if (path.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
         Resource resource = reportStorageService.loadAsResource(doc.getFilePath());
+        if (!resource.exists() || !resource.isReadable()) {
+            return ResponseEntity.notFound().build();
+        }
         return ResponseEntity.ok()
             .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + doc.getOriginalFilename() + "\"")
             .contentType(MediaType.APPLICATION_PDF)
