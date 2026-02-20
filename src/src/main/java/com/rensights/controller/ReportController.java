@@ -44,6 +44,14 @@ public class ReportController {
     public ResponseEntity<Resource> getDocument(@PathVariable UUID documentId) {
         ReportDocument doc = reportDocumentRepository.findById(documentId)
             .orElseThrow(() -> new RuntimeException("Document not found"));
+        if (doc.getFileContentBase64() != null && !doc.getFileContentBase64().isBlank()) {
+            byte[] fileBytes = java.util.Base64.getDecoder().decode(doc.getFileContentBase64());
+            return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + doc.getOriginalFilename() + "\"")
+                .contentType(MediaType.APPLICATION_PDF)
+                .contentLength(fileBytes.length)
+                .body(new org.springframework.core.io.ByteArrayResource(fileBytes));
+        }
         Optional<java.nio.file.Path> path = reportStorageService.resolvePath(doc.getFilePath());
         if (path.isEmpty()) {
             return ResponseEntity.notFound().build();

@@ -30,8 +30,11 @@ public class ReportDocument {
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 
-    @Column(name = "file_path", nullable = false, length = 500)
+    @Column(name = "file_path", length = 500)
     private String filePath;
+
+    @Column(name = "file_content_base64", columnDefinition = "TEXT")
+    private String fileContentBase64;
 
     @Column(name = "original_filename")
     private String originalFilename;
