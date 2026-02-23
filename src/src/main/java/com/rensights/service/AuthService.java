@@ -129,13 +129,13 @@ public class AuthService {
         User user = User.builder()
                 .email(request.getEmail())
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
-                .firstName(request.getFirstName())
-                .lastName(request.getLastName())
-                .phone(request.getPhone())
-                .budget(request.getBudget())
-                .portfolio(request.getPortfolio())
+                .firstName(normalize(request.getFirstName()))
+                .lastName(normalize(request.getLastName()))
+                .phone(normalize(request.getPhone()))
+                .budget(normalize(request.getBudget()))
+                .portfolio(normalize(request.getPortfolio()))
                 .goalsJson(writeJson(request.getGoals()))
-                .registrationPlan(request.getPlan())
+                .registrationPlan(normalize(request.getPlan()))
                 .customerId(customerId)
                 .stripeCustomerId(stripeCustomerId) // Store Stripe customer ID
                 .isActive(true)
@@ -290,6 +290,14 @@ public class AuthService {
         } catch (JsonProcessingException e) {
             throw new RuntimeException("Failed to serialize list", e);
         }
+    }
+
+    private String normalize(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     private boolean isBlank(String value) {
