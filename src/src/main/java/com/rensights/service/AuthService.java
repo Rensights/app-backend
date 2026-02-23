@@ -59,6 +59,43 @@ public class AuthService {
             // Don't throw - just return null to indicate verification required (which will send code)
             // This prevents revealing that email already exists
             logger.warn("Registration attempted for existing email: {} - treating as verification request", request.getEmail());
+            userRepository.findByEmail(request.getEmail()).ifPresent(existing -> {
+                // If user isn't verified yet, update missing profile fields from this registration attempt
+                if (!Boolean.TRUE.equals(existing.getEmailVerified())) {
+                    boolean updated = false;
+                    if (isNonBlank(request.getFirstName()) && isBlank(existing.getFirstName())) {
+                        existing.setFirstName(request.getFirstName().trim());
+                        updated = true;
+                    }
+                    if (isNonBlank(request.getLastName()) && isBlank(existing.getLastName())) {
+                        existing.setLastName(request.getLastName().trim());
+                        updated = true;
+                    }
+                    if (isNonBlank(request.getPhone()) && isBlank(existing.getPhone())) {
+                        existing.setPhone(request.getPhone().trim());
+                        updated = true;
+                    }
+                    if (isNonBlank(request.getBudget()) && isBlank(existing.getBudget())) {
+                        existing.setBudget(request.getBudget().trim());
+                        updated = true;
+                    }
+                    if (isNonBlank(request.getPortfolio()) && isBlank(existing.getPortfolio())) {
+                        existing.setPortfolio(request.getPortfolio().trim());
+                        updated = true;
+                    }
+                    if (request.getGoals() != null && !request.getGoals().isEmpty() && isBlank(existing.getGoalsJson())) {
+                        existing.setGoalsJson(writeJson(request.getGoals()));
+                        updated = true;
+                    }
+                    if (isNonBlank(request.getPlan()) && isBlank(existing.getRegistrationPlan())) {
+                        existing.setRegistrationPlan(request.getPlan().trim());
+                        updated = true;
+                    }
+                    if (updated) {
+                        userRepository.save(existing);
+                    }
+                }
+            });
             // Generate verification code anyway (user can't register, but can't tell from response)
             String code = verificationCodeService.generateCode(request.getEmail());
             emailService.sendVerificationCode(request.getEmail(), code);
@@ -253,6 +290,14 @@ public class AuthService {
         } catch (JsonProcessingException e) {
             throw new RuntimeException("Failed to serialize list", e);
         }
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.trim().isEmpty();
+    }
+
+    private boolean isNonBlank(String value) {
+        return !isBlank(value);
     }
     
     /**
