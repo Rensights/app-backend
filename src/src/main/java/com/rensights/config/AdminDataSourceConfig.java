@@ -18,13 +18,15 @@ import org.springframework.transaction.annotation.EnableTransactionManagement;
 import org.springframework.beans.factory.annotation.Value;
 
 import com.rensights.model.AnalysisRequest;
-import com.rensights.model.Device;
-import com.rensights.model.Invoice;
-import com.rensights.model.Subscription;
-import com.rensights.model.User;
+import com.rensights.model.AppSetting;
+import com.rensights.model.Article;
 import com.rensights.model.Deal;
 import com.rensights.model.DealTranslation;
+import com.rensights.model.Device;
+import com.rensights.model.Invoice;
 import com.rensights.model.LandingPageContent;
+import com.rensights.model.Subscription;
+import com.rensights.model.User;
 
 import javax.sql.DataSource;
 import java.util.HashMap;
@@ -74,7 +76,7 @@ public class AdminDataSourceConfig {
         
         return builder
             .dataSource(dataSource)
-            .packages(User.class, Device.class, Subscription.class, AnalysisRequest.class, Invoice.class, Deal.class, DealTranslation.class, LandingPageContent.class)
+            .packages(User.class, Device.class, Subscription.class, AnalysisRequest.class, Invoice.class, Deal.class, DealTranslation.class, LandingPageContent.class, Article.class, AppSetting.class)
             .persistenceUnit("admin")
             .properties(properties)
             .build();
@@ -87,7 +89,6 @@ public class AdminDataSourceConfig {
         return new JpaTransactionManager(adminEntityManagerFactory.getObject());
     }
 }
-
 
 
 
