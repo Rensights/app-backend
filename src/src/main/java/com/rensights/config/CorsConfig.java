@@ -113,8 +113,8 @@ public class CorsConfig implements WebMvcConfigurer {
             // SECURITY FIX: Allow necessary headers for all request types including multipart/form-data
             // Note: For multipart/form-data, browser sets Content-Type with boundary automatically
             .allowedHeaders("Authorization", "Content-Type", "X-Requested-With", "Accept", "Origin", 
-                           "Cache-Control", "Pragma", "X-CSRF-Token")
-            .exposedHeaders("Authorization", "Content-Type", "X-Requested-With", "Content-Disposition")
+                           "Cache-Control", "Pragma", "X-CSRF-Token", "X-Trace-Id", "X-Request-Id")
+            .exposedHeaders("Authorization", "Content-Type", "X-Requested-With", "Content-Disposition", "X-Trace-Id")
             .allowCredentials(true)
             .maxAge(3600);
     }
@@ -219,10 +219,10 @@ public class CorsConfig implements WebMvcConfigurer {
         // Note: For multipart/form-data, browser sets Content-Type with boundary automatically
         configuration.setAllowedHeaders(Arrays.asList(
             "Authorization", "Content-Type", "X-Requested-With", "Accept", "Origin", 
-            "Cache-Control", "Pragma", "X-CSRF-Token"
+            "Cache-Control", "Pragma", "X-CSRF-Token", "X-Trace-Id", "X-Request-Id"
         ));
         configuration.setExposedHeaders(Arrays.asList(
-            "Authorization", "Content-Type", "X-Requested-With", "Content-Disposition"
+            "Authorization", "Content-Type", "X-Requested-With", "Content-Disposition", "X-Trace-Id"
         ));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L); // Cache preflight for 1 hour
@@ -238,4 +238,3 @@ public class CorsConfig implements WebMvcConfigurer {
         return source;
     }
 }
-
