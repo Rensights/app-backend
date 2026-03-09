@@ -66,6 +66,7 @@ public class ReportSectionService {
                 .fileUrl("/api/reports/documents/" + doc.getId() + "/file")
                 .displayOrder(doc.getDisplayOrder())
                 .languageCode(doc.getLanguageCode())
+                .updatedAt(doc.getUpdatedAt())
                 .build())
             .collect(Collectors.toList());
 
