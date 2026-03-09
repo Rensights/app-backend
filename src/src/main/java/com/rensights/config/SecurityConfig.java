@@ -65,6 +65,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/translations/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/articles/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/languages").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/settings/google-analytics").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/early-access").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/early-access").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/analysis-requests").permitAll() // Allow submission without auth
