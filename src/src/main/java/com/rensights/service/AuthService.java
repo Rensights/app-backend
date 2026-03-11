@@ -4,6 +4,7 @@ import com.rensights.dto.AuthResponse;
 import com.rensights.dto.LoginRequest;
 import com.rensights.dto.RegisterRequest;
 import com.rensights.model.User;
+import com.rensights.service.EmailAlreadyRegisteredException;
 import com.rensights.repository.UserRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -60,6 +61,9 @@ public class AuthService {
             // This prevents revealing that email already exists
             logger.warn("Registration attempted for existing email: {} - treating as verification request", request.getEmail());
             userRepository.findByEmail(request.getEmail()).ifPresent(existing -> {
+                if (Boolean.TRUE.equals(existing.getEmailVerified())) {
+                    throw new EmailAlreadyRegisteredException("Email already registered");
+                }
                 // If user isn't verified yet, update missing profile fields from this registration attempt
                 if (!Boolean.TRUE.equals(existing.getEmailVerified())) {
                     boolean updated = false;

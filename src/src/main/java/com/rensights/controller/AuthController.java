@@ -11,6 +11,7 @@ import com.rensights.dto.VerifyDeviceRequest;
 import com.rensights.dto.VerifyEmailRequest;
 import com.rensights.dto.VerifyResetCodeRequest;
 import com.rensights.service.AuthService;
+import com.rensights.service.EmailAlreadyRegisteredException;
 import com.rensights.service.DeviceService;
 import com.rensights.util.CookieUtil;
 import jakarta.servlet.http.HttpServletRequest;
@@ -76,6 +77,10 @@ public class AuthController {
                 logger.info("✅ Registration successful, verification code sent to: {}", request.getEmail());
                 return ResponseEntity.ok(new MessageResponse("Registration successful. Please check your email for verification code."));
             }
+        } catch (EmailAlreadyRegisteredException e) {
+            logger.warn("Registration blocked for existing verified email: {}", request.getEmail());
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(new ErrorResponse("Email already registered. Please login."));
         } catch (RuntimeException e) {
             logger.error("❌ Registration failed: {}", e.getMessage());
             // SECURITY FIX: Use generic error message to prevent information disclosure
