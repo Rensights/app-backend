@@ -14,10 +14,13 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -35,35 +38,38 @@ public class SubscriptionService {
     private StripeService stripeService;
     
     @Value("${stripe.premium-price-id:}")
-    private String premiumPriceId;
+    private String premiumMonthlyPriceId;
+    
+    @Value("${stripe.premium-yearly-price-id:}")
+    private String premiumYearlyPriceId;
     
     @Value("${stripe.enterprise-price-id:}")
     private String enterprisePriceId;
     
     // Cache price map to avoid recreation on every call (memory optimization)
     private volatile Map<UserTier, String> cachedPriceMap;
-    private volatile String cachedPremiumPriceId;
+    private volatile String cachedPremiumMonthlyPriceId;
     private volatile String cachedEnterprisePriceId;
     
     // Price mapping - cached for performance
     private Map<UserTier, String> getPriceIdMap() {
         // Check if cache is still valid
         if (cachedPriceMap == null || 
-            !premiumPriceId.equals(cachedPremiumPriceId) || 
-            !enterprisePriceId.equals(cachedEnterprisePriceId)) {
+            !Objects.equals(premiumMonthlyPriceId, cachedPremiumMonthlyPriceId) || 
+            !Objects.equals(enterprisePriceId, cachedEnterprisePriceId)) {
             synchronized (this) {
                 if (cachedPriceMap == null || 
-                    !premiumPriceId.equals(cachedPremiumPriceId) || 
-                    !enterprisePriceId.equals(cachedEnterprisePriceId)) {
+                    !Objects.equals(premiumMonthlyPriceId, cachedPremiumMonthlyPriceId) || 
+                    !Objects.equals(enterprisePriceId, cachedEnterprisePriceId)) {
                     Map<UserTier, String> priceMap = new HashMap<>(2); // Pre-size for 2 elements
-                    if (premiumPriceId != null && !premiumPriceId.isEmpty()) {
-                        priceMap.put(UserTier.PREMIUM, premiumPriceId);
+                    if (premiumMonthlyPriceId != null && !premiumMonthlyPriceId.isEmpty()) {
+                        priceMap.put(UserTier.PREMIUM, premiumMonthlyPriceId);
                     }
                     if (enterprisePriceId != null && !enterprisePriceId.isEmpty()) {
                         priceMap.put(UserTier.ENTERPRISE, enterprisePriceId);
                     }
                     cachedPriceMap = priceMap;
-                    cachedPremiumPriceId = premiumPriceId;
+                    cachedPremiumMonthlyPriceId = premiumMonthlyPriceId;
                     cachedEnterprisePriceId = enterprisePriceId;
                 }
             }
@@ -150,7 +156,7 @@ public class SubscriptionService {
                 .planType(planType)
                 .status(SubscriptionStatus.ACTIVE)
                 .startDate(LocalDateTime.now())
-                .endDate(LocalDateTime.now().plusMonths(1)) // Monthly subscription
+                .endDate(resolveSubscriptionEndDate(stripeSubscription))
                 .stripeCustomerId(customerId)
                 .stripeSubscriptionId(stripeSubscription.getId())
                 .stripePaymentMethodId(paymentMethodId)
@@ -333,13 +339,13 @@ public class SubscriptionService {
                             .map(item -> item.getPrice().getId())
                             .orElse(null);
                     
-                    if (priceId != null) {
-                        // Determine plan type from price ID
-                        if (priceId.equals(premiumPriceId)) {
-                            planType = UserTier.PREMIUM;
-                        } else if (priceId.equals(enterprisePriceId)) {
-                            planType = UserTier.ENTERPRISE;
-                        }
+                        if (priceId != null) {
+                            // Determine plan type from price ID
+                            if (isPremiumPrice(priceId)) {
+                                planType = UserTier.PREMIUM;
+                            } else if (priceId.equals(enterprisePriceId)) {
+                                planType = UserTier.ENTERPRISE;
+                            }
                     }
                 } catch (StripeException e) {
                     logger.error("Error retrieving Stripe subscription {}: {}", stripeSubscriptionId, e.getMessage());
@@ -359,7 +365,7 @@ public class SubscriptionService {
                                 .orElse(null);
                         
                         if (priceId != null) {
-                            if (priceId.equals(premiumPriceId)) {
+                            if (isPremiumPrice(priceId)) {
                                 planType = UserTier.PREMIUM;
                             } else if (priceId.equals(enterprisePriceId)) {
                                 planType = UserTier.ENTERPRISE;
@@ -399,7 +405,7 @@ public class SubscriptionService {
                         .planType(planType)
                         .status(SubscriptionStatus.ACTIVE)
                         .startDate(LocalDateTime.now())
-                        .endDate(LocalDateTime.now().plusMonths(1))
+                        .endDate(resolveSubscriptionEndDate(stripeSubscription))
                         .stripeCustomerId(stripeCustomerId)
                         .stripeSubscriptionId(stripeSubscriptionId)
                         .build();
@@ -410,7 +416,7 @@ public class SubscriptionService {
                 subscription.setPlanType(planType);
                 subscription.setStatus(SubscriptionStatus.ACTIVE);
                 subscription.setStartDate(LocalDateTime.now());
-                subscription.setEndDate(LocalDateTime.now().plusMonths(1));
+                subscription.setEndDate(resolveSubscriptionEndDate(stripeSubscription));
                 subscription = subscriptionRepository.save(subscription);
                 logger.info("Updated subscription: {} for user: {}", subscription.getId(), user.getId());
             }
@@ -425,6 +431,32 @@ public class SubscriptionService {
             logger.error("Error handling payment success: {}", e.getMessage(), e);
             throw new RuntimeException("Failed to handle payment success", e);
         }
+    }
+
+    private boolean isPremiumPrice(String priceId) {
+        return priceId != null && (priceId.equals(premiumMonthlyPriceId) || priceId.equals(premiumYearlyPriceId));
+    }
+
+    private LocalDateTime resolveSubscriptionEndDate(com.stripe.model.Subscription stripeSubscription) {
+        if (stripeSubscription != null && stripeSubscription.getCurrentPeriodEnd() != null) {
+            return LocalDateTime.ofInstant(
+                    Instant.ofEpochSecond(stripeSubscription.getCurrentPeriodEnd()),
+                    ZoneId.systemDefault()
+            );
+        }
+
+        String interval = stripeSubscription != null
+                ? stripeSubscription.getItems().getData().stream()
+                    .findFirst()
+                    .map(item -> item.getPrice())
+                    .filter(price -> price.getRecurring() != null)
+                    .map(price -> price.getRecurring().getInterval())
+                    .orElse("month")
+                : "month";
+
+        return "year".equalsIgnoreCase(interval)
+                ? LocalDateTime.now().plusYears(1)
+                : LocalDateTime.now().plusMonths(1);
     }
 
     /**

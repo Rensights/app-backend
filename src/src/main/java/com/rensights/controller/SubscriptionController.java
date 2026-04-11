@@ -22,6 +22,9 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -48,7 +51,10 @@ public class SubscriptionController {
     private InvoiceService invoiceService;
     
     @Value("${stripe.premium-price-id:}")
-    private String premiumPriceId;
+    private String premiumMonthlyPriceId;
+    
+    @Value("${stripe.premium-yearly-price-id:}")
+    private String premiumYearlyPriceId;
     
     @Value("${stripe.enterprise-price-id:}")
     private String enterprisePriceId;
@@ -66,11 +72,8 @@ public class SubscriptionController {
             User user = userRepository.findById(userId)
                     .orElseThrow(() -> new RuntimeException("User not found"));
             
-            // Optimized: Use Map for O(1) lookup instead of switch statement
-            String priceId = java.util.Map.of(
-                    UserTier.PREMIUM, premiumPriceId,
-                    UserTier.ENTERPRISE, enterprisePriceId
-            ).get(request.getPlanType());
+            BillingInterval billingInterval = BillingInterval.fromNullable(request.getBillingInterval());
+            String priceId = resolveCheckoutPriceId(request.getPlanType(), billingInterval);
             
             if (priceId == null) {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
@@ -78,9 +81,9 @@ public class SubscriptionController {
             }
             
             if (priceId == null || priceId.isEmpty()) {
-                logger.error("Stripe price ID not configured for plan: {}. Product ID: prod_TTZPr5yGZso2iI. Please create a price for this product in Stripe dashboard.", request.getPlanType());
+                logger.error("Stripe price ID not configured for plan: {} and billing interval: {}. Product ID: prod_TTZPr5yGZso2iI. Please create a price for this product in Stripe dashboard.", request.getPlanType(), billingInterval);
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                        .body(new ErrorResponse("Stripe price ID not configured for plan: " + request.getPlanType() + ". Please create a price for product prod_TTZPr5yGZso2iI in Stripe dashboard."));
+                        .body(new ErrorResponse("Stripe price ID not configured for plan: " + request.getPlanType() + " and billing interval: " + billingInterval.name().toLowerCase() + ". Please create a price for product prod_TTZPr5yGZso2iI in Stripe dashboard."));
             }
             
             // Use stored Stripe customer ID from user record (created during registration)
@@ -182,18 +185,7 @@ public class SubscriptionController {
             
             logger.info("Price ID from Stripe: {}", priceId);
             
-            // Optimized: Use stream with filter for O(1) lookup pattern
-            UserTier planType = java.util.stream.Stream.of(
-                    java.util.Map.entry(premiumPriceId, UserTier.PREMIUM),
-                    java.util.Map.entry(enterprisePriceId, UserTier.ENTERPRISE)
-            )
-            .filter(entry -> entry.getKey() != null && entry.getKey().equals(priceId))
-            .map(java.util.Map.Entry::getValue)
-            .findFirst()
-            .orElseThrow(() -> {
-                logger.error("Unknown price ID: {}. Expected premium: {} or enterprise: {}", priceId, premiumPriceId, enterprisePriceId);
-                return new RuntimeException("Unknown price ID: " + priceId);
-            });
+            UserTier planType = resolvePlanType(priceId);
             
             logger.info("Plan type determined: {}", planType);
             
@@ -220,8 +212,8 @@ public class SubscriptionController {
                     .user(user)
                     .planType(planType)
                     .status(SubscriptionStatus.ACTIVE)
-                    .startDate(java.time.LocalDateTime.now())
-                    .endDate(java.time.LocalDateTime.now().plusMonths(1))
+                    .startDate(LocalDateTime.now())
+                    .endDate(resolveSubscriptionEndDate(stripeSubscription))
                     .stripeCustomerId(stripeCustomerId)
                     .stripeSubscriptionId(stripeSubscriptionId)
                     .build();
@@ -432,6 +424,56 @@ public class SubscriptionController {
                 .createdAt(subscription.getCreatedAt())
                 .build();
     }
+
+    private String resolveCheckoutPriceId(UserTier planType, BillingInterval billingInterval) {
+        if (planType == null) {
+            return null;
+        }
+
+        return switch (planType) {
+            case PREMIUM -> billingInterval == BillingInterval.YEARLY ? premiumYearlyPriceId : premiumMonthlyPriceId;
+            case ENTERPRISE -> enterprisePriceId;
+            default -> null;
+        };
+    }
+
+    private UserTier resolvePlanType(String priceId) {
+        if (priceId == null || priceId.isBlank()) {
+            throw new RuntimeException("Unknown price ID: " + priceId);
+        }
+
+        if (priceId.equals(premiumMonthlyPriceId) || priceId.equals(premiumYearlyPriceId)) {
+            return UserTier.PREMIUM;
+        }
+
+        if (priceId.equals(enterprisePriceId)) {
+            return UserTier.ENTERPRISE;
+        }
+
+        logger.error("Unknown price ID: {}. Expected premium monthly: {}, premium yearly: {}, or enterprise: {}",
+                priceId, premiumMonthlyPriceId, premiumYearlyPriceId, enterprisePriceId);
+        throw new RuntimeException("Unknown price ID: " + priceId);
+    }
+
+    private LocalDateTime resolveSubscriptionEndDate(com.stripe.model.Subscription stripeSubscription) {
+        if (stripeSubscription.getCurrentPeriodEnd() != null) {
+            return LocalDateTime.ofInstant(
+                    Instant.ofEpochSecond(stripeSubscription.getCurrentPeriodEnd()),
+                    ZoneId.systemDefault()
+            );
+        }
+
+        String interval = stripeSubscription.getItems().getData().stream()
+                .findFirst()
+                .map(item -> item.getPrice())
+                .filter(price -> price.getRecurring() != null)
+                .map(price -> price.getRecurring().getInterval())
+                .orElse("month");
+
+        return "year".equalsIgnoreCase(interval)
+                ? LocalDateTime.now().plusYears(1)
+                : LocalDateTime.now().plusMonths(1);
+    }
     
     private static class PurchaseRequest {
         private UserTier planType;
@@ -458,13 +500,32 @@ public class SubscriptionController {
     
     private static class CreateCheckoutRequest {
         private UserTier planType;
+        private String billingInterval;
         public UserTier getPlanType() { return planType; }
         public void setPlanType(UserTier planType) { this.planType = planType; }
+        public String getBillingInterval() { return billingInterval; }
+        public void setBillingInterval(String billingInterval) { this.billingInterval = billingInterval; }
     }
     
     private static class CheckoutSessionResponse {
         private String url;
         public CheckoutSessionResponse(String url) { this.url = url; }
         public String getUrl() { return url; }
+    }
+
+    private enum BillingInterval {
+        MONTHLY,
+        YEARLY;
+
+        static BillingInterval fromNullable(String value) {
+            if (value == null || value.isBlank()) {
+                return MONTHLY;
+            }
+
+            return switch (value.trim().toUpperCase()) {
+                case "YEARLY", "ANNUAL", "ANNUALLY" -> YEARLY;
+                default -> MONTHLY;
+            };
+        }
     }
 }
