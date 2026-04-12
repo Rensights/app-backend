@@ -416,10 +416,41 @@ jobs:
           echo "🔍 Verifying deployed Stripe premium price ID source..."
           DEPLOYED_STRIPE_PRICE=$(kubectl get deployment backend -n ${DEV_NAMESPACE} -o json | jq -r '.spec.template.spec.containers[0].env[] | select(.name=="STRIPE_PREMIUM_PRICE_ID") | .valueFrom.secretKeyRef.key // empty')
           if [ "${DEPLOYED_STRIPE_PRICE}" != "stripe-premium-price-id" ]; then
-            echo "❌ Deployment is not sourcing STRIPE_PREMIUM_PRICE_ID from stripe-secrets"
-            echo "Actual env entry:"
+            echo "⚠️ Deployment is not sourcing STRIPE_PREMIUM_PRICE_ID from stripe-secrets"
+            echo "Actual env entry before fix:"
             kubectl get deployment backend -n ${DEV_NAMESPACE} -o json | jq '.spec.template.spec.containers[0].env[] | select(.name=="STRIPE_PREMIUM_PRICE_ID")'
-            exit 1
+            PATCHED_ENV=$(kubectl get deployment backend -n ${DEV_NAMESPACE} -o json | jq -c '
+              .spec.template.spec.containers[0].env
+              | map(select(.name != "STRIPE_PREMIUM_PRICE_ID" and .name != "STRIPE_ENTERPRISE_PRICE_ID"))
+              + [
+                {
+                  "name": "STRIPE_PREMIUM_PRICE_ID",
+                  "valueFrom": {
+                    "secretKeyRef": {
+                      "name": "stripe-secrets",
+                      "key": "stripe-premium-price-id"
+                    }
+                  }
+                },
+                {
+                  "name": "STRIPE_ENTERPRISE_PRICE_ID",
+                  "valueFrom": {
+                    "secretKeyRef": {
+                      "name": "stripe-secrets",
+                      "key": "stripe-enterprise-price-id"
+                    }
+                  }
+                }
+              ]')
+            kubectl patch deployment backend -n ${DEV_NAMESPACE} --type merge -p "$(jq -cn --argjson env "${PATCHED_ENV}" '{"spec":{"template":{"spec":{"containers":[{"name":"backend","env":$env}]}}}}')"
+            kubectl rollout status deployment backend -n ${DEV_NAMESPACE} --timeout=5m
+            DEPLOYED_STRIPE_PRICE=$(kubectl get deployment backend -n ${DEV_NAMESPACE} -o json | jq -r '.spec.template.spec.containers[0].env[] | select(.name=="STRIPE_PREMIUM_PRICE_ID") | .valueFrom.secretKeyRef.key // empty')
+            if [ "${DEPLOYED_STRIPE_PRICE}" != "stripe-premium-price-id" ]; then
+              echo "❌ Deployment is still not sourcing STRIPE_PREMIUM_PRICE_ID from stripe-secrets"
+              echo "Actual env entry after fix:"
+              kubectl get deployment backend -n ${DEV_NAMESPACE} -o json | jq '.spec.template.spec.containers[0].env[] | select(.name=="STRIPE_PREMIUM_PRICE_ID")'
+              exit 1
+            fi
           fi
 
   # Step 4: Deploy to Prod (requires approval)
@@ -576,8 +607,39 @@ jobs:
           echo "🔍 Verifying deployed Stripe premium price ID source..."
           DEPLOYED_STRIPE_PRICE=$(kubectl get deployment backend -n ${PROD_NAMESPACE} -o json | jq -r '.spec.template.spec.containers[0].env[] | select(.name=="STRIPE_PREMIUM_PRICE_ID") | .valueFrom.secretKeyRef.key // empty')
           if [ "${DEPLOYED_STRIPE_PRICE}" != "stripe-premium-price-id" ]; then
-            echo "❌ Deployment is not sourcing STRIPE_PREMIUM_PRICE_ID from stripe-secrets"
-            echo "Actual env entry:"
+            echo "⚠️ Deployment is not sourcing STRIPE_PREMIUM_PRICE_ID from stripe-secrets"
+            echo "Actual env entry before fix:"
             kubectl get deployment backend -n ${PROD_NAMESPACE} -o json | jq '.spec.template.spec.containers[0].env[] | select(.name=="STRIPE_PREMIUM_PRICE_ID")'
-            exit 1
+            PATCHED_ENV=$(kubectl get deployment backend -n ${PROD_NAMESPACE} -o json | jq -c '
+              .spec.template.spec.containers[0].env
+              | map(select(.name != "STRIPE_PREMIUM_PRICE_ID" and .name != "STRIPE_ENTERPRISE_PRICE_ID"))
+              + [
+                {
+                  "name": "STRIPE_PREMIUM_PRICE_ID",
+                  "valueFrom": {
+                    "secretKeyRef": {
+                      "name": "stripe-secrets",
+                      "key": "stripe-premium-price-id"
+                    }
+                  }
+                },
+                {
+                  "name": "STRIPE_ENTERPRISE_PRICE_ID",
+                  "valueFrom": {
+                    "secretKeyRef": {
+                      "name": "stripe-secrets",
+                      "key": "stripe-enterprise-price-id"
+                    }
+                  }
+                }
+              ]')
+            kubectl patch deployment backend -n ${PROD_NAMESPACE} --type merge -p "$(jq -cn --argjson env "${PATCHED_ENV}" '{"spec":{"template":{"spec":{"containers":[{"name":"backend","env":$env}]}}}}')"
+            kubectl rollout status deployment backend -n ${PROD_NAMESPACE} --timeout=5m
+            DEPLOYED_STRIPE_PRICE=$(kubectl get deployment backend -n ${PROD_NAMESPACE} -o json | jq -r '.spec.template.spec.containers[0].env[] | select(.name=="STRIPE_PREMIUM_PRICE_ID") | .valueFrom.secretKeyRef.key // empty')
+            if [ "${DEPLOYED_STRIPE_PRICE}" != "stripe-premium-price-id" ]; then
+              echo "❌ Deployment is still not sourcing STRIPE_PREMIUM_PRICE_ID from stripe-secrets"
+              echo "Actual env entry after fix:"
+              kubectl get deployment backend -n ${PROD_NAMESPACE} -o json | jq '.spec.template.spec.containers[0].env[] | select(.name=="STRIPE_PREMIUM_PRICE_ID")'
+              exit 1
+            fi
           fi
