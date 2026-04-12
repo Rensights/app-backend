@@ -419,35 +419,17 @@ jobs:
             echo "⚠️ Deployment is not sourcing STRIPE_PREMIUM_PRICE_ID from stripe-secrets"
             echo "Actual env entry before fix:"
             kubectl get deployment backend -n ${DEV_NAMESPACE} -o json | jq '.spec.template.spec.containers[0].env[] | select(.name=="STRIPE_PREMIUM_PRICE_ID")'
-            kubectl get deployment backend -n ${DEV_NAMESPACE} -o json | jq '
-              .spec.template.spec.containers[0].env =
-                (
-                  (.spec.template.spec.containers[0].env // [])
-                  | map(select(.name != "STRIPE_PREMIUM_PRICE_ID" and .name != "STRIPE_ENTERPRISE_PRICE_ID"))
-                  + [
-                    {
-                      "name": "STRIPE_PREMIUM_PRICE_ID",
-                      "valueFrom": {
-                        "secretKeyRef": {
-                          "name": "stripe-secrets",
-                          "key": "stripe-premium-price-id"
-                        }
-                      }
-                    },
-                    {
-                      "name": "STRIPE_ENTERPRISE_PRICE_ID",
-                      "valueFrom": {
-                        "secretKeyRef": {
-                          "name": "stripe-secrets",
-                          "key": "stripe-enterprise-price-id"
-                        }
-                      }
-                    }
-                  ]
-                )
-              | del(.status)
-              | del(.metadata.uid, .metadata.resourceVersion, .metadata.generation, .metadata.creationTimestamp, .metadata.managedFields)
-            ' | kubectl apply -f -
+            PREMIUM_INDEX=$(kubectl get deployment backend -n ${DEV_NAMESPACE} -o json | jq -r '.spec.template.spec.containers[0].env | to_entries[] | select(.value.name=="STRIPE_PREMIUM_PRICE_ID") | .key' | head -n 1)
+            ENTERPRISE_INDEX=$(kubectl get deployment backend -n ${DEV_NAMESPACE} -o json | jq -r '.spec.template.spec.containers[0].env | to_entries[] | select(.value.name=="STRIPE_ENTERPRISE_PRICE_ID") | .key' | head -n 1)
+            JSON_PATCH='[]'
+            for IDX in $(printf '%s\n' "${PREMIUM_INDEX}" "${ENTERPRISE_INDEX}" | awk 'NF' | sort -rn); do
+              JSON_PATCH=$(printf '%s' "${JSON_PATCH}" | jq --argjson idx "${IDX}" '. + [{"op":"remove","path":("/spec/template/spec/containers/0/env/" + ($idx|tostring))}]')
+            done
+            JSON_PATCH=$(printf '%s' "${JSON_PATCH}" | jq '. + [
+              {"op":"add","path":"/spec/template/spec/containers/0/env/-","value":{"name":"STRIPE_PREMIUM_PRICE_ID","valueFrom":{"secretKeyRef":{"name":"stripe-secrets","key":"stripe-premium-price-id"}}}},
+              {"op":"add","path":"/spec/template/spec/containers/0/env/-","value":{"name":"STRIPE_ENTERPRISE_PRICE_ID","valueFrom":{"secretKeyRef":{"name":"stripe-secrets","key":"stripe-enterprise-price-id"}}}}
+            ]')
+            kubectl patch deployment backend -n ${DEV_NAMESPACE} --type json -p "${JSON_PATCH}"
             kubectl rollout status deployment backend -n ${DEV_NAMESPACE} --timeout=5m
             DEPLOYED_STRIPE_PRICE=$(kubectl get deployment backend -n ${DEV_NAMESPACE} -o json | jq -r '.spec.template.spec.containers[0].env[] | select(.name=="STRIPE_PREMIUM_PRICE_ID") | .valueFrom.secretKeyRef.key // empty')
             if [ "${DEPLOYED_STRIPE_PRICE}" != "stripe-premium-price-id" ]; then
@@ -615,35 +597,17 @@ jobs:
             echo "⚠️ Deployment is not sourcing STRIPE_PREMIUM_PRICE_ID from stripe-secrets"
             echo "Actual env entry before fix:"
             kubectl get deployment backend -n ${PROD_NAMESPACE} -o json | jq '.spec.template.spec.containers[0].env[] | select(.name=="STRIPE_PREMIUM_PRICE_ID")'
-            kubectl get deployment backend -n ${PROD_NAMESPACE} -o json | jq '
-              .spec.template.spec.containers[0].env =
-                (
-                  (.spec.template.spec.containers[0].env // [])
-                  | map(select(.name != "STRIPE_PREMIUM_PRICE_ID" and .name != "STRIPE_ENTERPRISE_PRICE_ID"))
-                  + [
-                    {
-                      "name": "STRIPE_PREMIUM_PRICE_ID",
-                      "valueFrom": {
-                        "secretKeyRef": {
-                          "name": "stripe-secrets",
-                          "key": "stripe-premium-price-id"
-                        }
-                      }
-                    },
-                    {
-                      "name": "STRIPE_ENTERPRISE_PRICE_ID",
-                      "valueFrom": {
-                        "secretKeyRef": {
-                          "name": "stripe-secrets",
-                          "key": "stripe-enterprise-price-id"
-                        }
-                      }
-                    }
-                  ]
-                )
-              | del(.status)
-              | del(.metadata.uid, .metadata.resourceVersion, .metadata.generation, .metadata.creationTimestamp, .metadata.managedFields)
-            ' | kubectl apply -f -
+            PREMIUM_INDEX=$(kubectl get deployment backend -n ${PROD_NAMESPACE} -o json | jq -r '.spec.template.spec.containers[0].env | to_entries[] | select(.value.name=="STRIPE_PREMIUM_PRICE_ID") | .key' | head -n 1)
+            ENTERPRISE_INDEX=$(kubectl get deployment backend -n ${PROD_NAMESPACE} -o json | jq -r '.spec.template.spec.containers[0].env | to_entries[] | select(.value.name=="STRIPE_ENTERPRISE_PRICE_ID") | .key' | head -n 1)
+            JSON_PATCH='[]'
+            for IDX in $(printf '%s\n' "${PREMIUM_INDEX}" "${ENTERPRISE_INDEX}" | awk 'NF' | sort -rn); do
+              JSON_PATCH=$(printf '%s' "${JSON_PATCH}" | jq --argjson idx "${IDX}" '. + [{"op":"remove","path":("/spec/template/spec/containers/0/env/" + ($idx|tostring))}]')
+            done
+            JSON_PATCH=$(printf '%s' "${JSON_PATCH}" | jq '. + [
+              {"op":"add","path":"/spec/template/spec/containers/0/env/-","value":{"name":"STRIPE_PREMIUM_PRICE_ID","valueFrom":{"secretKeyRef":{"name":"stripe-secrets","key":"stripe-premium-price-id"}}}},
+              {"op":"add","path":"/spec/template/spec/containers/0/env/-","value":{"name":"STRIPE_ENTERPRISE_PRICE_ID","valueFrom":{"secretKeyRef":{"name":"stripe-secrets","key":"stripe-enterprise-price-id"}}}}
+            ]')
+            kubectl patch deployment backend -n ${PROD_NAMESPACE} --type json -p "${JSON_PATCH}"
             kubectl rollout status deployment backend -n ${PROD_NAMESPACE} --timeout=5m
             DEPLOYED_STRIPE_PRICE=$(kubectl get deployment backend -n ${PROD_NAMESPACE} -o json | jq -r '.spec.template.spec.containers[0].env[] | select(.name=="STRIPE_PREMIUM_PRICE_ID") | .valueFrom.secretKeyRef.key // empty')
             if [ "${DEPLOYED_STRIPE_PRICE}" != "stripe-premium-price-id" ]; then
