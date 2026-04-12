@@ -74,9 +74,6 @@ public class SubscriptionController {
             
             BillingInterval billingInterval = BillingInterval.fromNullable(request.getBillingInterval());
             String priceId = resolveCheckoutPriceId(request.getPlanType(), billingInterval);
-
-            logger.info("Creating Stripe checkout session for user {} plan {} interval {} with price ID {}",
-                    userId, request.getPlanType(), billingInterval, priceId);
             
             if (priceId == null) {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
