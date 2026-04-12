@@ -68,8 +68,7 @@ extraEnv:
   MICROSOFT_CLIENT_ID: "70a6e6ef-c980-47dc-89ea-70ebd47fd56d"
   MICROSOFT_FROM_EMAIL: "no-reply@rensights.com"
   # Stripe configuration (Test Mode)
-  STRIPE_PREMIUM_MONTHLY_PRICE_ID: "price_1T9smxCasMqex5349MH8aPuM"
-  STRIPE_PREMIUM_YEARLY_PRICE_ID: "price_1T9snfCasMqex534gGfOvKvi"
+  STRIPE_PREMIUM_PRICE_ID: "price_1SWcGHCasMqex534TMdpIqAA"
   # STRIPE_ENTERPRISE_PRICE_ID: ""  # Add when enterprise price is created
   # Frontend URL (for Stripe redirect URLs)
   APP_FRONTEND_URL: "http://dev.72.62.40.154.nip.io:31416"
