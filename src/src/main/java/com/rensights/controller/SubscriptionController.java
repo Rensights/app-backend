@@ -23,6 +23,9 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -33,6 +36,8 @@ public class SubscriptionController {
     private static final Logger logger = LoggerFactory.getLogger(SubscriptionController.class);
     private static final String CHECKOUT_TYPE_STANDARD = "standard";
     private static final String CHECKOUT_TYPE_UPSELL = "upsell";
+    private static final String BILLING_INTERVAL_MONTHLY = "monthly";
+    private static final String BILLING_INTERVAL_YEARLY = "yearly";
     
     @Autowired
     private SubscriptionService subscriptionService;
@@ -51,9 +56,15 @@ public class SubscriptionController {
     
     @Value("${stripe.premium-price-id:}")
     private String premiumPriceId;
+
+    @Value("${stripe.premium-yearly-price-id:}")
+    private String premiumYearlyPriceId;
     
     @Value("${stripe.enterprise-price-id:}")
     private String enterprisePriceId;
+
+    @Value("${stripe.enterprise-yearly-price-id:}")
+    private String enterpriseYearlyPriceId;
     
     @Value("${app.frontend-url:http://dev.72.62.40.154.nip.io:31416}")
     private String frontendUrl;
@@ -68,21 +79,19 @@ public class SubscriptionController {
             User user = userRepository.findById(userId)
                     .orElseThrow(() -> new RuntimeException("User not found"));
             String checkoutType = normalizeCheckoutType(request.getCheckoutType());
+            String billingInterval = normalizeBillingInterval(request.getBillingInterval());
             Subscription existingSubscription = subscriptionService.getCurrentSubscription(userId);
 
             logger.info(
-                    "Starting subscription checkout for user {} plan {} checkoutType {} activeSubscription {}",
+                    "Starting subscription checkout for user {} plan {} checkoutType {} billingInterval {} activeSubscription {}",
                     userId,
                     request.getPlanType(),
                     checkoutType,
+                    billingInterval,
                     existingSubscription != null ? existingSubscription.getId() : "none"
             );
             
-            // Optimized: Use Map for O(1) lookup instead of switch statement
-            String priceId = java.util.Map.of(
-                    UserTier.PREMIUM, premiumPriceId,
-                    UserTier.ENTERPRISE, enterprisePriceId
-            ).get(request.getPlanType());
+            String priceId = resolveCheckoutPriceId(request.getPlanType(), billingInterval);
             
             if (priceId == null) {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
@@ -139,15 +148,17 @@ public class SubscriptionController {
                     successUrl,
                     cancelUrl,
                     user.getCustomerId() != null ? user.getCustomerId() : "UNKNOWN",
-                    checkoutType
+                    checkoutType,
+                    billingInterval
             );
 
             logger.info(
-                    "Created subscription checkout session {} for user {} plan {} checkoutType {} stripeCustomer {}",
+                    "Created subscription checkout session {} for user {} plan {} checkoutType {} billingInterval {} stripeCustomer {}",
                     session.getId(),
                     userId,
                     request.getPlanType(),
                     checkoutType,
+                    billingInterval,
                     customerId
             );
             
@@ -179,10 +190,11 @@ public class SubscriptionController {
             Session session = Session.retrieve(sessionId);
             logger.info("Retrieved session status: {}", session.getStatus());
             logger.info(
-                    "Checkout session {} metadata customerId {} checkoutType {}",
+                    "Checkout session {} metadata customerId {} checkoutType {} billingInterval {}",
                     sessionId,
                     session.getMetadata() != null ? session.getMetadata().get("customer_id") : null,
-                    session.getMetadata() != null ? session.getMetadata().get("checkout_type") : null
+                    session.getMetadata() != null ? session.getMetadata().get("checkout_type") : null,
+                    session.getMetadata() != null ? session.getMetadata().get("billing_interval") : null
             );
             
             if (!"complete".equals(session.getStatus())) {
@@ -211,17 +223,7 @@ public class SubscriptionController {
             logger.info("Price ID from Stripe: {}", priceId);
             
             // Optimized: Use stream with filter for O(1) lookup pattern
-            UserTier planType = java.util.stream.Stream.of(
-                    java.util.Map.entry(premiumPriceId, UserTier.PREMIUM),
-                    java.util.Map.entry(enterprisePriceId, UserTier.ENTERPRISE)
-            )
-            .filter(entry -> entry.getKey() != null && entry.getKey().equals(priceId))
-            .map(java.util.Map.Entry::getValue)
-            .findFirst()
-            .orElseThrow(() -> {
-                logger.error("Unknown price ID: {}. Expected premium: {} or enterprise: {}", priceId, premiumPriceId, enterprisePriceId);
-                return new RuntimeException("Unknown price ID: " + priceId);
-            });
+            UserTier planType = resolvePlanTypeFromPriceId(priceId);
             
             logger.info("Plan type determined: {}", planType);
             
@@ -249,7 +251,7 @@ public class SubscriptionController {
                     .planType(planType)
                     .status(SubscriptionStatus.ACTIVE)
                     .startDate(java.time.LocalDateTime.now())
-                    .endDate(java.time.LocalDateTime.now().plusMonths(1))
+                    .endDate(resolveSubscriptionEndDate(stripeSubscription))
                     .stripeCustomerId(stripeCustomerId)
                     .stripeSubscriptionId(stripeSubscriptionId)
                     .build();
@@ -473,6 +475,63 @@ public class SubscriptionController {
 
         return CHECKOUT_TYPE_STANDARD;
     }
+
+    private String normalizeBillingInterval(String billingInterval) {
+        if (billingInterval == null || billingInterval.isBlank()) {
+            return BILLING_INTERVAL_MONTHLY;
+        }
+
+        String normalized = billingInterval.trim().toLowerCase();
+        if (BILLING_INTERVAL_YEARLY.equals(normalized)) {
+            return BILLING_INTERVAL_YEARLY;
+        }
+
+        return BILLING_INTERVAL_MONTHLY;
+    }
+
+    private String resolveCheckoutPriceId(UserTier planType, String billingInterval) {
+        if (planType == null) {
+            return null;
+        }
+
+        return switch (planType) {
+            case PREMIUM -> BILLING_INTERVAL_YEARLY.equals(billingInterval) ? premiumYearlyPriceId : premiumPriceId;
+            case ENTERPRISE -> BILLING_INTERVAL_YEARLY.equals(billingInterval) ? enterpriseYearlyPriceId : enterprisePriceId;
+            default -> null;
+        };
+    }
+
+    private UserTier resolvePlanTypeFromPriceId(String priceId) {
+        return java.util.stream.Stream.of(
+                java.util.Map.entry(premiumPriceId, UserTier.PREMIUM),
+                java.util.Map.entry(premiumYearlyPriceId, UserTier.PREMIUM),
+                java.util.Map.entry(enterprisePriceId, UserTier.ENTERPRISE),
+                java.util.Map.entry(enterpriseYearlyPriceId, UserTier.ENTERPRISE)
+        )
+        .filter(entry -> entry.getKey() != null && !entry.getKey().isBlank() && entry.getKey().equals(priceId))
+        .map(java.util.Map.Entry::getValue)
+        .findFirst()
+        .orElseThrow(() -> {
+            logger.error(
+                    "Unknown price ID: {}. Expected premium monthly: {}, premium yearly: {}, enterprise monthly: {}, enterprise yearly: {}",
+                    priceId,
+                    premiumPriceId,
+                    premiumYearlyPriceId,
+                    enterprisePriceId,
+                    enterpriseYearlyPriceId
+            );
+            return new RuntimeException("Unknown price ID: " + priceId);
+        });
+    }
+
+    private LocalDateTime resolveSubscriptionEndDate(com.stripe.model.Subscription stripeSubscription) {
+        Long currentPeriodEnd = stripeSubscription.getCurrentPeriodEnd();
+        if (currentPeriodEnd == null) {
+            return LocalDateTime.now().plusMonths(1);
+        }
+
+        return LocalDateTime.ofInstant(Instant.ofEpochSecond(currentPeriodEnd), ZoneOffset.UTC);
+    }
     
     private static class PurchaseRequest {
         private UserTier planType;
@@ -500,10 +559,13 @@ public class SubscriptionController {
     private static class CreateCheckoutRequest {
         private UserTier planType;
         private String checkoutType;
+        private String billingInterval;
         public UserTier getPlanType() { return planType; }
         public void setPlanType(UserTier planType) { this.planType = planType; }
         public String getCheckoutType() { return checkoutType; }
         public void setCheckoutType(String checkoutType) { this.checkoutType = checkoutType; }
+        public String getBillingInterval() { return billingInterval; }
+        public void setBillingInterval(String billingInterval) { this.billingInterval = billingInterval; }
     }
     
     private static class CheckoutSessionResponse {
