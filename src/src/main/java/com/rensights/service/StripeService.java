@@ -167,7 +167,7 @@ public class StripeService {
      * - Ensure "Successful payments" is enabled in Stripe Dashboard → Settings → Emails
      * We also send our own confirmation email via webhook as backup
      */
-    public Session createCheckoutSession(String stripeCustomerId, String priceId, String successUrl, String cancelUrl, String customerId) throws StripeException {
+    public Session createCheckoutSession(String stripeCustomerId, String priceId, String successUrl, String cancelUrl, String customerId, String checkoutType) throws StripeException {
         // Retrieve customer to ensure email is set (required for receipts)
         Customer customer = Customer.retrieve(stripeCustomerId);
         String customerEmail = customer.getEmail();
@@ -189,13 +189,14 @@ public class StripeService {
                 .setSuccessUrl(successUrl)
                 .setCancelUrl(cancelUrl)
                 .putMetadata("customer_id", customerId) // Pass our internal customer ID as metadata
+                .putMetadata("checkout_type", checkoutType)
                 // Note: Stripe automatically sends receipts for Checkout Sessions when payment succeeds
                 // This is controlled by Dashboard settings: Settings → Emails → "Successful payments"
                 .build();
         
         Session session = Session.create(params);
-        logger.info("Created Stripe Checkout Session: {} for customer: {} (internal ID: {})", 
-                   session.getId(), stripeCustomerId, customerId);
+        logger.info("Created Stripe Checkout Session: {} for customer: {} (internal ID: {}, checkoutType: {})", 
+                   session.getId(), stripeCustomerId, customerId, checkoutType);
         logger.info("Stripe will automatically send receipt to: {} (if enabled in Dashboard → Settings → Emails)", 
                    customerEmail != null ? customerEmail : "customer email");
         return session;

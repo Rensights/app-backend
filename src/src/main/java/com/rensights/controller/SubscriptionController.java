@@ -31,6 +31,8 @@ import java.util.stream.Collectors;
 public class SubscriptionController {
     
     private static final Logger logger = LoggerFactory.getLogger(SubscriptionController.class);
+    private static final String CHECKOUT_TYPE_STANDARD = "standard";
+    private static final String CHECKOUT_TYPE_UPSELL = "upsell";
     
     @Autowired
     private SubscriptionService subscriptionService;
@@ -65,6 +67,16 @@ public class SubscriptionController {
             UUID userId = getCurrentUserId();
             User user = userRepository.findById(userId)
                     .orElseThrow(() -> new RuntimeException("User not found"));
+            String checkoutType = normalizeCheckoutType(request.getCheckoutType());
+            Subscription existingSubscription = subscriptionService.getCurrentSubscription(userId);
+
+            logger.info(
+                    "Starting subscription checkout for user {} plan {} checkoutType {} activeSubscription {}",
+                    userId,
+                    request.getPlanType(),
+                    checkoutType,
+                    existingSubscription != null ? existingSubscription.getId() : "none"
+            );
             
             // Optimized: Use Map for O(1) lookup instead of switch statement
             String priceId = java.util.Map.of(
@@ -126,7 +138,17 @@ public class SubscriptionController {
                     priceId,
                     successUrl,
                     cancelUrl,
-                    user.getCustomerId() != null ? user.getCustomerId() : "UNKNOWN"
+                    user.getCustomerId() != null ? user.getCustomerId() : "UNKNOWN",
+                    checkoutType
+            );
+
+            logger.info(
+                    "Created subscription checkout session {} for user {} plan {} checkoutType {} stripeCustomer {}",
+                    session.getId(),
+                    userId,
+                    request.getPlanType(),
+                    checkoutType,
+                    customerId
             );
             
             return ResponseEntity.ok(new CheckoutSessionResponse(session.getUrl()));
@@ -156,6 +178,12 @@ public class SubscriptionController {
             // Retrieve the checkout session from Stripe
             Session session = Session.retrieve(sessionId);
             logger.info("Retrieved session status: {}", session.getStatus());
+            logger.info(
+                    "Checkout session {} metadata customerId {} checkoutType {}",
+                    sessionId,
+                    session.getMetadata() != null ? session.getMetadata().get("customer_id") : null,
+                    session.getMetadata() != null ? session.getMetadata().get("checkout_type") : null
+            );
             
             if (!"complete".equals(session.getStatus())) {
                 logger.warn("Session not complete. Status: {}", session.getStatus());
@@ -432,6 +460,19 @@ public class SubscriptionController {
                 .createdAt(subscription.getCreatedAt())
                 .build();
     }
+
+    private String normalizeCheckoutType(String checkoutType) {
+        if (checkoutType == null || checkoutType.isBlank()) {
+            return CHECKOUT_TYPE_STANDARD;
+        }
+
+        String normalized = checkoutType.trim().toLowerCase();
+        if (CHECKOUT_TYPE_UPSELL.equals(normalized)) {
+            return CHECKOUT_TYPE_UPSELL;
+        }
+
+        return CHECKOUT_TYPE_STANDARD;
+    }
     
     private static class PurchaseRequest {
         private UserTier planType;
@@ -458,8 +499,11 @@ public class SubscriptionController {
     
     private static class CreateCheckoutRequest {
         private UserTier planType;
+        private String checkoutType;
         public UserTier getPlanType() { return planType; }
         public void setPlanType(UserTier planType) { this.planType = planType; }
+        public String getCheckoutType() { return checkoutType; }
+        public void setCheckoutType(String checkoutType) { this.checkoutType = checkoutType; }
     }
     
     private static class CheckoutSessionResponse {
