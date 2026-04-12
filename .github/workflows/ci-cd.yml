@@ -414,9 +414,11 @@ jobs:
           
           echo ""
           echo "🔍 Verifying deployed Stripe premium price ID source..."
-          DEPLOYED_STRIPE_PRICE=$(kubectl get deployment backend -n ${DEV_NAMESPACE} -o jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="STRIPE_PREMIUM_PRICE_ID")].valueFrom.secretKeyRef.key}')
+          DEPLOYED_STRIPE_PRICE=$(kubectl get deployment backend -n ${DEV_NAMESPACE} -o json | jq -r '.spec.template.spec.containers[0].env[] | select(.name=="STRIPE_PREMIUM_PRICE_ID") | .valueFrom.secretKeyRef.key // empty')
           if [ "${DEPLOYED_STRIPE_PRICE}" != "stripe-premium-price-id" ]; then
             echo "❌ Deployment is not sourcing STRIPE_PREMIUM_PRICE_ID from stripe-secrets"
+            echo "Actual env entry:"
+            kubectl get deployment backend -n ${DEV_NAMESPACE} -o json | jq '.spec.template.spec.containers[0].env[] | select(.name=="STRIPE_PREMIUM_PRICE_ID")'
             exit 1
           fi
 
@@ -572,8 +574,10 @@ jobs:
           
           echo ""
           echo "🔍 Verifying deployed Stripe premium price ID source..."
-          DEPLOYED_STRIPE_PRICE=$(kubectl get deployment backend -n ${PROD_NAMESPACE} -o jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="STRIPE_PREMIUM_PRICE_ID")].valueFrom.secretKeyRef.key}')
+          DEPLOYED_STRIPE_PRICE=$(kubectl get deployment backend -n ${PROD_NAMESPACE} -o json | jq -r '.spec.template.spec.containers[0].env[] | select(.name=="STRIPE_PREMIUM_PRICE_ID") | .valueFrom.secretKeyRef.key // empty')
           if [ "${DEPLOYED_STRIPE_PRICE}" != "stripe-premium-price-id" ]; then
             echo "❌ Deployment is not sourcing STRIPE_PREMIUM_PRICE_ID from stripe-secrets"
+            echo "Actual env entry:"
+            kubectl get deployment backend -n ${PROD_NAMESPACE} -o json | jq '.spec.template.spec.containers[0].env[] | select(.name=="STRIPE_PREMIUM_PRICE_ID")'
             exit 1
           fi
