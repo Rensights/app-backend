@@ -303,6 +303,15 @@ jobs:
             --namespace ${DEV_NAMESPACE} \
             --dry-run=client -o yaml | kubectl apply -f -
 
+      - name: Sync stripe price IDs into secret for dev
+        run: |
+          export KUBECONFIG=/tmp/kubeconfig
+          STRIPE_PREMIUM_PRICE_ID=$(grep -E '^[[:space:]]*STRIPE_PREMIUM_PRICE_ID:' env-values/dev/backend.yaml | head -n 1 | sed -E 's/^[^:]+:[[:space:]]*"?([^"]*)"?/\1/')
+          STRIPE_ENTERPRISE_PRICE_ID=$(grep -E '^[[:space:]]*STRIPE_ENTERPRISE_PRICE_ID:' env-values/dev/backend.yaml | head -n 1 | sed -E 's/^[^:]+:[[:space:]]*"?([^"]*)"?/\1/' || true)
+          echo "Updating stripe-secrets price keys in ${DEV_NAMESPACE}"
+          kubectl get secret stripe-secrets -n ${DEV_NAMESPACE} >/dev/null
+          kubectl patch secret stripe-secrets -n ${DEV_NAMESPACE} --type merge -p "{\"stringData\":{\"stripe-premium-price-id\":\"${STRIPE_PREMIUM_PRICE_ID}\",\"stripe-enterprise-price-id\":\"${STRIPE_ENTERPRISE_PRICE_ID}\"}}"
+
       - name: Deploy backend to dev
         run: |
           export KUBECONFIG=/tmp/kubeconfig
@@ -402,6 +411,14 @@ jobs:
           echo ""
           echo "📋 Final pod details:"
           kubectl get pods -n ${DEV_NAMESPACE} -l app.kubernetes.io/name=backend -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.spec.containers[0].image}{"\t"}{.status.phase}{"\n"}{end}'
+          
+          echo ""
+          echo "🔍 Verifying deployed Stripe premium price ID source..."
+          DEPLOYED_STRIPE_PRICE=$(kubectl get deployment backend -n ${DEV_NAMESPACE} -o jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="STRIPE_PREMIUM_PRICE_ID")].valueFrom.secretKeyRef.key}')
+          if [ "${DEPLOYED_STRIPE_PRICE}" != "stripe-premium-price-id" ]; then
+            echo "❌ Deployment is not sourcing STRIPE_PREMIUM_PRICE_ID from stripe-secrets"
+            exit 1
+          fi
 
   # Step 4: Deploy to Prod (requires approval)
   deploy-prod:
@@ -519,6 +536,15 @@ jobs:
             --namespace ${PROD_NAMESPACE} \
             --dry-run=client -o yaml | kubectl apply -f -
 
+      - name: Sync stripe price IDs into secret for prod
+        run: |
+          export KUBECONFIG=/tmp/kubeconfig
+          STRIPE_PREMIUM_PRICE_ID=$(grep -E '^[[:space:]]*STRIPE_PREMIUM_PRICE_ID:' env-values/prod/backend.yaml | head -n 1 | sed -E 's/^[^:]+:[[:space:]]*"?([^"]*)"?/\1/' || true)
+          STRIPE_ENTERPRISE_PRICE_ID=$(grep -E '^[[:space:]]*STRIPE_ENTERPRISE_PRICE_ID:' env-values/prod/backend.yaml | head -n 1 | sed -E 's/^[^:]+:[[:space:]]*"?([^"]*)"?/\1/' || true)
+          echo "Updating stripe-secrets price keys in ${PROD_NAMESPACE}"
+          kubectl get secret stripe-secrets -n ${PROD_NAMESPACE} >/dev/null
+          kubectl patch secret stripe-secrets -n ${PROD_NAMESPACE} --type merge -p "{\"stringData\":{\"stripe-premium-price-id\":\"${STRIPE_PREMIUM_PRICE_ID}\",\"stripe-enterprise-price-id\":\"${STRIPE_ENTERPRISE_PRICE_ID}\"}}"
+
       - name: Deploy backend to prod
         run: |
           export KUBECONFIG=/tmp/kubeconfig
@@ -543,3 +569,11 @@ jobs:
           echo "✅ Production Deployment Status:"
           kubectl get pods -n ${PROD_NAMESPACE} -l app.kubernetes.io/name=backend
           kubectl get svc -n ${PROD_NAMESPACE} -l app.kubernetes.io/name=backend
+          
+          echo ""
+          echo "🔍 Verifying deployed Stripe premium price ID source..."
+          DEPLOYED_STRIPE_PRICE=$(kubectl get deployment backend -n ${PROD_NAMESPACE} -o jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="STRIPE_PREMIUM_PRICE_ID")].valueFrom.secretKeyRef.key}')
+          if [ "${DEPLOYED_STRIPE_PRICE}" != "stripe-premium-price-id" ]; then
+            echo "❌ Deployment is not sourcing STRIPE_PREMIUM_PRICE_ID from stripe-secrets"
+            exit 1
+          fi
