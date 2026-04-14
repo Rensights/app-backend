@@ -167,7 +167,16 @@ public class StripeService {
      * - Ensure "Successful payments" is enabled in Stripe Dashboard → Settings → Emails
      * We also send our own confirmation email via webhook as backup
      */
-    public Session createCheckoutSession(String stripeCustomerId, String priceId, String successUrl, String cancelUrl, String customerId, String checkoutType, String billingInterval) throws StripeException {
+    public Session createCheckoutSession(
+            String stripeCustomerId,
+            String priceId,
+            String successUrl,
+            String cancelUrl,
+            String customerId,
+            String checkoutType,
+            String billingInterval,
+            String planType
+    ) throws StripeException {
         // Retrieve customer to ensure email is set (required for receipts)
         Customer customer = Customer.retrieve(stripeCustomerId);
         String customerEmail = customer.getEmail();
@@ -191,6 +200,9 @@ public class StripeService {
                 .putMetadata("customer_id", customerId) // Pass our internal customer ID as metadata
                 .putMetadata("checkout_type", checkoutType)
                 .putMetadata("billing_interval", billingInterval)
+                // Make post-checkout tier resolution independent from env-configured price-id wiring.
+                .putMetadata("plan_type", planType)
+                .putMetadata("price_id", priceId)
                 // Note: Stripe automatically sends receipts for Checkout Sessions when payment succeeds
                 // This is controlled by Dashboard settings: Settings → Emails → "Successful payments"
                 .build();

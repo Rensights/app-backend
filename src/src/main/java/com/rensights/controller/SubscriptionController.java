@@ -149,7 +149,8 @@ public class SubscriptionController {
                     cancelUrl,
                     user.getCustomerId() != null ? user.getCustomerId() : "UNKNOWN",
                     checkoutType,
-                    billingInterval
+                    billingInterval,
+                    request.getPlanType() != null ? request.getPlanType().name() : ""
             );
 
             logger.info(
@@ -222,8 +223,8 @@ public class SubscriptionController {
             
             logger.info("Price ID from Stripe: {}", priceId);
             
-            // Optimized: Use stream with filter for O(1) lookup pattern
-            UserTier planType = resolvePlanTypeFromPriceId(priceId);
+            // Prefer plan type from checkout session metadata; it is immune to miswired env price IDs.
+            UserTier planType = resolvePlanTypeFromCheckoutSession(session, priceId);
             
             logger.info("Plan type determined: {}", planType);
             
@@ -542,6 +543,22 @@ public class SubscriptionController {
             );
             return new RuntimeException("Unknown price ID: " + priceId);
         });
+    }
+
+    private UserTier resolvePlanTypeFromCheckoutSession(Session session, String priceId) {
+        try {
+            if (session != null && session.getMetadata() != null) {
+                String metadataPlanType = session.getMetadata().get("plan_type");
+                if (metadataPlanType != null && !metadataPlanType.isBlank()) {
+                    return UserTier.valueOf(metadataPlanType.trim().toUpperCase());
+                }
+            }
+        } catch (Exception e) {
+            logger.warn("Failed to resolve plan_type from checkout session metadata: {}", e.getMessage());
+        }
+
+        // Backward compatibility for older sessions without metadata.
+        return resolvePlanTypeFromPriceId(priceId);
     }
 
     private LocalDateTime resolveSubscriptionEndDate(com.stripe.model.Subscription stripeSubscription) {
