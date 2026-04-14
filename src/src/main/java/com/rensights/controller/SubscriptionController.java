@@ -495,10 +495,30 @@ public class SubscriptionController {
         }
 
         return switch (planType) {
-            case PREMIUM -> BILLING_INTERVAL_YEARLY.equals(billingInterval) ? premiumYearlyPriceId : premiumPriceId;
-            case ENTERPRISE -> BILLING_INTERVAL_YEARLY.equals(billingInterval) ? enterpriseYearlyPriceId : enterprisePriceId;
+            case PREMIUM -> BILLING_INTERVAL_YEARLY.equals(billingInterval)
+                    ? coalesceConfiguredPriceId(premiumYearlyPriceId, premiumPriceId, "premium-yearly")
+                    : premiumPriceId;
+            case ENTERPRISE -> BILLING_INTERVAL_YEARLY.equals(billingInterval)
+                    ? coalesceConfiguredPriceId(enterpriseYearlyPriceId, enterprisePriceId, "enterprise-yearly")
+                    : enterprisePriceId;
             default -> null;
         };
+    }
+
+    /**
+     * Stripe price IDs come from env/secret config. In practice it's easy to miss wiring up the
+     * yearly price ID while monthly is present. Falling back avoids returning null and breaking
+     * the post-checkout flow; logs make the misconfiguration visible.
+     */
+    private String coalesceConfiguredPriceId(String primary, String fallback, String label) {
+        if (primary != null && !primary.isBlank()) {
+            return primary;
+        }
+        if (fallback != null && !fallback.isBlank()) {
+            logger.warn("Stripe price id for {} is not configured; falling back to monthly price id.", label);
+            return fallback;
+        }
+        return primary; // null/blank; caller will handle as "not configured"
     }
 
     private UserTier resolvePlanTypeFromPriceId(String priceId) {

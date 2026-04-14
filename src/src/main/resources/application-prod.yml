@@ -47,6 +47,15 @@ jwt:
 cors:
   allowed-origins: ${CORS_ORIGINS}
 
+stripe:
+  secret-key: ${STRIPE_SECRET_KEY:}
+  publishable-key: ${STRIPE_PUBLISHABLE_KEY:}
+  premium-price-id: ${STRIPE_PREMIUM_PRICE_ID:}
+  premium-yearly-price-id: ${STRIPE_PREMIUM_YEARLY_PRICE_ID:}
+  enterprise-price-id: ${STRIPE_ENTERPRISE_PRICE_ID:}
+  enterprise-yearly-price-id: ${STRIPE_ENTERPRISE_YEARLY_PRICE_ID:}
+  webhook-secret: ${STRIPE_WEBHOOK_SECRET:}
+
 logging:
   level:
     com.rensights: INFO
