@@ -191,6 +191,8 @@ public class StripeService {
         SessionCreateParams params = SessionCreateParams.builder()
                 .setCustomer(stripeCustomerId)
                 .setMode(SessionCreateParams.Mode.SUBSCRIPTION)
+                // Show "Add promotion code" field on Stripe-hosted Checkout (if you have active promotion codes).
+                .setAllowPromotionCodes(true)
                 .addLineItem(SessionCreateParams.LineItem.builder()
                         .setPrice(priceId)
                         .setQuantity(1L)
