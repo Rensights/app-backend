@@ -31,7 +31,8 @@ resources:
 
 networkPolicy:
   enabled: true
-  allowIngress: true  # Allow Kong to reach backend
+  allowIngress: true
+  allowTraefikIngress: true # rensights.com /api via Traefik (kube-system), not only Kong
 
 ingress:
   enabled: true

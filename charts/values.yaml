@@ -118,3 +118,5 @@ networkPolicy:
   enabled: true
   databasePort: 5432
   allowIngress: false
+  # Traefik runs in kube-system; required for rensights.com /api when default-deny is in namespace.
+  allowTraefikIngress: false
