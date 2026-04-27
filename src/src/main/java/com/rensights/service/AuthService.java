@@ -56,11 +56,11 @@ public class AuthService {
     @Transactional
     public AuthResponse register(RegisterRequest request, String deviceFingerprint, jakarta.servlet.http.HttpServletRequest httpRequest) {
         // SECURITY FIX: Check if email exists but don't reveal this to prevent user enumeration
-        if (userRepository.existsByEmail(request.getEmail())) {
+        if (userRepository.existsByEmailIgnoreCase(request.getEmail())) {
             // Don't throw - just return null to indicate verification required (which will send code)
             // This prevents revealing that email already exists
             logger.warn("Registration attempted for existing email: {} - treating as verification request", request.getEmail());
-            userRepository.findByEmail(request.getEmail()).ifPresent(existing -> {
+            userRepository.findByEmailIgnoreCase(request.getEmail()).ifPresent(existing -> {
                 if (Boolean.TRUE.equals(existing.getEmailVerified())) {
                     throw new EmailAlreadyRegisteredException("Email already registered");
                 }
@@ -182,10 +182,10 @@ public class AuthService {
      */
     @Transactional
     public AuthResponse verifyEmailAndLogin(String email, String code, String deviceFingerprint, jakarta.servlet.http.HttpServletRequest httpRequest) {
-        User user = userRepository.findByEmail(email)
+        User user = userRepository.findByEmailIgnoreCase(email)
                 .orElseThrow(() -> new RuntimeException("User not found"));
         
-        if (!verificationCodeService.verifyCode(email, code)) {
+        if (!verificationCodeService.verifyCode(user.getEmail(), code)) {
             throw new RuntimeException("Invalid or expired verification code");
         }
         
@@ -215,11 +215,12 @@ public class AuthService {
      * Optimized: Reduced database queries and improved flow
      */
     public LoginResponse login(LoginRequest request, String deviceFingerprint, jakarta.servlet.http.HttpServletRequest httpRequest) {
-        User user = userRepository.findByEmail(request.getEmail())
+        User user = userRepository.findByEmailIgnoreCase(request.getEmail())
                 .orElseThrow(() -> new RuntimeException("Invalid email or password"));
         
+        String rawPassword = request.getPassword() == null ? "" : request.getPassword().strip();
         // Optimized: Validate password early to fail fast (before any other operations)
-        if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
+        if (!passwordEncoder.matches(rawPassword, user.getPasswordHash())) {
             throw new RuntimeException("Invalid email or password");
         }
         
@@ -317,10 +318,10 @@ public class AuthService {
      */
     @Transactional
     public AuthResponse verifyDeviceAndLogin(String email, String code, String deviceFingerprint, jakarta.servlet.http.HttpServletRequest httpRequest) {
-        User user = userRepository.findByEmail(email)
+        User user = userRepository.findByEmailIgnoreCase(email)
                 .orElseThrow(() -> new RuntimeException("User not found"));
         
-        if (!verificationCodeService.verifyCode(email, code)) {
+        if (!verificationCodeService.verifyCode(user.getEmail(), code)) {
             throw new RuntimeException("Invalid or expired verification code");
         }
         
@@ -344,7 +345,7 @@ public class AuthService {
         // Always succeed silently to prevent user enumeration
         // If user doesn't exist, password reset code generation will just fail silently
         // This prevents attackers from discovering which emails are registered
-        if (!userRepository.existsByEmail(email)) {
+        if (!userRepository.existsByEmailIgnoreCase(email)) {
             // Don't throw - just log and return (prevents user enumeration)
             logger.warn("Password reset requested for non-existent email: {}", email);
             return;
@@ -357,7 +358,7 @@ public class AuthService {
      */
     @Transactional
     public boolean requestPasswordReset(String email) {
-        User user = userRepository.findByEmail(email).orElse(null);
+        User user = userRepository.findByEmailIgnoreCase(email).orElse(null);
         
         if (user == null) {
             // User doesn't exist - return false so frontend can inform user
@@ -371,8 +372,8 @@ public class AuthService {
             return false;
         }
         
-        // Generate reset code using verification code service
-        String code = verificationCodeService.generateCode("reset:" + email);
+        // Generate reset code using verification code service (key must match row email for verify/reset)
+        String code = verificationCodeService.generateCode("reset:" + user.getEmail());
         emailService.sendPasswordResetCode(email, code);
         logger.info("Password reset code sent to: {}", email);
         return true;
@@ -386,7 +387,9 @@ public class AuthService {
     public boolean verifyResetCode(String email, String code) {
         // Use a non-consuming verification that doesn't remove the code
         // The code will be removed when resetPassword() is called
-        return verificationCodeService.verifyCodeWithoutConsuming("reset:" + email, code);
+        return userRepository.findByEmailIgnoreCase(email)
+                .map(u -> verificationCodeService.verifyCodeWithoutConsuming("reset:" + u.getEmail(), code))
+                .orElse(false);
     }
     
     /**
@@ -394,7 +397,7 @@ public class AuthService {
      */
     @Transactional
     public void resetPassword(String email, String code, String newPassword) {
-        User user = userRepository.findByEmail(email)
+        User user = userRepository.findByEmailIgnoreCase(email)
                 .orElseThrow(() -> new RuntimeException("User not found"));
         
         if (!user.getIsActive()) {
@@ -402,7 +405,7 @@ public class AuthService {
         }
         
         // Verify the reset code
-        if (!verificationCodeService.verifyCode("reset:" + email, code)) {
+        if (!verificationCodeService.verifyCode("reset:" + user.getEmail(), code)) {
             throw new RuntimeException("Invalid or expired reset code");
         }
         
