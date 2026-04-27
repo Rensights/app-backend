@@ -105,21 +105,11 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.secrets.stripeSecrets }}
                   key: stripe-premium-price-id
-            - name: STRIPE_ENTERPRISE_PRICE_ID
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.secrets.stripeSecrets }}
-                  key: stripe-enterprise-price-id
             - name: STRIPE_PREMIUM_YEARLY_PRICE_ID
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.secrets.stripeSecrets }}
                   key: stripe-premium-yearly-price-id
-            - name: STRIPE_ENTERPRISE_YEARLY_PRICE_ID
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.secrets.stripeSecrets }}
-                  key: stripe-enterprise-yearly-price-id
             - name: MICROSOFT_TENANT_ID
               valueFrom:
                 secretKeyRef:
@@ -141,7 +131,7 @@ spec:
               value: {{ .Values.reports.storage.path | quote }}
             {{- if .Values.extraEnv }}
             {{- range $key, $value := .Values.extraEnv }}
-            {{- if and $value (not (eq $key "SPRING_PROFILES_ACTIVE")) (not (eq $key "SERVER_PORT")) (not (eq $key "CORS_ORIGINS")) (not (eq $key "APP_MAIN_BACKEND_URL")) (not (eq $key "REPORTS_STORAGE_PATH")) (not (eq $key "STRIPE_PREMIUM_PRICE_ID")) (not (eq $key "STRIPE_ENTERPRISE_PRICE_ID")) (not (eq $key "STRIPE_PREMIUM_YEARLY_PRICE_ID")) (not (eq $key "STRIPE_ENTERPRISE_YEARLY_PRICE_ID")) }}
+            {{- if and $value (not (eq $key "SPRING_PROFILES_ACTIVE")) (not (eq $key "SERVER_PORT")) (not (eq $key "CORS_ORIGINS")) (not (eq $key "APP_MAIN_BACKEND_URL")) (not (eq $key "REPORTS_STORAGE_PATH")) (not (eq $key "STRIPE_PREMIUM_PRICE_ID")) (not (eq $key "STRIPE_PREMIUM_YEARLY_PRICE_ID")) }}
             - name: {{ $key }}
               value: {{ $value | quote }}
             {{- end }}

@@ -307,12 +307,10 @@ jobs:
         run: |
           export KUBECONFIG=/tmp/kubeconfig
           STRIPE_PREMIUM_PRICE_ID=$(grep -E '^[[:space:]]*STRIPE_PREMIUM_PRICE_ID:' env-values/dev/backend.yaml | head -n 1 | sed -E 's/^[^:]+:[[:space:]]*"?([^"]*)"?/\1/')
-          STRIPE_ENTERPRISE_PRICE_ID=$(grep -E '^[[:space:]]*STRIPE_ENTERPRISE_PRICE_ID:' env-values/dev/backend.yaml | head -n 1 | sed -E 's/^[^:]+:[[:space:]]*"?([^"]*)"?/\1/' || true)
           STRIPE_PREMIUM_YEARLY_PRICE_ID=$(grep -E '^[[:space:]]*STRIPE_PREMIUM_YEARLY_PRICE_ID:' env-values/dev/backend.yaml | head -n 1 | sed -E 's/^[^:]+:[[:space:]]*"?([^"]*)"?/\1/' || true)
-          STRIPE_ENTERPRISE_YEARLY_PRICE_ID=$(grep -E '^[[:space:]]*STRIPE_ENTERPRISE_YEARLY_PRICE_ID:' env-values/dev/backend.yaml | head -n 1 | sed -E 's/^[^:]+:[[:space:]]*"?([^"]*)"?/\1/' || true)
           echo "Updating stripe-secrets price keys in ${DEV_NAMESPACE}"
           kubectl get secret stripe-secrets -n ${DEV_NAMESPACE} >/dev/null
-          kubectl patch secret stripe-secrets -n ${DEV_NAMESPACE} --type merge -p "{\"stringData\":{\"stripe-premium-price-id\":\"${STRIPE_PREMIUM_PRICE_ID}\",\"stripe-enterprise-price-id\":\"${STRIPE_ENTERPRISE_PRICE_ID}\",\"stripe-premium-yearly-price-id\":\"${STRIPE_PREMIUM_YEARLY_PRICE_ID}\",\"stripe-enterprise-yearly-price-id\":\"${STRIPE_ENTERPRISE_YEARLY_PRICE_ID}\"}}"
+          kubectl patch secret stripe-secrets -n ${DEV_NAMESPACE} --type merge -p "{\"stringData\":{\"stripe-premium-price-id\":\"${STRIPE_PREMIUM_PRICE_ID}\",\"stripe-premium-yearly-price-id\":\"${STRIPE_PREMIUM_YEARLY_PRICE_ID}\"}}"
 
       - name: Deploy backend to dev
         run: |
@@ -431,9 +429,7 @@ jobs:
             done
             JSON_PATCH=$(printf '%s' "${JSON_PATCH}" | jq '. + [
               {"op":"add","path":"/spec/template/spec/containers/0/env/-","value":{"name":"STRIPE_PREMIUM_PRICE_ID","valueFrom":{"secretKeyRef":{"name":"stripe-secrets","key":"stripe-premium-price-id"}}}},
-              {"op":"add","path":"/spec/template/spec/containers/0/env/-","value":{"name":"STRIPE_ENTERPRISE_PRICE_ID","valueFrom":{"secretKeyRef":{"name":"stripe-secrets","key":"stripe-enterprise-price-id"}}}},
-              {"op":"add","path":"/spec/template/spec/containers/0/env/-","value":{"name":"STRIPE_PREMIUM_YEARLY_PRICE_ID","valueFrom":{"secretKeyRef":{"name":"stripe-secrets","key":"stripe-premium-yearly-price-id"}}}},
-              {"op":"add","path":"/spec/template/spec/containers/0/env/-","value":{"name":"STRIPE_ENTERPRISE_YEARLY_PRICE_ID","valueFrom":{"secretKeyRef":{"name":"stripe-secrets","key":"stripe-enterprise-yearly-price-id"}}}}
+              {"op":"add","path":"/spec/template/spec/containers/0/env/-","value":{"name":"STRIPE_PREMIUM_YEARLY_PRICE_ID","valueFrom":{"secretKeyRef":{"name":"stripe-secrets","key":"stripe-premium-yearly-price-id"}}}}
             ]')
             kubectl patch deployment backend -n ${DEV_NAMESPACE} --type json -p "${JSON_PATCH}"
             kubectl rollout status deployment backend -n ${DEV_NAMESPACE} --timeout=5m
@@ -566,12 +562,10 @@ jobs:
         run: |
           export KUBECONFIG=/tmp/kubeconfig
           STRIPE_PREMIUM_PRICE_ID=$(grep -E '^[[:space:]]*STRIPE_PREMIUM_PRICE_ID:' env-values/prod/backend.yaml | head -n 1 | sed -E 's/^[^:]+:[[:space:]]*"?([^"]*)"?/\1/' || true)
-          STRIPE_ENTERPRISE_PRICE_ID=$(grep -E '^[[:space:]]*STRIPE_ENTERPRISE_PRICE_ID:' env-values/prod/backend.yaml | head -n 1 | sed -E 's/^[^:]+:[[:space:]]*"?([^"]*)"?/\1/' || true)
           STRIPE_PREMIUM_YEARLY_PRICE_ID=$(grep -E '^[[:space:]]*STRIPE_PREMIUM_YEARLY_PRICE_ID:' env-values/prod/backend.yaml | head -n 1 | sed -E 's/^[^:]+:[[:space:]]*"?([^"]*)"?/\1/' || true)
-          STRIPE_ENTERPRISE_YEARLY_PRICE_ID=$(grep -E '^[[:space:]]*STRIPE_ENTERPRISE_YEARLY_PRICE_ID:' env-values/prod/backend.yaml | head -n 1 | sed -E 's/^[^:]+:[[:space:]]*"?([^"]*)"?/\1/' || true)
           echo "Updating stripe-secrets price keys in ${PROD_NAMESPACE}"
           kubectl get secret stripe-secrets -n ${PROD_NAMESPACE} >/dev/null
-          kubectl patch secret stripe-secrets -n ${PROD_NAMESPACE} --type merge -p "{\"stringData\":{\"stripe-premium-price-id\":\"${STRIPE_PREMIUM_PRICE_ID}\",\"stripe-enterprise-price-id\":\"${STRIPE_ENTERPRISE_PRICE_ID}\",\"stripe-premium-yearly-price-id\":\"${STRIPE_PREMIUM_YEARLY_PRICE_ID}\",\"stripe-enterprise-yearly-price-id\":\"${STRIPE_ENTERPRISE_YEARLY_PRICE_ID}\"}}"
+          kubectl patch secret stripe-secrets -n ${PROD_NAMESPACE} --type merge -p "{\"stringData\":{\"stripe-premium-price-id\":\"${STRIPE_PREMIUM_PRICE_ID}\",\"stripe-premium-yearly-price-id\":\"${STRIPE_PREMIUM_YEARLY_PRICE_ID}\"}}"
 
       - name: Deploy backend to prod
         run: |
@@ -615,9 +609,7 @@ jobs:
             done
             JSON_PATCH=$(printf '%s' "${JSON_PATCH}" | jq '. + [
               {"op":"add","path":"/spec/template/spec/containers/0/env/-","value":{"name":"STRIPE_PREMIUM_PRICE_ID","valueFrom":{"secretKeyRef":{"name":"stripe-secrets","key":"stripe-premium-price-id"}}}},
-              {"op":"add","path":"/spec/template/spec/containers/0/env/-","value":{"name":"STRIPE_ENTERPRISE_PRICE_ID","valueFrom":{"secretKeyRef":{"name":"stripe-secrets","key":"stripe-enterprise-price-id"}}}},
-              {"op":"add","path":"/spec/template/spec/containers/0/env/-","value":{"name":"STRIPE_PREMIUM_YEARLY_PRICE_ID","valueFrom":{"secretKeyRef":{"name":"stripe-secrets","key":"stripe-premium-yearly-price-id"}}}},
-              {"op":"add","path":"/spec/template/spec/containers/0/env/-","value":{"name":"STRIPE_ENTERPRISE_YEARLY_PRICE_ID","valueFrom":{"secretKeyRef":{"name":"stripe-secrets","key":"stripe-enterprise-yearly-price-id"}}}}
+              {"op":"add","path":"/spec/template/spec/containers/0/env/-","value":{"name":"STRIPE_PREMIUM_YEARLY_PRICE_ID","valueFrom":{"secretKeyRef":{"name":"stripe-secrets","key":"stripe-premium-yearly-price-id"}}}}
             ]')
             kubectl patch deployment backend -n ${PROD_NAMESPACE} --type json -p "${JSON_PATCH}"
             kubectl rollout status deployment backend -n ${PROD_NAMESPACE} --timeout=5m
