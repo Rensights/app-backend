@@ -17,6 +17,10 @@ database:
   usernameSecret: public-db-user
   passwordSecret: public-db-password
 
+# Main app DB env comes from this K8s secret (ExternalSecret → Vault secret/data/dev/public-db-credentials).
+secrets:
+  dbCredentials: public-db-credentials
+
 resources:
   requests:
     cpu: "250m"
@@ -58,7 +62,6 @@ extraEnv:
   OTEL_LOGS_EXPORTER: "none"
   OTEL_METRICS_EXPORTER: "none"
   OTEL_TRACES_EXPORTER: "none"
-  ADMIN_JWT_SECRET: "${ADMIN_JWT_SECRET}"
   REPORTS_STORAGE_PATH: "/data/reports"
   # Email configuration (Microsoft Graph API)
   EMAIL_ENABLED: "true"
