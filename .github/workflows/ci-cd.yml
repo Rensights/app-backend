@@ -244,6 +244,26 @@ jobs:
           export KUBECONFIG=/tmp/kubeconfig
           kubectl cluster-info
 
+      # Requires GitHub secret VAULT_ESO_TOKEN (Vault token with read on KV paths below).
+      # Optional repo variable VAULT_INTERNAL_ADDR, e.g. http://vault.platform.svc.cluster.local:8200
+      - name: Vault + External Secrets Operator (dev)
+        env:
+          VAULT_ESO_TOKEN: ${{ secrets.VAULT_ESO_TOKEN }}
+          VAULT_INTERNAL_ADDR: ${{ vars.VAULT_INTERNAL_ADDR }}
+        run: |
+          export KUBECONFIG=/tmp/kubeconfig
+          if [ -z "${VAULT_ESO_TOKEN}" ]; then
+            echo "VAULT_ESO_TOKEN not set — skipping SecretStore / ExternalSecrets (use static secret steps below)."
+            exit 0
+          fi
+          VAULT_SRV="${VAULT_INTERNAL_ADDR:-http://vault.vault.svc.cluster.local:8200}"
+          kubectl create secret generic vault-eso-token -n ${DEV_NAMESPACE} \
+            --from-literal=token="${VAULT_ESO_TOKEN}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+          sed "s|VAULT_SERVER_PLACEHOLDER|${VAULT_SRV}|g" infra/external-secrets/dev/secretstore-vault-dev.yaml | kubectl apply -f -
+          kubectl apply -f infra/external-secrets/dev/externalsecrets.yaml
+          kubectl wait --for=condition=Ready "secretstore/vault-dev" -n "${DEV_NAMESPACE}" --timeout=120s || true
+
       - name: Ensure reports PVC exists (dev)
         run: |
           export KUBECONFIG=/tmp/kubeconfig
@@ -294,8 +314,14 @@ jobs:
             --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Setup microsoft-graph-credentials secret for dev
+        env:
+          VAULT_ESO_TOKEN: ${{ secrets.VAULT_ESO_TOKEN }}
         run: |
           export KUBECONFIG=/tmp/kubeconfig
+          if [ -n "${VAULT_ESO_TOKEN}" ]; then
+            echo "Skipping static microsoft-graph-credentials (synced from Vault via ExternalSecrets)."
+            exit 0
+          fi
           kubectl create secret generic microsoft-graph-credentials \
             --from-literal=tenant-id='e84f3a33-9e68-4a68-aae3-bebba66459e6' \
             --from-literal=client-id='70a6e6ef-c980-47dc-89ea-70ebd47fd56d' \
@@ -304,8 +330,14 @@ jobs:
             --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Sync stripe price IDs into secret for dev
+        env:
+          VAULT_ESO_TOKEN: ${{ secrets.VAULT_ESO_TOKEN }}
         run: |
           export KUBECONFIG=/tmp/kubeconfig
+          if [ -n "${VAULT_ESO_TOKEN}" ]; then
+            echo "Skipping stripe-secrets patch (full secret managed in Vault / ExternalSecret)."
+            exit 0
+          fi
           STRIPE_PREMIUM_PRICE_ID=$(grep -E '^[[:space:]]*STRIPE_PREMIUM_PRICE_ID:' env-values/dev/backend.yaml | head -n 1 | sed -E 's/^[^:]+:[[:space:]]*"?([^"]*)"?/\1/')
           STRIPE_PREMIUM_YEARLY_PRICE_ID=$(grep -E '^[[:space:]]*STRIPE_PREMIUM_YEARLY_PRICE_ID:' env-values/dev/backend.yaml | head -n 1 | sed -E 's/^[^:]+:[[:space:]]*"?([^"]*)"?/\1/' || true)
           echo "Updating stripe-secrets price keys in ${DEV_NAMESPACE}"
