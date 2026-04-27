@@ -334,8 +334,7 @@ jobs:
           
           echo "🚀 Deploying to DEV with tag: ${IMAGE_TAG}"
           
-          # Force update by adding a timestamp annotation that changes each time
-          TIMESTAMP=$(date +%s)
+          # Rollout is triggered by chart pod annotation kubectl.kubernetes.io/restartedAt (now) each upgrade
           EXPECTED_REPO="${REGISTRY}/${{ steps.image-repo.outputs.repo_owner }}/${{ steps.image-repo.outputs.repo_name }}"
           
           helm upgrade --install backend ./charts \
@@ -349,7 +348,6 @@ jobs:
             --set image.pullPolicy=Always \
             --set image.repository=${EXPECTED_REPO} \
             --set imagePullSecrets[0].name=ghcr-secret \
-            --set-string podAnnotations.deployment\.timestamp="${TIMESTAMP}" \
             --rollback-on-failure --timeout=8m || {
             
             echo "⚠️  Deployment failed or timed out, checking status..."
@@ -377,8 +375,7 @@ jobs:
               --set image.tag=${IMAGE_TAG} \
               --set image.pullPolicy=Always \
               --set image.repository=${EXPECTED_REPO} \
-              --set imagePullSecrets[0].name=ghcr-secret \
-              --set-string podAnnotations.deployment\.timestamp="$(date +%s)"
+              --set imagePullSecrets[0].name=ghcr-secret
           fi
 
       - name: Verify deployment
