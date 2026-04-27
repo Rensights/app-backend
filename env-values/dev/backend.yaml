@@ -63,9 +63,7 @@ extraEnv:
   # Email configuration (Microsoft Graph API)
   EMAIL_ENABLED: "true"
   EMAIL_USE_GRAPH_API: "true"
-  # Microsoft Graph API credentials (loaded from Kubernetes secret)
-  MICROSOFT_TENANT_ID: "e84f3a33-9e68-4a68-aae3-bebba66459e6"
-  MICROSOFT_CLIENT_ID: "70a6e6ef-c980-47dc-89ea-70ebd47fd56d"
+  # Microsoft tenant/client id come from microsoft-graph-credentials secret (see deployment env)
   MICROSOFT_FROM_EMAIL: "no-reply@rensights.com"
   # Stripe configuration (Test Mode)
   STRIPE_PREMIUM_PRICE_ID: "price_1T9smxCasMqex5349MH8aPuM"
