@@ -78,6 +78,8 @@ public class SecurityConfig {
                 .requestMatchers("/api/analysis-requests/my-requests").authenticated() // User's own requests require auth
                 .requestMatchers("/api/subscriptions/**").authenticated()
                 .requestMatchers("/users/**").authenticated()
+                // Traefik / same-origin API is often routed with /api prefix; probes may hit /api/actuator/health
+                .requestMatchers(HttpMethod.GET, "/api/actuator/health").permitAll()
                 .requestMatchers("/actuator/health").permitAll() // Only health endpoint public
                 .requestMatchers("/actuator/**").authenticated() // Other actuator endpoints require auth
                 .requestMatchers("/error").permitAll()
