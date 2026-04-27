@@ -1,6 +1,6 @@
 # Global configuration for dev environment
 global:
-  registry: 72.62.40.154:30500  # Harbor registry (Docker push/pull)
+  registry: ghcr.io  # CI/CD pushes/pulls images from GHCR (see workflows --set image.repository)
   domain: 72.62.40.154.nip.io  # Your server domain
   env: dev
   certIssuer: letsencrypt-staging

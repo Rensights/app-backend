@@ -329,6 +329,9 @@ jobs:
             fi
           fi
           
+          # KongPlugin created outside Helm (e.g. kubectl apply) blocks upgrade — remove so the chart can own it
+          kubectl delete kongplugins.configuration.konghq.com backend-cors -n ${DEV_NAMESPACE} --ignore-not-found --wait=true
+          
           echo "🚀 Deploying to DEV with tag: ${IMAGE_TAG}"
           
           # Force update by adding a timestamp annotation that changes each time
@@ -575,6 +578,7 @@ jobs:
             IMAGE_TAG="${{ github.event.inputs.image_tag }}"
           fi
           echo "🚀 Deploying to PRODUCTION with tag: ${IMAGE_TAG}"
+          kubectl delete kongplugins.configuration.konghq.com backend-cors -n ${PROD_NAMESPACE} --ignore-not-found --wait=true
           helm upgrade --install backend ./charts \
             --namespace ${PROD_NAMESPACE} \
             --create-namespace \
