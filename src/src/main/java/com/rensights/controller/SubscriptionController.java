@@ -104,39 +104,8 @@ public class SubscriptionController {
                         .body(new ErrorResponse("Stripe price ID not configured for plan: " + request.getPlanType() + ". Please create a price for product prod_TTZPr5yGZso2iI in Stripe dashboard."));
             }
             
-            // Use stored Stripe customer ID from user record (created during registration)
-            // If not found, try to get from existing subscription, otherwise create new
-            String customerId = java.util.Optional.ofNullable(user.getStripeCustomerId())
-                    .filter(id -> !id.isEmpty())
-                    .orElseGet(() -> {
-                        // Fallback: Check existing subscriptions
-                        return subscriptionRepository.findByUserId(user.getId())
-                                .stream()
-                                .filter(sub -> sub.getStripeCustomerId() != null && !sub.getStripeCustomerId().isEmpty())
-                                .findFirst()
-                                .map(Subscription::getStripeCustomerId)
-                                .orElseGet(() -> {
-                                    // Last resort: Create new Stripe customer and update user
-                                    try {
-                                        String fullName = String.join(" ",
-                                                java.util.Optional.ofNullable(user.getFirstName()).orElse(""),
-                                                java.util.Optional.ofNullable(user.getLastName()).orElse(""))
-                                                .trim();
-                                        com.stripe.model.Customer stripeCustomer = stripeService.createCustomer(
-                                                user.getEmail(),
-                                                fullName.isEmpty() ? user.getEmail() : fullName);
-                                        String newCustomerId = stripeCustomer.getId();
-                                        // Update user with Stripe customer ID for future use
-                                        user.setStripeCustomerId(newCustomerId);
-                                        userRepository.save(user);
-                                        logger.info("Created and stored Stripe customer {} for user {}", newCustomerId, user.getId());
-                                        return newCustomerId;
-                                    } catch (StripeException e) {
-                                        logger.error("Error creating Stripe customer: {}", e.getMessage());
-                                        throw new RuntimeException("Failed to create Stripe customer", e);
-                                    }
-                                });
-                    });
+            // Resolve existing customer by email when local stripe_customer_id is missing.
+            String customerId = subscriptionService.resolveOrCreateStripeCustomerId(user);
             
             // Create checkout session
             String successUrl = frontendUrl + "/account?session_id={CHECKOUT_SESSION_ID}";
@@ -411,19 +380,7 @@ public class SubscriptionController {
             User user = userRepository.findById(userId)
                     .orElseThrow(() -> new RuntimeException("User not found"));
 
-            String stripeCustomerId = java.util.Optional.ofNullable(user.getStripeCustomerId())
-                    .filter(id -> !id.isEmpty())
-                    .orElseGet(() -> subscriptionRepository.findByUserId(userId)
-                            .stream()
-                            .map(Subscription::getStripeCustomerId)
-                            .filter(id -> id != null && !id.isEmpty())
-                            .findFirst()
-                            .orElse(null));
-
-            if (stripeCustomerId == null) {
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                        .body(new ErrorResponse("Stripe customer not found for this user"));
-            }
+            String stripeCustomerId = subscriptionService.resolveOrCreateStripeCustomerId(user);
 
             String returnUrl = frontendUrl + "/account";
             com.stripe.model.billingportal.Session session = stripeService.createCustomerPortalSession(

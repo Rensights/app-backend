@@ -121,13 +121,13 @@ public class AuthService {
             if (fullName.isEmpty()) {
                 fullName = request.getEmail(); // Use email as fallback name
             }
-            com.stripe.model.Customer stripeCustomer = stripeService.createCustomer(request.getEmail(), fullName);
+            com.stripe.model.Customer stripeCustomer = stripeService.findOrCreateCustomerByEmail(request.getEmail(), fullName);
             stripeCustomerId = stripeCustomer.getId();
-            logger.info("Created Stripe customer {} for new user: {}", stripeCustomerId, request.getEmail());
+            logger.info("Linked Stripe customer {} for new user: {}", stripeCustomerId, request.getEmail());
         } catch (Exception e) {
             // Log error but don't fail registration if Stripe fails
-            logger.error("Failed to create Stripe customer for user {}: {}", request.getEmail(), e.getMessage(), e);
-            // Continue with registration even if Stripe customer creation fails
+            logger.error("Failed to link/create Stripe customer for user {}: {}", request.getEmail(), e.getMessage(), e);
+            // Continue with registration even if Stripe customer lookup/creation fails
         }
         
         User user = User.builder()

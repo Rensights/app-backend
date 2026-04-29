@@ -103,29 +103,7 @@ public class SubscriptionService {
             throw new RuntimeException("Price ID not configured for plan: " + planType);
         }
         
-        // Optimized: Use Optional and method references for cleaner string building
-        String customerId = java.util.Optional.ofNullable(user.getStripeCustomerId())
-                .filter(id -> !id.isEmpty())
-                .orElseGet(() -> {
-                    try {
-                        // Optimized: Use String.join for cleaner concatenation
-                        String fullName = String.join(" ", 
-                                java.util.Optional.ofNullable(user.getFirstName()).orElse(""),
-                                java.util.Optional.ofNullable(user.getLastName()).orElse(""))
-                                .trim();
-                        com.stripe.model.Customer stripeCustomer = stripeService.createCustomer(
-                                user.getEmail(), 
-                                fullName.isEmpty() ? user.getEmail() : fullName);
-                        String stripeId = stripeCustomer.getId();
-                        // Update user with Stripe customer ID for future use
-                        user.setStripeCustomerId(stripeId);
-                        userRepository.save(user);
-                        return stripeId;
-                    } catch (StripeException e) {
-                        logger.error("Error creating Stripe customer: {}", e.getMessage());
-                        throw new RuntimeException("Failed to create payment customer", e);
-                    }
-                });
+        String customerId = resolveOrCreateStripeCustomerId(user);
         
         // Attach payment method
         try {
@@ -164,6 +142,45 @@ public class SubscriptionService {
         
         logger.info("Created subscription {} for user {}", subscription.getId(), userId);
         return subscription;
+    }
+
+    /**
+     * Resolve Stripe customer ID for a user, reusing existing Stripe customer by email when possible.
+     * Saves resolved ID to the user record for future requests.
+     */
+    @Transactional
+    public String resolveOrCreateStripeCustomerId(User user) {
+        if (user == null) {
+            throw new RuntimeException("User not found");
+        }
+
+        String existingCustomerId = java.util.Optional.ofNullable(user.getStripeCustomerId())
+                .map(String::trim)
+                .orElse("");
+        if (!existingCustomerId.isEmpty()) {
+            return existingCustomerId;
+        }
+
+        try {
+            String fullName = String.join(" ",
+                    java.util.Optional.ofNullable(user.getFirstName()).orElse(""),
+                    java.util.Optional.ofNullable(user.getLastName()).orElse(""))
+                    .trim();
+
+            com.stripe.model.Customer stripeCustomer = stripeService.findOrCreateCustomerByEmail(
+                    user.getEmail(),
+                    fullName.isEmpty() ? user.getEmail() : fullName
+            );
+
+            String stripeId = stripeCustomer.getId();
+            user.setStripeCustomerId(stripeId);
+            userRepository.save(user);
+            logger.info("Resolved and stored Stripe customer {} for user {}", stripeId, user.getId());
+            return stripeId;
+        } catch (StripeException e) {
+            logger.error("Error resolving Stripe customer for user {}: {}", user.getId(), e.getMessage(), e);
+            throw new RuntimeException("Failed to resolve payment customer", e);
+        }
     }
     
     /**

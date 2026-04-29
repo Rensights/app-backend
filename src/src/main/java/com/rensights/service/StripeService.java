@@ -7,6 +7,7 @@ import com.stripe.model.PaymentIntent;
 import com.stripe.model.PaymentMethod;
 import com.stripe.model.Subscription;
 import com.stripe.model.checkout.Session;
+import com.stripe.param.CustomerListParams;
 import com.stripe.param.checkout.SessionCreateParams;
 import com.stripe.param.CustomerCreateParams;
 import com.stripe.param.PaymentIntentCreateParams;
@@ -58,6 +59,25 @@ public class StripeService {
         logger.info("Created Stripe customer {} - Stripe will automatically send invoice emails to: {}", 
                    customer.getId(), email);
         return customer;
+    }
+
+    /**
+     * Find existing Stripe customer by email; create one if not found.
+     */
+    public Customer findOrCreateCustomerByEmail(String email, String name) throws StripeException {
+        CustomerListParams listParams = CustomerListParams.builder()
+                .setEmail(email)
+                .setLimit(1L)
+                .build();
+
+        java.util.List<Customer> existingCustomers = Customer.list(listParams).getData();
+        if (!existingCustomers.isEmpty()) {
+            Customer existingCustomer = existingCustomers.get(0);
+            logger.info("Reusing existing Stripe customer {} for email {}", existingCustomer.getId(), email);
+            return existingCustomer;
+        }
+
+        return createCustomer(email, name);
     }
     
     /**
