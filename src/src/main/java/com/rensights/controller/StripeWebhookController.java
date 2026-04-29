@@ -363,8 +363,21 @@ public class StripeWebhookController {
                     .orElseThrow(() -> new RuntimeException("Failed to deserialize subscription"));
             
             logger.warn("Subscription deleted: {}", stripeSubscription.getId());
-            
-            // Downgrade user to FREE tier when subscription is deleted
+
+            Long currentPeriodEnd = stripeSubscription.getCurrentPeriodEnd();
+            long nowEpochSeconds = java.time.Instant.now().getEpochSecond();
+
+            // If period is still active, keep access until period end.
+            if (currentPeriodEnd != null && currentPeriodEnd > nowEpochSeconds) {
+                logger.info(
+                        "Subscription {} deleted but current period ends in future ({}). Keeping paid access until period end.",
+                        stripeSubscription.getId(),
+                        currentPeriodEnd
+                );
+                return;
+            }
+
+            // Period ended (or unknown) -> downgrade now.
             subscriptionService.handlePaymentFailure(stripeSubscription.getId());
         } catch (Exception e) {
             logger.error("Error handling customer.subscription.deleted: {}", e.getMessage(), e);
@@ -382,11 +395,30 @@ public class StripeWebhookController {
             
             logger.info("Subscription updated: {} - status: {}", stripeSubscription.getId(), stripeSubscription.getStatus());
             
-            // If subscription is past_due or unpaid, downgrade to FREE tier
+            // Immediate downgrade for payment-collection failures.
             String status = stripeSubscription.getStatus();
-            if ("past_due".equals(status) || "unpaid".equals(status) || "canceled".equals(status)) {
+            if ("past_due".equals(status) || "unpaid".equals(status) || "incomplete_expired".equals(status)) {
                 logger.warn("Subscription {} is in {} status, downgrading user to FREE tier", 
                            stripeSubscription.getId(), status);
+                subscriptionService.handlePaymentFailure(stripeSubscription.getId());
+                return;
+            }
+
+            // For canceled subscriptions, downgrade only after paid-through period ends.
+            if ("canceled".equals(status)) {
+                Long currentPeriodEnd = stripeSubscription.getCurrentPeriodEnd();
+                long nowEpochSeconds = java.time.Instant.now().getEpochSecond();
+                if (currentPeriodEnd != null && currentPeriodEnd > nowEpochSeconds) {
+                    logger.info(
+                            "Subscription {} canceled but still paid through {}. Keeping access until period end.",
+                            stripeSubscription.getId(),
+                            currentPeriodEnd
+                    );
+                    return;
+                }
+
+                logger.warn("Subscription {} canceled and period ended, downgrading user to FREE tier",
+                        stripeSubscription.getId());
                 subscriptionService.handlePaymentFailure(stripeSubscription.getId());
             }
         } catch (Exception e) {
