@@ -13,13 +13,13 @@ service:
 database:
   host: ""  # Will be set from service IP in CI/CD
   port: 5432
-  name: public_db_dev
-  usernameSecret: public-db-user
-  passwordSecret: public-db-password
+  name: admin_db_dev
+  usernameSecret: admin-db-user
+  passwordSecret: admin-db-password
 
-# Main app DB env comes from this K8s secret (ExternalSecret → Vault secret/data/dev/public-db-credentials).
+# Main app DB env comes from admin DB credentials secret.
 secrets:
-  dbCredentials: public-db-credentials
+  dbCredentials: admin-db-credentials
 
 resources:
   requests:

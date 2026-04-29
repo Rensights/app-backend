@@ -15,14 +15,6 @@ global:
     passwordSecret: general-dev-password
     schema: dev_general
   
-  # Public database (dev-specific)
-  publicDb:
-    host: postgres-public.dev.svc.cluster.local
-    port: 5432
-    name: public_db_dev
-    usernameSecret: public-db-user
-    passwordSecret: public-db-password
-  
   # Admin database (dev-specific)
   adminDb:
     host: postgres-admin.dev.svc.cluster.local

@@ -565,18 +565,18 @@ jobs:
             --namespace ${PROD_NAMESPACE} \
             --dry-run=client -o yaml | kubectl apply -f -
 
-      - name: Setup backend-db-credentials secret for prod
+      - name: Setup admin-db-credentials secret for prod
         run: |
           export KUBECONFIG=/tmp/kubeconfig
-          if kubectl get svc postgres-backend-postgresql -n ${PROD_NAMESPACE} &>/dev/null; then
-            DB_PORT=$(kubectl get svc postgres-backend-postgresql -n ${PROD_NAMESPACE} -o jsonpath='{.spec.ports[0].port}')
-            DB_PASSWORD=$(kubectl get secret --namespace ${PROD_NAMESPACE} postgres-backend-postgresql -o jsonpath="{.data.password}" | base64 -d)
+          if kubectl get svc postgres-admin-postgresql -n ${PROD_NAMESPACE} &>/dev/null; then
+            DB_PORT=$(kubectl get svc postgres-admin-postgresql -n ${PROD_NAMESPACE} -o jsonpath='{.spec.ports[0].port}')
+            DB_PASSWORD=$(kubectl get secret --namespace ${PROD_NAMESPACE} postgres-admin-postgresql -o jsonpath="{.data.password}" | base64 -d)
             
-            kubectl create secret generic backend-db-credentials \
-              --from-literal=postgres-host="postgres-backend-postgresql.${PROD_NAMESPACE}.svc.cluster.local" \
+            kubectl create secret generic admin-db-credentials \
+              --from-literal=postgres-host="postgres-admin-postgresql.${PROD_NAMESPACE}.svc.cluster.local" \
               --from-literal=postgres-port="$DB_PORT" \
-              --from-literal=postgres-database="backend_db_prod" \
-              --from-literal=postgres-username="backend_user" \
+              --from-literal=postgres-database="admin_db_prod" \
+              --from-literal=postgres-username="admin_db_user" \
               --from-literal=postgres-password="$DB_PASSWORD" \
               --namespace ${PROD_NAMESPACE} \
               --dry-run=client -o yaml | kubectl apply -f -
