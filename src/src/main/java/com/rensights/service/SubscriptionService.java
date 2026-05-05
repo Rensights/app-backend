@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -226,6 +227,32 @@ public class SubscriptionService {
 
         return subscription;
     }
+
+    /**
+     * Mark subscription as cancel-at-period-end while keeping current paid access.
+     */
+    @Transactional
+    public void markCancellationScheduled(String stripeSubscriptionId, Long currentPeriodEndEpochSeconds) {
+        if (stripeSubscriptionId == null || stripeSubscriptionId.isBlank()) {
+            return;
+        }
+
+        Subscription subscription = subscriptionRepository.findByStripeSubscriptionId(stripeSubscriptionId)
+                .orElse(null);
+        if (subscription == null) {
+            logger.warn("Subscription not found for Stripe subscription ID {} while marking cancel schedule", stripeSubscriptionId);
+            return;
+        }
+
+        subscription.setCancelAtPeriodEnd(true);
+        if (currentPeriodEndEpochSeconds != null) {
+            subscription.setEndDate(LocalDateTime.ofEpochSecond(currentPeriodEndEpochSeconds, 0, ZoneOffset.UTC));
+        }
+        subscriptionRepository.save(subscription);
+
+        logger.info("Marked subscription {} as cancel-at-period-end (period end: {})",
+                subscription.getId(), subscription.getEndDate());
+    }
     
     /**
      * Get all subscriptions for user
@@ -367,7 +394,7 @@ public class SubscriptionService {
             if (planType == null && stripeInvoiceId != null) {
                 try {
                     com.stripe.model.Invoice invoice = stripeService.getInvoice(stripeInvoiceId);
-                    String subscriptionId = invoice.getSubscription();
+                    String subscriptionId = stripeService.extractInvoiceSubscriptionId(invoice);
                     if (subscriptionId != null) {
                         com.stripe.model.Subscription sub = stripeService.getSubscription(subscriptionId);
                         String priceId = sub.getItems().getData().stream()

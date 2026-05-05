@@ -86,6 +86,46 @@ public class StripeService {
     public com.stripe.model.Invoice getInvoice(String invoiceId) throws StripeException {
         return com.stripe.model.Invoice.retrieve(invoiceId);
     }
+
+    /**
+     * Stripe SDK v32 moved invoice subscription under parent.subscription_details.subscription.
+     * Keep backward compatibility with older SDKs/events that still expose getSubscription().
+     */
+    public String extractInvoiceSubscriptionId(com.stripe.model.Invoice invoice) {
+        if (invoice == null) {
+            return null;
+        }
+
+        try {
+            Object direct = invoice.getClass().getMethod("getSubscription").invoke(invoice);
+            if (direct instanceof String directId && !directId.isBlank()) {
+                return directId;
+            }
+        } catch (NoSuchMethodException ignored) {
+            // Newer SDK: no direct getSubscription() on Invoice
+        } catch (Exception e) {
+            logger.warn("Failed to read invoice subscription using direct getter: {}", e.getMessage());
+        }
+
+        try {
+            Object parent = invoice.getClass().getMethod("getParent").invoke(invoice);
+            if (parent == null) {
+                return null;
+            }
+            Object subscriptionDetails = parent.getClass().getMethod("getSubscriptionDetails").invoke(parent);
+            if (subscriptionDetails == null) {
+                return null;
+            }
+            Object nested = subscriptionDetails.getClass().getMethod("getSubscription").invoke(subscriptionDetails);
+            if (nested instanceof String nestedId && !nestedId.isBlank()) {
+                return nestedId;
+            }
+        } catch (Exception e) {
+            logger.warn("Failed to read invoice subscription from parent.subscription_details: {}", e.getMessage());
+        }
+
+        return null;
+    }
     
     /**
      * List invoices for a customer

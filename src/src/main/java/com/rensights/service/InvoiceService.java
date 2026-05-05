@@ -63,7 +63,7 @@ public class InvoiceService {
                     .user(user)
                     .stripeInvoiceId(stripeInvoice.getId())
                     .stripeCustomerId(stripeCustomerId)
-                    .stripeSubscriptionId(stripeInvoice.getSubscription())
+                    .stripeSubscriptionId(stripeService.extractInvoiceSubscriptionId(stripeInvoice))
                     .amount(BigDecimal.valueOf(stripeInvoice.getAmountPaid()).divide(BigDecimal.valueOf(100))) // Convert cents to dollars
                     .currency(stripeInvoice.getCurrency() != null ? stripeInvoice.getCurrency().toUpperCase() : "USD")
                     .status(stripeInvoice.getStatus())

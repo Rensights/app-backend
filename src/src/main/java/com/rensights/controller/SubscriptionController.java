@@ -519,12 +519,45 @@ public class SubscriptionController {
     }
 
     private LocalDateTime resolveSubscriptionEndDate(com.stripe.model.Subscription stripeSubscription) {
-        Long currentPeriodEnd = stripeSubscription.getCurrentPeriodEnd();
+        Long currentPeriodEnd = extractCurrentPeriodEndEpoch(stripeSubscription);
         if (currentPeriodEnd == null) {
             return LocalDateTime.now().plusMonths(1);
         }
 
         return LocalDateTime.ofInstant(Instant.ofEpochSecond(currentPeriodEnd), ZoneOffset.UTC);
+    }
+
+    private Long extractCurrentPeriodEndEpoch(com.stripe.model.Subscription stripeSubscription) {
+        try {
+            Object value = stripeSubscription.getClass().getMethod("getCurrentPeriodEnd").invoke(stripeSubscription);
+            if (value instanceof Long) {
+                return (Long) value;
+            }
+        } catch (NoSuchMethodException ignored) {
+            // stripe-java >= 32 removed Subscription#getCurrentPeriodEnd
+        } catch (Exception e) {
+            logger.warn("Failed to read subscription current period end directly: {}", e.getMessage());
+        }
+
+        try {
+            Object items = stripeSubscription.getClass().getMethod("getItems").invoke(stripeSubscription);
+            if (items == null) {
+                return null;
+            }
+            Object data = items.getClass().getMethod("getData").invoke(items);
+            if (!(data instanceof List<?> list) || list.isEmpty()) {
+                return null;
+            }
+            Object firstItem = list.get(0);
+            Object value = firstItem.getClass().getMethod("getCurrentPeriodEnd").invoke(firstItem);
+            if (value instanceof Long) {
+                return (Long) value;
+            }
+        } catch (Exception e) {
+            logger.warn("Failed to read subscription current period end from items: {}", e.getMessage());
+        }
+
+        return null;
     }
     
     private static class PurchaseRequest {

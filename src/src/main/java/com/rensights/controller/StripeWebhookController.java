@@ -3,6 +3,8 @@ package com.rensights.controller;
 import com.rensights.service.InvoiceService;
 import com.stripe.exception.SignatureVerificationException;
 import com.stripe.model.Event;
+import com.stripe.model.EventDataObjectDeserializer;
+import com.stripe.model.StripeObject;
 import com.stripe.net.Webhook;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,6 +33,9 @@ public class StripeWebhookController {
     
     @Autowired
     private com.rensights.service.SubscriptionService subscriptionService;
+
+    @Autowired
+    private com.rensights.service.StripeService stripeService;
     
     @Value("${stripe.webhook-secret:}")
     private String webhookSecret;
@@ -113,9 +118,11 @@ public class StripeWebhookController {
      */
     private void handleCheckoutSessionCompleted(Event event) {
         try {
-            com.stripe.model.checkout.Session session = (com.stripe.model.checkout.Session) event.getDataObjectDeserializer()
-                    .getObject()
-                    .orElseThrow(() -> new RuntimeException("Failed to deserialize checkout session"));
+            com.stripe.model.checkout.Session session = deserializeEventObject(
+                    event,
+                    com.stripe.model.checkout.Session.class,
+                    "checkout session"
+            );
             
             logger.info("Processing checkout.session.completed for session: {}", session.getId());
             logger.info("Session status: {}, Customer: {}, Payment status: {}", 
@@ -189,9 +196,11 @@ public class StripeWebhookController {
     
     private void handleInvoicePaymentSucceeded(Event event) {
         try {
-            com.stripe.model.Invoice stripeInvoice = (com.stripe.model.Invoice) event.getDataObjectDeserializer()
-                    .getObject()
-                    .orElseThrow(() -> new RuntimeException("Failed to deserialize invoice"));
+            com.stripe.model.Invoice stripeInvoice = deserializeEventObject(
+                    event,
+                    com.stripe.model.Invoice.class,
+                    "invoice"
+            );
             
             logger.info("Processing invoice.payment_succeeded for invoice: {}", stripeInvoice.getId());
             logger.info("Invoice status: {}, Customer: {}, Amount: {}", 
@@ -211,7 +220,7 @@ public class StripeWebhookController {
             // This ensures user gets upgraded immediately when payment is processed
             try {
                 String stripeCustomerId = stripeInvoice.getCustomer();
-                String stripeSubscriptionId = stripeInvoice.getSubscription();
+                String stripeSubscriptionId = stripeService.extractInvoiceSubscriptionId(stripeInvoice);
                 String stripeInvoiceId = stripeInvoice.getId();
                 
                 if (stripeCustomerId != null) {
@@ -299,9 +308,11 @@ public class StripeWebhookController {
     
     private void handleInvoicePaymentFailed(Event event) {
         try {
-            com.stripe.model.Invoice stripeInvoice = (com.stripe.model.Invoice) event.getDataObjectDeserializer()
-                    .getObject()
-                    .orElseThrow(() -> new RuntimeException("Failed to deserialize invoice"));
+            com.stripe.model.Invoice stripeInvoice = deserializeEventObject(
+                    event,
+                    com.stripe.model.Invoice.class,
+                    "invoice"
+            );
             
             logger.warn("Invoice payment failed for invoice: {}", stripeInvoice.getId());
             
@@ -310,7 +321,7 @@ public class StripeWebhookController {
             
             // Handle automatic downgrade to FREE tier when payment fails
             // Only process if this is a subscription invoice (not a one-time payment)
-            String subscriptionId = stripeInvoice.getSubscription();
+            String subscriptionId = stripeService.extractInvoiceSubscriptionId(stripeInvoice);
             if (subscriptionId != null && !subscriptionId.isEmpty()) {
                 logger.info("Payment failed for subscription invoice, downgrading user to FREE tier");
                 subscriptionService.handlePaymentFailure(subscriptionId);
@@ -329,9 +340,11 @@ public class StripeWebhookController {
     
     private void handleInvoiceCreated(Event event) {
         try {
-            com.stripe.model.Invoice stripeInvoice = (com.stripe.model.Invoice) event.getDataObjectDeserializer()
-                    .getObject()
-                    .orElseThrow(() -> new RuntimeException("Failed to deserialize invoice"));
+            com.stripe.model.Invoice stripeInvoice = deserializeEventObject(
+                    event,
+                    com.stripe.model.Invoice.class,
+                    "invoice"
+            );
             
             logger.info("Processing invoice.created for invoice: {}", stripeInvoice.getId());
             invoiceService.processStripeInvoice(stripeInvoice);
@@ -342,9 +355,11 @@ public class StripeWebhookController {
     
     private void handleInvoiceUpdated(Event event) {
         try {
-            com.stripe.model.Invoice stripeInvoice = (com.stripe.model.Invoice) event.getDataObjectDeserializer()
-                    .getObject()
-                    .orElseThrow(() -> new RuntimeException("Failed to deserialize invoice"));
+            com.stripe.model.Invoice stripeInvoice = deserializeEventObject(
+                    event,
+                    com.stripe.model.Invoice.class,
+                    "invoice"
+            );
             
             logger.info("Processing invoice.updated for invoice: {}", stripeInvoice.getId());
             invoiceService.processStripeInvoice(stripeInvoice);
@@ -358,17 +373,20 @@ public class StripeWebhookController {
      */
     private void handleSubscriptionDeleted(Event event) {
         try {
-            com.stripe.model.Subscription stripeSubscription = (com.stripe.model.Subscription) event.getDataObjectDeserializer()
-                    .getObject()
-                    .orElseThrow(() -> new RuntimeException("Failed to deserialize subscription"));
+            com.stripe.model.Subscription stripeSubscription = deserializeEventObject(
+                    event,
+                    com.stripe.model.Subscription.class,
+                    "subscription"
+            );
             
             logger.warn("Subscription deleted: {}", stripeSubscription.getId());
 
-            Long currentPeriodEnd = stripeSubscription.getCurrentPeriodEnd();
+            Long currentPeriodEnd = extractCurrentPeriodEndEpoch(stripeSubscription);
             long nowEpochSeconds = java.time.Instant.now().getEpochSecond();
 
             // If period is still active, keep access until period end.
             if (currentPeriodEnd != null && currentPeriodEnd > nowEpochSeconds) {
+                subscriptionService.markCancellationScheduled(stripeSubscription.getId(), currentPeriodEnd);
                 logger.info(
                         "Subscription {} deleted but current period ends in future ({}). Keeping paid access until period end.",
                         stripeSubscription.getId(),
@@ -389,9 +407,11 @@ public class StripeWebhookController {
      */
     private void handleSubscriptionUpdated(Event event) {
         try {
-            com.stripe.model.Subscription stripeSubscription = (com.stripe.model.Subscription) event.getDataObjectDeserializer()
-                    .getObject()
-                    .orElseThrow(() -> new RuntimeException("Failed to deserialize subscription"));
+            com.stripe.model.Subscription stripeSubscription = deserializeEventObject(
+                    event,
+                    com.stripe.model.Subscription.class,
+                    "subscription"
+            );
             
             logger.info("Subscription updated: {} - status: {}", stripeSubscription.getId(), stripeSubscription.getStatus());
             
@@ -406,9 +426,10 @@ public class StripeWebhookController {
 
             // For canceled subscriptions, downgrade only after paid-through period ends.
             if ("canceled".equals(status)) {
-                Long currentPeriodEnd = stripeSubscription.getCurrentPeriodEnd();
+                Long currentPeriodEnd = extractCurrentPeriodEndEpoch(stripeSubscription);
                 long nowEpochSeconds = java.time.Instant.now().getEpochSecond();
                 if (currentPeriodEnd != null && currentPeriodEnd > nowEpochSeconds) {
+                    subscriptionService.markCancellationScheduled(stripeSubscription.getId(), currentPeriodEnd);
                     logger.info(
                             "Subscription {} canceled but still paid through {}. Keeping access until period end.",
                             stripeSubscription.getId(),
@@ -424,6 +445,68 @@ public class StripeWebhookController {
         } catch (Exception e) {
             logger.error("Error handling customer.subscription.updated: {}", e.getMessage(), e);
         }
+    }
+
+    /**
+     * Stripe may fail strict event deserialization when the webhook event API version
+     * differs from the stripe-java model version. Fallback to unsafe deserialization
+     * keeps webhook processing resilient.
+     */
+    private <T extends StripeObject> T deserializeEventObject(Event event, Class<T> targetType, String objectName) {
+        EventDataObjectDeserializer deserializer = event.getDataObjectDeserializer();
+        StripeObject stripeObject = deserializer.getObject().orElse(null);
+
+        if (stripeObject == null) {
+            try {
+                stripeObject = deserializer.deserializeUnsafe();
+                logger.warn("Used unsafe Stripe deserialization fallback for event type {}", event.getType());
+            } catch (Exception ex) {
+                throw new RuntimeException("Failed to deserialize " + objectName, ex);
+            }
+        }
+
+        if (!targetType.isInstance(stripeObject)) {
+            throw new RuntimeException(
+                    "Unexpected Stripe object type for " + objectName + ": " + stripeObject.getClass().getName()
+            );
+        }
+
+        return targetType.cast(stripeObject);
+    }
+
+    private Long extractCurrentPeriodEndEpoch(com.stripe.model.Subscription stripeSubscription) {
+        try {
+            Object value = stripeSubscription.getClass().getMethod("getCurrentPeriodEnd").invoke(stripeSubscription);
+            if (value instanceof Long) {
+                return (Long) value;
+            }
+        } catch (NoSuchMethodException ignored) {
+            // stripe-java >= 32 removed Subscription#getCurrentPeriodEnd
+        } catch (Exception e) {
+            logger.warn("Failed reading current period end from subscription {} directly: {}",
+                    stripeSubscription.getId(), e.getMessage());
+        }
+
+        try {
+            Object items = stripeSubscription.getClass().getMethod("getItems").invoke(stripeSubscription);
+            if (items == null) {
+                return null;
+            }
+            Object data = items.getClass().getMethod("getData").invoke(items);
+            if (!(data instanceof java.util.List<?> list) || list.isEmpty()) {
+                return null;
+            }
+            Object firstItem = list.get(0);
+            Object value = firstItem.getClass().getMethod("getCurrentPeriodEnd").invoke(firstItem);
+            if (value instanceof Long) {
+                return (Long) value;
+            }
+        } catch (Exception e) {
+            logger.warn("Failed reading current period end from subscription items {}: {}",
+                    stripeSubscription.getId(), e.getMessage());
+        }
+
+        return null;
     }
 }
 
