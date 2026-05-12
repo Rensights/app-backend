@@ -51,7 +51,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
         String path = request.getRequestURI();
         
         // Apply rate limiting ONLY to login and signup endpoints
-        if (path.equals("/api/auth/login") || path.equals("/api/auth/register")) {
+        if (path.equals("/api/auth/login") || path.equals("/api/auth/register") || path.equals("/api/auth/google")) {
             if (!checkRateLimit(clientIp, authRequestCache, AUTH_RATE_LIMIT, "login/signup")) {
                 logger.warn("SECURITY ALERT: Rate limit exceeded for IP {} on path {}", clientIp, path);
                 response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());

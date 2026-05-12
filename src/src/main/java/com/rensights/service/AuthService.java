@@ -45,6 +45,9 @@ public class AuthService {
     private StripeService stripeService;
 
     @Autowired
+    private GoogleTokenVerifierService googleTokenVerifierService;
+
+    @Autowired
     private ObjectMapper objectMapper;
     
     @org.springframework.beans.factory.annotation.Value("${app.email-verification-required:true}")
@@ -223,26 +226,102 @@ public class AuthService {
         if (!passwordEncoder.matches(rawPassword, user.getPasswordHash())) {
             throw new RuntimeException("Invalid email or password");
         }
-        
+
+        return completeLoginAfterIdentityVerified(user, deviceFingerprint, httpRequest);
+    }
+
+    /**
+     * Google Sign-In: verify ID token, create user if needed, then same device/session flow as password login.
+     */
+    @Transactional
+    public LoginResponse loginWithGoogle(String credential, String deviceFingerprint, jakarta.servlet.http.HttpServletRequest httpRequest) {
+        GoogleTokenVerifierService.GoogleUserInfo info;
+        try {
+            info = googleTokenVerifierService.verify(credential);
+        } catch (IllegalStateException e) {
+            throw new RuntimeException("Google Sign-In is not configured");
+        } catch (Exception e) {
+            logger.warn("Google token verification failed: {}", e.getMessage());
+            throw new RuntimeException("Invalid Google sign-in");
+        }
+
+        User user = userRepository.findByEmailIgnoreCase(info.email())
+                .map(existing -> mergeGoogleProfileIfNeeded(existing, info))
+                .orElseGet(() -> createUserFromGoogle(info));
+
+        return completeLoginAfterIdentityVerified(user, deviceFingerprint, httpRequest);
+    }
+
+    private User mergeGoogleProfileIfNeeded(User user, GoogleTokenVerifierService.GoogleUserInfo info) {
+        boolean changed = false;
+        if (isBlank(user.getFirstName()) && isNonBlank(info.givenName())) {
+            user.setFirstName(normalize(info.givenName()));
+            changed = true;
+        }
+        if (isBlank(user.getLastName()) && isNonBlank(info.familyName())) {
+            user.setLastName(normalize(info.familyName()));
+            changed = true;
+        }
+        if (!Boolean.TRUE.equals(user.getEmailVerified())) {
+            user.setEmailVerified(true);
+            changed = true;
+        }
+        if (changed) {
+            return userRepository.save(user);
+        }
+        return user;
+    }
+
+    private User createUserFromGoogle(GoogleTokenVerifierService.GoogleUserInfo info) {
+        String customerId = "CUST-" + java.util.UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        String randomPassword = java.util.UUID.randomUUID() + java.util.UUID.randomUUID().toString();
+
+        String stripeCustomerId = null;
+        try {
+            String fullName = (isNonBlank(info.givenName()) ? info.givenName() : "")
+                    + (isNonBlank(info.familyName()) ? " " + info.familyName() : "");
+            fullName = fullName.trim();
+            if (fullName.isEmpty()) {
+                fullName = info.email();
+            }
+            com.stripe.model.Customer stripeCustomer = stripeService.findOrCreateCustomerByEmail(info.email(), fullName);
+            stripeCustomerId = stripeCustomer.getId();
+        } catch (Exception e) {
+            logger.error("Failed to link/create Stripe customer for Google user {}: {}", info.email(), e.getMessage(), e);
+        }
+
+        User user = User.builder()
+                .email(info.email())
+                .passwordHash(passwordEncoder.encode(randomPassword))
+                .firstName(normalize(info.givenName()))
+                .lastName(normalize(info.familyName()))
+                .customerId(customerId)
+                .stripeCustomerId(stripeCustomerId)
+                .isActive(true)
+                .createdAt(LocalDateTime.now())
+                .emailVerified(true)
+                .build();
+
+        return userRepository.save(user);
+    }
+
+    private LoginResponse completeLoginAfterIdentityVerified(User user, String deviceFingerprint, jakarta.servlet.http.HttpServletRequest httpRequest) {
         if (!user.getIsActive()) {
             throw new RuntimeException("Account is deactivated");
         }
-        
-        // Optimized: Use Optional for cleaner null/empty checks and method chaining
+
         boolean isKnownDevice = java.util.Optional.ofNullable(deviceFingerprint)
                 .filter(fp -> !fp.isEmpty())
                 .map(fp -> deviceService.isDeviceKnown(user.getId(), fp))
                 .orElse(false);
-        
+
         User finalUser = user;
         if (!user.getEmailVerified()) {
             if (!emailVerificationRequired) {
-                // Auto-verify if verification is disabled
                 logger.info("Email verification disabled - auto-verifying user: {}", user.getEmail());
                 user.setEmailVerified(true);
                 finalUser = userRepository.save(user);
             } else {
-                // If email is not verified, send a new code and require verification
                 String code = verificationCodeService.generateCode(user.getEmail());
                 emailService.sendVerificationCode(user.getEmail(), code);
                 logger.info("User {} email not verified. Sent new verification code.", user.getEmail());
@@ -253,9 +332,8 @@ public class AuthService {
                         .build();
             }
         }
-        
+
         if (isKnownDevice || !emailVerificationRequired) {
-            // Optimized: Use Optional for cleaner conditional logic
             final User userForLambda = finalUser;
             if (isKnownDevice) {
                 deviceService.updateDeviceLastUsed(userForLambda.getId(), deviceFingerprint);
@@ -264,9 +342,9 @@ public class AuthService {
                         .filter(fp -> !fp.isEmpty())
                         .ifPresent(fp -> deviceService.registerDevice(userForLambda.getId(), fp, httpRequest));
             }
-            
+
             String token = jwtService.generateToken(userForLambda.getId(), userForLambda.getEmail());
-            
+
             return LoginResponse.builder()
                     .requiresVerification(false)
                     .token(token)
@@ -275,13 +353,13 @@ public class AuthService {
                     .lastName(userForLambda.getLastName())
                     .build();
         } else {
-            // New device - send verification code
             String code = verificationCodeService.generateCode(finalUser.getEmail());
             emailService.sendVerificationCode(finalUser.getEmail(), code);
-            
+
             return LoginResponse.builder()
                     .requiresVerification(true)
                     .email(finalUser.getEmail())
+                    .deviceFingerprint(deviceFingerprint)
                     .build();
         }
     }

@@ -87,6 +87,10 @@ stripe:
   enterprise-yearly-price-id: ${STRIPE_ENTERPRISE_YEARLY_PRICE_ID:}
   webhook-secret: ${STRIPE_WEBHOOK_SECRET:}
 
+app:
+  google:
+    client-id: ${GOOGLE_CLIENT_ID:}
+
 logging:
   level:
     root: INFO

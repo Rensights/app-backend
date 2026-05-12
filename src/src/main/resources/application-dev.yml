@@ -85,6 +85,8 @@ app:
     use-graph-api: ${EMAIL_USE_GRAPH_API:true}
   email-verification-required: ${EMAIL_VERIFICATION_REQUIRED:true}
   frontend-url: ${APP_FRONTEND_URL:http://localhost:3000}
+  google:
+    client-id: ${GOOGLE_CLIENT_ID:}
 
 # Microsoft Graph API configuration
 microsoft:

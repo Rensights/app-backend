@@ -2,6 +2,7 @@ package com.rensights.controller;
 
 import com.rensights.dto.AuthResponse;
 import com.rensights.dto.ForgotPasswordRequest;
+import com.rensights.dto.GoogleLoginRequest;
 import com.rensights.dto.LoginRequest;
 import com.rensights.dto.RegisterRequest;
 import com.rensights.dto.ResetPasswordRequest;
@@ -169,7 +170,44 @@ public class AuthController {
                     .body(new ErrorResponse("Invalid email or password"));
         }
     }
-    
+
+    /**
+     * Google Sign-In (GIS credential JWT). Sets auth cookie on success like password login.
+     */
+    @PostMapping("/google")
+    public ResponseEntity<?> loginWithGoogle(@Valid @RequestBody GoogleLoginRequest request,
+                                            HttpServletRequest httpRequest,
+                                            HttpServletResponse httpResponse) {
+        logger.info("=== Google login called");
+        String deviceFingerprint = request.getDeviceFingerprint();
+        if (deviceFingerprint == null || deviceFingerprint.isEmpty()) {
+            deviceFingerprint = deviceService.generateDeviceFingerprint(httpRequest);
+        }
+        try {
+            AuthService.LoginResponse response = authService.loginWithGoogle(
+                    request.getCredential(),
+                    deviceFingerprint,
+                    httpRequest
+            );
+            if (response.isRequiresVerification()) {
+                return ResponseEntity.status(HttpStatus.OK)
+                        .body(new LoginResponse(true, null, response.getEmail(), null, null, response.getDeviceFingerprint()));
+            }
+            cookieUtil.setAuthCookie(httpResponse, response.getToken());
+            return ResponseEntity.ok(new LoginResponse(false, null,
+                    response.getEmail(), response.getFirstName(), response.getLastName(), deviceFingerprint));
+        } catch (RuntimeException e) {
+            logger.error("❌ Google login failed: {}", e.getMessage());
+            String msg = e.getMessage();
+            if (msg != null && msg.contains("not configured")) {
+                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                        .body(new ErrorResponse("Google Sign-In is not configured"));
+            }
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(new ErrorResponse("Google sign-in failed"));
+        }
+    }
+
     /**
      * Verify device for login (new device)
      * SECURITY: Token stored in HttpOnly cookie
