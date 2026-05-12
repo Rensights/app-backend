@@ -108,6 +108,8 @@ secrets:
   jwtSecret: jwt-secret
   stripeSecrets: stripe-secrets
   microsoftGraphSecrets: microsoft-graph-credentials
+  # When set (non-empty), GOOGLE_CLIENT_ID is read from this Secret key GOOGLE_CLIENT_ID (Google OAuth Web client ID).
+  googleOauthCredentials: ""
 
 serviceAccount:
   create: true

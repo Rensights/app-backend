@@ -126,6 +126,14 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.secrets.microsoftGraphSecrets }}
                   key: client-secret
+            {{- if .Values.secrets.googleOauthCredentials }}
+            - name: GOOGLE_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.googleOauthCredentials }}
+                  key: GOOGLE_CLIENT_ID
+                  optional: true
+            {{- end }}
             - name: APP_MAIN_BACKEND_URL
               value: {{ .Values.extraEnv.APP_MAIN_BACKEND_URL | quote }}
             - name: REPORTS_STORAGE_PATH

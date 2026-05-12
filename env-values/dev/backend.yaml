@@ -20,6 +20,7 @@ database:
 # Main app DB env comes from admin DB credentials secret.
 secrets:
   dbCredentials: admin-db-credentials
+  googleOauthCredentials: google-oauth-credentials
 
 resources:
   requests:

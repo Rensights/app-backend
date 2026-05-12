@@ -328,6 +328,20 @@ jobs:
             --namespace ${DEV_NAMESPACE} \
             --dry-run=client -o yaml | kubectl apply -f -
 
+      - name: Setup google-oauth-credentials secret for dev
+        env:
+          VAULT_ESO_TOKEN: ${{ secrets.VAULT_ESO_TOKEN }}
+        run: |
+          export KUBECONFIG=/tmp/kubeconfig
+          if [ -n "${VAULT_ESO_TOKEN}" ]; then
+            echo "Skipping static google-oauth-credentials (sync from Vault path secret/data/dev/google-oauth-credentials via ExternalSecret)."
+            exit 0
+          fi
+          kubectl create secret generic google-oauth-credentials \
+            --from-literal=GOOGLE_CLIENT_ID='REPLACE_ME.apps.googleusercontent.com' \
+            --namespace ${DEV_NAMESPACE} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
       - name: Sync stripe price IDs into secret for dev
         env:
           VAULT_ESO_TOKEN: ${{ secrets.VAULT_ESO_TOKEN }}
