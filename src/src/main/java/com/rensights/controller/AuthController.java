@@ -199,9 +199,16 @@ public class AuthController {
         } catch (RuntimeException e) {
             logger.error("❌ Google login failed: {}", e.getMessage());
             String msg = e.getMessage();
-            if (msg != null && msg.contains("not configured")) {
+            if (msg != null && ("Google Sign-In is not configured".equals(msg)
+                    || msg.contains("missing GOOGLE_CLIENT_ID"))) {
                 return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                         .body(new ErrorResponse("Google Sign-In is not configured"));
+            }
+            if (msg != null && (msg.startsWith("Failed to send verification email")
+                    || msg.contains("Microsoft Graph credentials are not configured"))) {
+                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                        .body(new ErrorResponse(
+                                "Sign-in could not send a verification email. Please try again later."));
             }
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(new ErrorResponse("Google sign-in failed"));

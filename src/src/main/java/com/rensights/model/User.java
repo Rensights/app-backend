@@ -82,4 +82,25 @@ public class User {
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
     }
+
+    /**
+     * Same required investment fields as email/password registration (phone optional).
+     */
+    public boolean isRegistrationProfileComplete() {
+        if (isBlank(budget) || isBlank(portfolio) || isBlank(registrationPlan)) {
+            return false;
+        }
+        if (goalsJson == null) {
+            return false;
+        }
+        String g = goalsJson.trim();
+        if (g.length() < 3 || "[]".equals(g)) {
+            return false;
+        }
+        return g.startsWith("[");
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.trim().isEmpty();
+    }
 }

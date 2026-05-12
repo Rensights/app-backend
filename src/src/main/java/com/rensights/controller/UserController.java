@@ -1,5 +1,7 @@
 package com.rensights.controller;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rensights.dto.SubscriptionResponse;
 import com.rensights.dto.UserResponse;
 import com.rensights.model.Subscription;
@@ -17,6 +19,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -35,6 +38,9 @@ public class UserController {
     
     @Autowired
     private JwtService jwtService;
+
+    @Autowired
+    private ObjectMapper objectMapper;
     
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
     
@@ -113,6 +119,7 @@ public class UserController {
                     .orElse("FREE"));
             response.setCustomerId(customerIdValue); // ALWAYS set - never null or empty
             response.setCreatedAt(createdAtValue); // ALWAYS set - never null or empty
+            fillRegistrationProfile(response, finalUser);
             
             logger.info("📤 Returning user response: customerId='{}', createdAt='{}'", response.getCustomerId(), response.getCreatedAt());
             
@@ -140,41 +147,91 @@ public class UserController {
             User user = userRepository.findById(userId)
                     .orElseThrow(() -> new RuntimeException("User not found"));
             
-            logger.info("Updating user profile for userId: {}, firstName: '{}', lastName: '{}'", 
-                    userId, request.getFirstName(), request.getLastName());
+            logger.info("Updating user profile for userId: {}", userId);
             
-            // SECURITY: Sanitize and validate inputs
             boolean changed = false;
             if (request.getFirstName() != null) {
                 String newFirstName = request.getFirstName().trim();
-                // SECURITY: Validate length and sanitize
                 if (newFirstName.length() > 100) {
                     throw new IllegalArgumentException("First name is too long (max 100 characters)");
                 }
-                // Remove control characters
                 newFirstName = newFirstName.replaceAll("[\\p{Cntrl}&&[^\r\n\t]]", "");
-                if (!newFirstName.equals(user.getFirstName())) {
+                if (!newFirstName.equals(java.util.Optional.ofNullable(user.getFirstName()).orElse(""))) {
                     user.setFirstName(newFirstName.isEmpty() ? null : newFirstName);
                     changed = true;
-                    logger.info("Updated firstName from '{}' to '{}'", user.getFirstName(), newFirstName);
                 }
             }
             if (request.getLastName() != null) {
                 String newLastName = request.getLastName().trim();
-                // SECURITY: Validate length and sanitize
                 if (newLastName.length() > 100) {
                     throw new IllegalArgumentException("Last name is too long (max 100 characters)");
                 }
-                // Remove control characters
                 newLastName = newLastName.replaceAll("[\\p{Cntrl}&&[^\r\n\t]]", "");
-                if (!newLastName.equals(user.getLastName())) {
+                if (!newLastName.equals(java.util.Optional.ofNullable(user.getLastName()).orElse(""))) {
                     user.setLastName(newLastName.isEmpty() ? null : newLastName);
                     changed = true;
-                    logger.info("Updated lastName from '{}' to '{}'", user.getLastName(), newLastName);
+                }
+            }
+            if (request.getPhone() != null) {
+                String phone = request.getPhone().trim();
+                if (phone.length() > 40) {
+                    throw new IllegalArgumentException("Phone is too long");
+                }
+                phone = phone.replaceAll("[^\\d+\\-() ]", "");
+                if (!phone.equals(java.util.Optional.ofNullable(user.getPhone()).orElse(""))) {
+                    user.setPhone(phone.isEmpty() ? null : phone);
+                    changed = true;
+                }
+            }
+            if (request.getBudget() != null) {
+                String budget = request.getBudget().trim();
+                if (budget.length() > 64) {
+                    throw new IllegalArgumentException("Invalid budget");
+                }
+                if (!budget.equals(java.util.Optional.ofNullable(user.getBudget()).orElse(""))) {
+                    user.setBudget(budget.isEmpty() ? null : budget);
+                    changed = true;
+                }
+            }
+            if (request.getPortfolio() != null) {
+                String portfolio = request.getPortfolio().trim();
+                if (portfolio.length() > 64) {
+                    throw new IllegalArgumentException("Invalid portfolio");
+                }
+                if (!portfolio.equals(java.util.Optional.ofNullable(user.getPortfolio()).orElse(""))) {
+                    user.setPortfolio(portfolio.isEmpty() ? null : portfolio);
+                    changed = true;
+                }
+            }
+            if (request.getPlan() != null) {
+                String plan = request.getPlan().trim().toLowerCase();
+                if (!plan.equals("free") && !plan.equals("premium")) {
+                    throw new IllegalArgumentException("Plan must be free or premium");
+                }
+                if (!plan.equals(java.util.Optional.ofNullable(user.getRegistrationPlan()).orElse(""))) {
+                    user.setRegistrationPlan(plan);
+                    changed = true;
+                }
+            }
+            if (request.getGoals() != null) {
+                if (request.getGoals().isEmpty()) {
+                    throw new IllegalArgumentException("Select at least one goal");
+                }
+                for (String g : request.getGoals()) {
+                    if (g != null && g.length() > 80) {
+                        throw new IllegalArgumentException("Invalid goal value");
+                    }
+                }
+                String goalsJson = objectMapper.writeValueAsString(
+                        request.getGoals().stream().filter(java.util.Objects::nonNull).map(String::trim)
+                                .filter(s -> !s.isEmpty())
+                                .collect(Collectors.toList()));
+                if (!goalsJson.equals(java.util.Optional.ofNullable(user.getGoalsJson()).orElse(""))) {
+                    user.setGoalsJson(goalsJson);
+                    changed = true;
                 }
             }
             
-            // Generate customer ID if missing
             if (user.getCustomerId() == null || user.getCustomerId().isEmpty()) {
                 String customerId = "CUST-" + java.util.UUID.randomUUID()
                         .toString()
@@ -184,21 +241,16 @@ public class UserController {
                 changed = true;
             }
             
-            // Set createdAt if missing
             if (user.getCreatedAt() == null) {
                 user.setCreatedAt(LocalDateTime.now());
                 changed = true;
             }
             
-            // Only save if there were actual changes
             if (changed) {
                 user = userRepository.save(user);
                 logger.info("User profile saved successfully for userId: {}", userId);
-            } else {
-                logger.info("No changes detected for userId: {}", userId);
             }
             
-            // Build response using method references
             UserResponse response = new UserResponse();
             response.setId(user.getId().toString());
             response.setEmail(user.getEmail());
@@ -211,14 +263,13 @@ public class UserController {
             response.setCreatedAt(java.util.Optional.ofNullable(user.getCreatedAt())
                     .map(DATE_FORMATTER::format)
                     .orElse(""));
-            
-            logger.info("Returning updated user response: firstName='{}', lastName='{}'", 
-                    response.getFirstName(), response.getLastName());
+            fillRegistrationProfile(response, user);
             
             return ResponseEntity.ok(response);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(new ErrorResponse(e.getMessage()));
         } catch (Exception e) {
             logger.error("Error updating user profile: {}", e.getMessage(), e);
-            // SECURITY FIX: Don't expose internal error details to client
             return ResponseEntity.status(500).body(new ErrorResponse("Error updating user"));
         }
     }
@@ -257,6 +308,27 @@ public class UserController {
                 .build();
     }
     
+    private void fillRegistrationProfile(UserResponse response, User user) {
+        response.setRegistrationProfileComplete(user.isRegistrationProfileComplete());
+        response.setPhone(user.getPhone());
+        response.setBudget(user.getBudget());
+        response.setPortfolio(user.getPortfolio());
+        response.setRegistrationPlan(user.getRegistrationPlan());
+        response.setGoals(parseGoalsList(user.getGoalsJson()));
+    }
+
+    private List<String> parseGoalsList(String json) {
+        if (json == null || json.isBlank()) {
+            return Collections.emptyList();
+        }
+        try {
+            List<String> list = objectMapper.readValue(json, new TypeReference<List<String>>() { });
+            return list != null ? list : Collections.emptyList();
+        } catch (Exception e) {
+            return Collections.emptyList();
+        }
+    }
+    
     private static class ErrorResponse {
         private String error;
         
@@ -272,21 +344,66 @@ public class UserController {
     private static class UpdateUserRequest {
         private String firstName;
         private String lastName;
-        
+        private String phone;
+        private String budget;
+        private String portfolio;
+        private String plan;
+        private List<String> goals;
+
         public String getFirstName() {
             return firstName;
         }
-        
+
         public void setFirstName(String firstName) {
             this.firstName = firstName;
         }
-        
+
         public String getLastName() {
             return lastName;
         }
-        
+
         public void setLastName(String lastName) {
             this.lastName = lastName;
+        }
+
+        public String getPhone() {
+            return phone;
+        }
+
+        public void setPhone(String phone) {
+            this.phone = phone;
+        }
+
+        public String getBudget() {
+            return budget;
+        }
+
+        public void setBudget(String budget) {
+            this.budget = budget;
+        }
+
+        public String getPortfolio() {
+            return portfolio;
+        }
+
+        public void setPortfolio(String portfolio) {
+            this.portfolio = portfolio;
+        }
+
+        public String getPlan() {
+            return plan;
+        }
+
+        public void setPlan(String plan) {
+            this.plan = plan;
+        }
+
+        public List<String> getGoals() {
+            return goals;
+        }
+
+        public void setGoals(List<String> goals) {
+            this.goals = goals;
         }
     }
 }
