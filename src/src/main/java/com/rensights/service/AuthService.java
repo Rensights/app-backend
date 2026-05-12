@@ -227,11 +227,12 @@ public class AuthService {
             throw new RuntimeException("Invalid email or password");
         }
 
-        return completeLoginAfterIdentityVerified(user, deviceFingerprint, httpRequest);
+        return completeLoginAfterIdentityVerified(user, deviceFingerprint, httpRequest, false);
     }
 
     /**
      * Google Sign-In: verify ID token, create user if needed, then same device/session flow as password login.
+     * Google already verified email; we skip the extra "new device" email code (no Microsoft Graph required for that path).
      */
     @Transactional
     public LoginResponse loginWithGoogle(String credential, String deviceFingerprint, jakarta.servlet.http.HttpServletRequest httpRequest) {
@@ -249,7 +250,7 @@ public class AuthService {
                 .map(existing -> mergeGoogleProfileIfNeeded(existing, info))
                 .orElseGet(() -> createUserFromGoogle(info));
 
-        return completeLoginAfterIdentityVerified(user, deviceFingerprint, httpRequest);
+        return completeLoginAfterIdentityVerified(user, deviceFingerprint, httpRequest, true);
     }
 
     private User mergeGoogleProfileIfNeeded(User user, GoogleTokenVerifierService.GoogleUserInfo info) {
@@ -305,7 +306,15 @@ public class AuthService {
         return userRepository.save(user);
     }
 
-    private LoginResponse completeLoginAfterIdentityVerified(User user, String deviceFingerprint, jakarta.servlet.http.HttpServletRequest httpRequest) {
+    /**
+     * @param skipNewDeviceEmailStep when true (Google OAuth only), register device and issue JWT without sending
+     *                                a device verification email — Google already proved control of the email.
+     */
+    private LoginResponse completeLoginAfterIdentityVerified(
+            User user,
+            String deviceFingerprint,
+            jakarta.servlet.http.HttpServletRequest httpRequest,
+            boolean skipNewDeviceEmailStep) {
         if (!user.getIsActive()) {
             throw new RuntimeException("Account is deactivated");
         }
@@ -333,7 +342,7 @@ public class AuthService {
             }
         }
 
-        if (isKnownDevice || !emailVerificationRequired) {
+        if (isKnownDevice || !emailVerificationRequired || skipNewDeviceEmailStep) {
             final User userForLambda = finalUser;
             if (isKnownDevice) {
                 deviceService.updateDeviceLastUsed(userForLambda.getId(), deviceFingerprint);
