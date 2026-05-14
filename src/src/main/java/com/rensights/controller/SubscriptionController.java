@@ -66,7 +66,7 @@ public class SubscriptionController {
     @Value("${stripe.enterprise-yearly-price-id:}")
     private String enterpriseYearlyPriceId;
     
-    @Value("${app.frontend-url:http://dev.72.62.40.154.nip.io:31416}")
+    @Value("${app.frontend-url:https://rensights.com}")
     private String frontendUrl;
     
     /**
