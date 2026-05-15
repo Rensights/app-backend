@@ -338,7 +338,7 @@ jobs:
             exit 0
           fi
           kubectl create secret generic google-oauth-credentials \
-            --from-literal=GOOGLE_CLIENT_ID='REPLACE_ME.apps.googleusercontent.com' \
+            --from-literal=GOOGLE_CLIENT_ID='227508941583-pc9kse02crsrv2qf8iq917c1ld3dtcdv.apps.googleusercontent.com' \
             --namespace ${DEV_NAMESPACE} \
             --dry-run=client -o yaml | kubectl apply -f -
 
