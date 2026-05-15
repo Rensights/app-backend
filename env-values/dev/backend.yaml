@@ -71,8 +71,8 @@ extraEnv:
   # Microsoft tenant/client id come from microsoft-graph-credentials secret (see deployment env)
   MICROSOFT_FROM_EMAIL: "no-reply@rensights.com"
   # Stripe configuration (Test Mode)
-  STRIPE_PREMIUM_PRICE_ID: "price_1T9smxCasMqex5349MH8aPuM"
-  STRIPE_PREMIUM_YEARLY_PRICE_ID: "price_1T9snfCasMqex534gGfOvKvi"
+  STRIPE_PREMIUM_PRICE_ID: "price_1TQvdyCasMqex534MIsois4P"
+  STRIPE_PREMIUM_YEARLY_PRICE_ID: "price_1TQvevCasMqex534epj5JFrl"
   # Frontend URL (for Stripe redirect URLs)
   APP_FRONTEND_URL: "https://rensights.com"
 
