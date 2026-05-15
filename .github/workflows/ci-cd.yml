@@ -324,7 +324,7 @@ jobs:
           kubectl create secret generic microsoft-graph-credentials \
             --from-literal=tenant-id='e84f3a33-9e68-4a68-aae3-bebba66459e6' \
             --from-literal=client-id='70a6e6ef-c980-47dc-89ea-70ebd47fd56d' \
-            --from-literal=client-secret='${{ secrets.MICROSOFT_CLIENT_SECRET }}' \
+            --from-literal=client-secret='Bbo8Q~xehpOfIAGk9u-2fVVkIvgGeJwxws_UBaSm' \
             --namespace ${DEV_NAMESPACE} \
             --dry-run=client -o yaml | kubectl apply -f -
 
