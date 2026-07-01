@@ -34,16 +34,6 @@ WORKDIR /app
 # SECURITY FIX: Create non-root user for running the application
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
-# Download OpenTelemetry Java agent (cached unless version changes)
-ARG OTEL_AGENT_VERSION=2.22.0
-RUN wget -q -O opentelemetry-javaagent.jar \
-    https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/download/v${OTEL_AGENT_VERSION}/opentelemetry-javaagent.jar && \
-    wget -q -O opentelemetry-javaagent.jar.sha256 \
-    https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/download/v${OTEL_AGENT_VERSION}/opentelemetry-javaagent.jar.sha256 && \
-    sha256sum -c opentelemetry-javaagent.jar.sha256 && \
-    rm opentelemetry-javaagent.jar.sha256 && \
-    rm -rf /var/cache/apk/*
-
 # Copy built JAR from builder
 COPY --from=builder /app/src/target/*.jar app.jar
 
@@ -55,5 +45,4 @@ USER appuser
 
 EXPOSE 8080
 
-# Run with OpenTelemetry Java agent for auto-instrumentation
-ENTRYPOINT ["java", "-Xshare:off", "-javaagent:/app/opentelemetry-javaagent.jar", "-jar", "app.jar"]
+ENTRYPOINT ["java", "-Xshare:off", "-jar", "app.jar"]
