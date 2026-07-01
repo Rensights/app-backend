@@ -45,4 +45,9 @@ USER appuser
 
 EXPOSE 8080
 
+# Explicitly clear JVM agent env vars so any cluster-level injection is neutralized
+ENV JAVA_TOOL_OPTIONS="" \
+    _JAVA_OPTIONS="" \
+    JDK_JAVA_OPTIONS=""
+
 ENTRYPOINT ["java", "-Xshare:off", "-jar", "app.jar"]

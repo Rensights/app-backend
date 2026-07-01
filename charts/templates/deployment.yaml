@@ -50,10 +50,7 @@ spec:
           args:
             - |
               export DATABASE_URL="jdbc:postgresql://${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DATABASE}"
-              unset JAVA_TOOL_OPTIONS
-              unset _JAVA_OPTIONS
-              unset JDK_JAVA_OPTIONS
-              exec java -Xshare:off -jar app.jar
+              exec env -u JAVA_TOOL_OPTIONS -u _JAVA_OPTIONS -u JDK_JAVA_OPTIONS java -Xshare:off -jar app.jar
           env:
             - name: SPRING_PROFILES_ACTIVE
               value: {{ .Values.extraEnv.SPRING_PROFILES_ACTIVE | quote }}
