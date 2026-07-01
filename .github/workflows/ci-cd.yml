@@ -376,7 +376,12 @@ jobs:
           
           # KongPlugin created outside Helm (e.g. kubectl apply) blocks upgrade — remove so the chart can own it
           kubectl delete kongplugins.configuration.konghq.com backend-cors -n ${DEV_NAMESPACE} --ignore-not-found --wait=true
-          
+
+          # Remove OTel Operator Instrumentation CRs so the operator stops auto-injecting the Java agent
+          kubectl delete instrumentation --all -n ${DEV_NAMESPACE} --ignore-not-found 2>/dev/null || true
+          # Also remove namespace-level injection annotation if present
+          kubectl annotate namespace ${DEV_NAMESPACE} instrumentation.opentelemetry.io/inject-java- 2>/dev/null || true
+
           echo "🚀 Deploying to DEV with tag: ${IMAGE_TAG}"
           
           # Rollout is triggered by chart pod annotation kubectl.kubernetes.io/restartedAt (now) each upgrade
