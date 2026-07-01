@@ -98,3 +98,25 @@ logging:
     # SECURITY FIX: Disable SQL logging to prevent sensitive data exposure
     org.hibernate.SQL: OFF
     org.hibernate.type.descriptor.sql.BasicBinder: OFF
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      stripe:
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+      microsoft-graph:
+        sliding-window-size: 5
+        failure-rate-threshold: 60
+        wait-duration-in-open-state: 60s
+        permitted-number-of-calls-in-half-open-state: 2
+        automatic-transition-from-open-to-half-open-enabled: true
+  timelimiter:
+    instances:
+      stripe:
+        timeout-duration: 10s
+      microsoft-graph:
+        timeout-duration: 15s

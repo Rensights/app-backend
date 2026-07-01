@@ -36,9 +36,12 @@ RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
 # Download OpenTelemetry Java agent (cached unless version changes)
 ARG OTEL_AGENT_VERSION=2.22.0
-# SECURITY: Download and verify checksum (optional but recommended)
 RUN wget -q -O opentelemetry-javaagent.jar \
     https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/download/v${OTEL_AGENT_VERSION}/opentelemetry-javaagent.jar && \
+    wget -q -O opentelemetry-javaagent.jar.sha256 \
+    https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/download/v${OTEL_AGENT_VERSION}/opentelemetry-javaagent.jar.sha256 && \
+    sha256sum -c opentelemetry-javaagent.jar.sha256 && \
+    rm opentelemetry-javaagent.jar.sha256 && \
     rm -rf /var/cache/apk/*
 
 # Copy built JAR from builder

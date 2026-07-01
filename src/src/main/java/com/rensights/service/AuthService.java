@@ -3,6 +3,8 @@ package com.rensights.service;
 import com.rensights.dto.AuthResponse;
 import com.rensights.dto.LoginRequest;
 import com.rensights.dto.RegisterRequest;
+import com.rensights.exception.InvalidCredentialsException;
+import com.rensights.exception.VerificationException;
 import com.rensights.model.User;
 import com.rensights.service.EmailAlreadyRegisteredException;
 import com.rensights.repository.UserRepository;
@@ -189,9 +191,9 @@ public class AuthService {
                 .orElseThrow(() -> new RuntimeException("User not found"));
         
         if (!verificationCodeService.verifyCode(user.getEmail(), code)) {
-            throw new RuntimeException("Invalid or expired verification code");
+            throw new VerificationException("Invalid or expired verification code");
         }
-        
+
         // Mark email as verified
         user.setEmailVerified(true);
         User savedUser = userRepository.save(user);
@@ -219,12 +221,12 @@ public class AuthService {
      */
     public LoginResponse login(LoginRequest request, String deviceFingerprint, jakarta.servlet.http.HttpServletRequest httpRequest) {
         User user = userRepository.findByEmailIgnoreCase(request.getEmail())
-                .orElseThrow(() -> new RuntimeException("Invalid email or password"));
-        
+                .orElseThrow(() -> new InvalidCredentialsException("Invalid email or password"));
+
         String rawPassword = request.getPassword() == null ? "" : request.getPassword().strip();
         // Optimized: Validate password early to fail fast (before any other operations)
         if (!passwordEncoder.matches(rawPassword, user.getPasswordHash())) {
-            throw new RuntimeException("Invalid email or password");
+            throw new InvalidCredentialsException("Invalid email or password");
         }
 
         return completeLoginAfterIdentityVerified(user, deviceFingerprint, httpRequest, false);
@@ -409,9 +411,9 @@ public class AuthService {
                 .orElseThrow(() -> new RuntimeException("User not found"));
         
         if (!verificationCodeService.verifyCode(user.getEmail(), code)) {
-            throw new RuntimeException("Invalid or expired verification code");
+            throw new VerificationException("Invalid or expired verification code");
         }
-        
+
         // Register the new device
         deviceService.registerDevice(user.getId(), deviceFingerprint, httpRequest);
         
@@ -493,7 +495,7 @@ public class AuthService {
         
         // Verify the reset code
         if (!verificationCodeService.verifyCode("reset:" + user.getEmail(), code)) {
-            throw new RuntimeException("Invalid or expired reset code");
+            throw new VerificationException("Invalid or expired reset code");
         }
         
         // Update password

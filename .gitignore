@@ -40,6 +40,12 @@ logs/
 *.jar
 !src/target/*.jar.original
 
+# Maven build output artifacts (should never be committed)
+src/BOOT-INF/
+src/META-INF/
+src/org/
+target/
+
 
 
 

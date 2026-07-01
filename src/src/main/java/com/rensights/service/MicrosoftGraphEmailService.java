@@ -10,6 +10,7 @@ import com.microsoft.graph.authentication.IAuthenticationProvider;
 import com.azure.identity.ClientSecretCredential;
 import com.azure.identity.ClientSecretCredentialBuilder;
 import com.azure.core.credential.TokenRequestContext;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -85,15 +86,20 @@ public class MicrosoftGraphEmailService {
     }
     
     /**
-     * Send email using Microsoft Graph API
+     * Send email using Microsoft Graph API.
+     * Protected by a circuit breaker: if Microsoft Graph is repeatedly unavailable
+     * the breaker opens and failures are logged rather than propagated, since email
+     * is non-critical for most flows.
      */
+    @CircuitBreaker(name = "microsoft-graph", fallbackMethod = "sendEmailFallback")
     public void sendEmail(String toEmail, String subject, String body) {
         sendEmail(toEmail, subject, body, false);
     }
-    
+
     /**
-     * Send email using Microsoft Graph API with HTML support
+     * Send email using Microsoft Graph API with HTML support.
      */
+    @CircuitBreaker(name = "microsoft-graph", fallbackMethod = "sendEmailHtmlFallback")
     public void sendEmail(String toEmail, String subject, String body, boolean isHtml) {
         if (!emailEnabled) {
             logger.warn("Email is disabled. Email to {}: [REDACTED]", toEmail);
@@ -148,11 +154,23 @@ public class MicrosoftGraphEmailService {
                 .buildRequest()
                 .post();
             
-            logger.info("✅ Email sent successfully via Microsoft Graph to: {}", toEmail);
+            logger.info("Email sent successfully via Microsoft Graph to: {}", toEmail);
         } catch (Exception e) {
-            logger.error("❌ Failed to send email via Microsoft Graph to: {}", toEmail, e);
+            logger.error("Failed to send email via Microsoft Graph to: {}", toEmail, e);
             throw new RuntimeException("Failed to send email via Microsoft Graph: " + e.getMessage(), e);
         }
+    }
+
+    // Fallback for sendEmail(String toEmail, String subject, String body)
+    private void sendEmailFallback(String toEmail, String subject, String body, Exception ex) {
+        logger.error("Microsoft Graph circuit breaker open - email to {} with subject '{}' could not be sent: {}",
+                toEmail, subject, ex.getMessage());
+    }
+
+    // Fallback for sendEmail(String toEmail, String subject, String body, boolean isHtml)
+    private void sendEmailHtmlFallback(String toEmail, String subject, String body, boolean isHtml, Exception ex) {
+        logger.error("Microsoft Graph circuit breaker open - email to {} with subject '{}' could not be sent: {}",
+                toEmail, subject, ex.getMessage());
     }
 }
 

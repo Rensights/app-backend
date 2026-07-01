@@ -1,77 +1,84 @@
 package com.rensights.service;
 
+import com.rensights.model.RevokedToken;
+import com.rensights.repository.RevokedTokenRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.UUID;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 /**
- * SECURITY: Token revocation service for blacklisting JWT tokens
- * 
- * NOTE: This is an in-memory implementation. For production, use Redis with TTL.
- * 
- * Current limitations:
- * - Tokens are only revoked in-memory (lost on restart)
- * - Not suitable for multi-instance deployments
- * - No expiration cleanup
- * 
- * Production implementation should:
- * 1. Use Redis with token blacklist
- * 2. Set TTL equal to JWT expiration time
- * 3. Check blacklist in JwtAuthenticationFilter before validating token
+ * SECURITY: Token revocation service for blacklisting JWT tokens.
+ *
+ * Tokens are stored by SHA-256 hash in the revoked_tokens table with an
+ * expiry timestamp equal to the JWT's own expiry. The scheduled cleanup
+ * (cleanupExpiredTokens) removes rows that are past expiry so the table
+ * stays small.
  */
 @Service
 public class TokenRevocationService {
-    
+
     private static final Logger logger = LoggerFactory.getLogger(TokenRevocationService.class);
-    
-    // In-memory blacklist: token hash -> expiration timestamp
-    // In production, use Redis: SETEX token_hash expiration_seconds ""
-    private final Set<String> revokedTokens = ConcurrentHashMap.newKeySet();
-    
+
+    @Autowired
+    private RevokedTokenRepository repository;
+
     /**
-     * Revoke a token by adding its hash to the blacklist
-     * 
-     * @param token The JWT token to revoke
-     * @param expirationTimeMillis Expiration time in milliseconds (for cleanup)
+     * Revoke a token by persisting its hash to the database.
+     *
+     * @param token                JWT string to revoke
+     * @param expirationTimeMillis epoch-millis of the JWT's own expiry
      */
+    @Transactional
     public void revokeToken(String token, long expirationTimeMillis) {
-        // Use hash to save memory (SHA-256 of token)
         String tokenHash = hashToken(token);
-        revokedTokens.add(tokenHash);
-        
+        LocalDateTime expiresAt = LocalDateTime.ofInstant(
+                Instant.ofEpochMilli(expirationTimeMillis),
+                ZoneId.systemDefault());
+
+        RevokedToken revokedToken = RevokedToken.builder()
+                .tokenHash(tokenHash)
+                .expiresAt(expiresAt)
+                .build();
+
+        repository.save(revokedToken);
         logger.info("Token revoked: hash={}", tokenHash);
-        
-        // TODO: In production, use Redis:
-        // redisTemplate.opsForValue().set(
-        //     "revoked:" + tokenHash, 
-        //     "", 
-        //     Duration.ofMillis(expirationTimeMillis - System.currentTimeMillis())
-        // );
     }
-    
+
     /**
-     * Check if a token has been revoked
-     * 
-     * @param token The JWT token to check
-     * @return true if token is revoked, false otherwise
+     * Check if a token has been revoked.
+     *
+     * @param token JWT string to check
+     * @return true if the token is in the revocation table
      */
     public boolean isTokenRevoked(String token) {
         String tokenHash = hashToken(token);
-        boolean revoked = revokedTokens.contains(tokenHash);
-        
+        boolean revoked = repository.existsByTokenHash(tokenHash);
+
         if (revoked) {
             logger.warn("Revoked token access attempt detected: hash={}", tokenHash);
         }
-        
+
         return revoked;
     }
-    
+
     /**
-     * Hash token for storage (SHA-256)
+     * Remove expired revocation records. Call this from a scheduled task to
+     * keep the table compact.
+     */
+    @Transactional
+    public void cleanupExpiredTokens() {
+        int deleted = repository.deleteExpired(LocalDateTime.now());
+        logger.debug("Cleaned up {} expired revoked tokens", deleted);
+    }
+
+    /**
+     * Hash token for storage (SHA-256).
      */
     private String hashToken(String token) {
         try {
@@ -79,11 +86,11 @@ public class TokenRevocationService {
             byte[] hash = digest.digest(token.getBytes(java.nio.charset.StandardCharsets.UTF_8));
             return bytesToHex(hash);
         } catch (java.security.NoSuchAlgorithmException e) {
-            // Fallback to simple hash if SHA-256 not available (shouldn't happen)
+            // Fallback — SHA-256 is always available in standard JVMs
             return String.valueOf(token.hashCode());
         }
     }
-    
+
     private String bytesToHex(byte[] bytes) {
         StringBuilder result = new StringBuilder();
         for (byte b : bytes) {
@@ -91,19 +98,4 @@ public class TokenRevocationService {
         }
         return result.toString();
     }
-    
-    /**
-     * Cleanup expired tokens (call periodically in production)
-     */
-    public void cleanupExpiredTokens() {
-        // In-memory implementation: tokens stay until restart
-        // In production with Redis, TTL handles this automatically
-        logger.debug("Token cleanup: {} tokens in blacklist", revokedTokens.size());
-    }
 }
-
-
-
-
-
-

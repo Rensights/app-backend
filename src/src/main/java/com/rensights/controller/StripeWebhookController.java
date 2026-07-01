@@ -50,63 +50,52 @@ public class StripeWebhookController {
             @RequestHeader(value = "Stripe-Signature", required = false) String sigHeader) {
         
         logger.info("=== WEBHOOK ENDPOINT HIT ===");
-        logger.info("Webhook received - payload length: {}, signature present: {}", 
-                   payload != null ? payload.length() : 0, 
+        logger.info("Webhook received - payload length: {}, signature present: {}",
+                   payload != null ? payload.length() : 0,
                    sigHeader != null && !sigHeader.isEmpty());
+
         if (webhookSecret == null || webhookSecret.isEmpty()) {
-            logger.warn("Stripe webhook secret not configured - skipping signature verification");
-            // In development, you might want to process without verification
-            // In production, always verify signatures
-        } else {
-            try {
-                Event event = Webhook.constructEvent(payload, sigHeader, webhookSecret);
-                logger.info("Received Stripe webhook event: {}", event.getType());
-                
-                // Handle the event
-                switch (event.getType()) {
-                    case "checkout.session.completed":
-                        handleCheckoutSessionCompleted(event);
-                        break;
-                    case "invoice.payment_succeeded":
-                        handleInvoicePaymentSucceeded(event);
-                        break;
-                    case "invoice.payment_failed":
-                        handleInvoicePaymentFailed(event);
-                        break;
-                    case "invoice.created":
-                        handleInvoiceCreated(event);
-                        break;
-                    case "invoice.updated":
-                        handleInvoiceUpdated(event);
-                        break;
-                    case "customer.subscription.deleted":
-                        handleSubscriptionDeleted(event);
-                        break;
-                    case "customer.subscription.updated":
-                        handleSubscriptionUpdated(event);
-                        break;
-                    default:
-                        logger.info("Unhandled event type: {}", event.getType());
-                }
-                
-                return ResponseEntity.ok("Webhook processed successfully");
-            } catch (SignatureVerificationException e) {
-                logger.error("Invalid webhook signature: {}", e.getMessage());
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid signature");
-            } catch (Exception e) {
-                logger.error("Error processing webhook: {}", e.getMessage(), e);
-                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Webhook processing failed");
-            }
+            logger.warn("Stripe webhook secret not configured - rejecting request");
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body("Stripe webhook secret not configured");
         }
-        
-        // If no webhook secret configured, try to process anyway (development only)
+
         try {
-            // In production, you should never skip signature verification
-            logger.warn("Processing webhook without signature verification (development mode)");
-            // Parse event manually for development
-            return ResponseEntity.ok("Webhook received (signature verification skipped)");
+            Event event = Webhook.constructEvent(payload, sigHeader, webhookSecret);
+            logger.info("Received Stripe webhook event: {}", event.getType());
+
+            // Handle the event
+            switch (event.getType()) {
+                case "checkout.session.completed":
+                    handleCheckoutSessionCompleted(event);
+                    break;
+                case "invoice.payment_succeeded":
+                    handleInvoicePaymentSucceeded(event);
+                    break;
+                case "invoice.payment_failed":
+                    handleInvoicePaymentFailed(event);
+                    break;
+                case "invoice.created":
+                    handleInvoiceCreated(event);
+                    break;
+                case "invoice.updated":
+                    handleInvoiceUpdated(event);
+                    break;
+                case "customer.subscription.deleted":
+                    handleSubscriptionDeleted(event);
+                    break;
+                case "customer.subscription.updated":
+                    handleSubscriptionUpdated(event);
+                    break;
+                default:
+                    logger.info("Unhandled event type: {}", event.getType());
+            }
+
+            return ResponseEntity.ok("Webhook processed successfully");
+        } catch (SignatureVerificationException e) {
+            logger.error("Invalid webhook signature: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid signature");
         } catch (Exception e) {
-            logger.error("Error processing webhook without verification: {}", e.getMessage());
+            logger.error("Error processing webhook: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Webhook processing failed");
         }
     }
@@ -142,7 +131,7 @@ public class StripeWebhookController {
                     }
                 } catch (Exception e) {
                     logger.error("❌ Error updating user tier/subscription from checkout session: {}", e.getMessage(), e);
-                    // Don't fail the webhook, but log the error
+                    throw new RuntimeException("Failed to update subscription from checkout session", e);
                 }
                 
                 // Send confirmation email
@@ -191,9 +180,10 @@ public class StripeWebhookController {
             }
         } catch (Exception e) {
             logger.error("Error handling checkout.session.completed: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to handle checkout session", e);
         }
     }
-    
+
     private void handleInvoicePaymentSucceeded(Event event) {
         try {
             com.stripe.model.Invoice stripeInvoice = deserializeEventObject(
@@ -231,7 +221,7 @@ public class StripeWebhookController {
                 }
             } catch (Exception e) {
                 logger.error("❌ Error updating user tier/subscription for payment success: {}", e.getMessage(), e);
-                // Don't fail the webhook, but log the error
+                throw new RuntimeException("Failed to update subscription on payment success", e);
             }
             
             // Always try to send payment confirmation email when payment succeeds
@@ -318,21 +308,12 @@ public class StripeWebhookController {
             
             // Store/update the invoice record with failed status
             invoiceService.processStripeInvoice(stripeInvoice);
-            
-            // Handle automatic downgrade to FREE tier when payment fails
-            // Only process if this is a subscription invoice (not a one-time payment)
-            String subscriptionId = stripeService.extractInvoiceSubscriptionId(stripeInvoice);
-            if (subscriptionId != null && !subscriptionId.isEmpty()) {
-                logger.info("Payment failed for subscription invoice, downgrading user to FREE tier");
-                subscriptionService.handlePaymentFailure(subscriptionId);
-            } else {
-                // If no subscription ID, try using customer ID
-                String customerId = stripeInvoice.getCustomer();
-                if (customerId != null && !customerId.isEmpty()) {
-                    logger.info("Payment failed for customer {}, downgrading to FREE tier", customerId);
-                    subscriptionService.handlePaymentFailureByCustomer(customerId);
-                }
-            }
+
+            // DO NOT downgrade here — Stripe will retry the payment automatically.
+            // Downgrade happens only after all retries are exhausted, via:
+            //   customer.subscription.updated  (status = past_due / unpaid)
+            //   customer.subscription.deleted
+            logger.warn("Payment failed for invoice: {} — awaiting Stripe retry", stripeInvoice.getId());
         } catch (Exception e) {
             logger.error("Error handling invoice.payment_failed: {}", e.getMessage(), e);
         }
@@ -415,11 +396,20 @@ public class StripeWebhookController {
             
             logger.info("Subscription updated: {} - status: {}", stripeSubscription.getId(), stripeSubscription.getStatus());
             
-            // Immediate downgrade for payment-collection failures.
             String status = stripeSubscription.getStatus();
-            if ("past_due".equals(status) || "unpaid".equals(status) || "incomplete_expired".equals(status)) {
-                logger.warn("Subscription {} is in {} status, downgrading user to FREE tier", 
-                           stripeSubscription.getId(), status);
+
+            // past_due means Stripe is still retrying — do NOT downgrade yet.
+            // Downgrade only when Stripe gives up entirely (unpaid / incomplete_expired)
+            // or when the subscription is canceled.
+            if ("past_due".equals(status)) {
+                logger.warn("Subscription {} is past_due — Stripe will retry, holding current plan",
+                        stripeSubscription.getId());
+                return;
+            }
+
+            if ("unpaid".equals(status) || "incomplete_expired".equals(status)) {
+                logger.warn("Subscription {} is in {} status (Stripe exhausted retries), downgrading to FREE",
+                        stripeSubscription.getId(), status);
                 subscriptionService.handlePaymentFailure(stripeSubscription.getId());
                 return;
             }

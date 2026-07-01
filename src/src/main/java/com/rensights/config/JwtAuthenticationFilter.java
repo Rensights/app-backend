@@ -1,6 +1,7 @@
 package com.rensights.config;
 
 import com.rensights.service.JwtService;
+import com.rensights.service.TokenRevocationService;
 import com.rensights.util.CookieUtil;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -25,28 +26,26 @@ import java.util.UUID;
 @Component
 @Order(2)
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
-    
+
     private static final Logger logger = LoggerFactory.getLogger(JwtAuthenticationFilter.class);
-    
+
     @Autowired
     private JwtService jwtService;
 
     @Autowired
-    private com.rensights.service.AdminJwtService adminJwtService;
-    
+    private TokenRevocationService tokenRevocationService;
+
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
-        
-        // Skip JWT processing for OPTIONS requests (CORS preflight)
+
         if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
             filterChain.doFilter(request, response);
             return;
         }
-        
+
         String token = null;
-        
-        // SECURITY: Priority 1 - Read token from HttpOnly cookie (most secure)
+
         Cookie[] cookies = request.getCookies();
         if (cookies != null) {
             for (Cookie cookie : cookies) {
@@ -56,42 +55,29 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 }
             }
         }
-        
-        // SECURITY: Priority 2 - Fallback to Authorization header (for API clients, mobile apps)
-        // This maintains backward compatibility while preferring secure cookies
+
         if (token == null) {
             String authHeader = request.getHeader("Authorization");
             if (authHeader != null && authHeader.startsWith("Bearer ")) {
                 token = authHeader.substring(7);
             }
         }
-        
-        // Validate and authenticate if token is present
+
         if (token != null) {
+            // SECURITY: Reject tokens that have been explicitly revoked (e.g. via logout)
+            if (tokenRevocationService.isTokenRevoked(token)) {
+                filterChain.doFilter(request, response);
+                return;
+            }
+
             if (jwtService.validateToken(token)) {
                 try {
                     UUID userId = jwtService.getUserIdFromToken(token);
-                    
-                    UsernamePasswordAuthenticationToken authentication = 
+                    UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(
-                            userId.toString(), 
-                            null, 
+                            userId.toString(),
+                            null,
                             Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER"))
-                        );
-                    authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                    
-                    SecurityContextHolder.getContext().setAuthentication(authentication);
-                } catch (Exception e) {
-                    // Invalid token, continue without authentication
-                }
-            } else if (adminJwtService.validateToken(token)) {
-                try {
-                    UUID adminId = adminJwtService.getUserIdFromToken(token);
-                    UsernamePasswordAuthenticationToken authentication = 
-                        new UsernamePasswordAuthenticationToken(
-                            adminId.toString(), 
-                            null, 
-                            Collections.singletonList(new SimpleGrantedAuthority("ROLE_ADMIN"))
                         );
                     authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(authentication);
@@ -100,7 +86,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 }
             }
         }
-        
+
         filterChain.doFilter(request, response);
     }
 }

@@ -12,10 +12,14 @@ spring:
       minimum-idle: 10
       connection-timeout: 30000
       leak-detection-threshold: 60000
-  
+      max-lifetime: 600000
+      idle-timeout: 300000
+      data-source-properties:
+        sslmode: require
+
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     show-sql: false
     properties:
       hibernate:

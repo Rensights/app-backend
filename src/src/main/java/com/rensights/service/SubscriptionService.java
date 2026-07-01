@@ -416,8 +416,9 @@ public class SubscriptionService {
             }
             
             if (planType == null) {
-                logger.warn("Could not determine plan type for customer {}. Defaulting to PREMIUM.", stripeCustomerId);
-                planType = UserTier.PREMIUM; // Default to PREMIUM if we can't determine
+                logger.error("Could not determine plan type for customer {} (subscription: {}, invoice: {}). Stripe will retry.",
+                        stripeCustomerId, stripeSubscriptionId, stripeInvoiceId);
+                throw new IllegalStateException("Cannot determine plan tier for customer: " + stripeCustomerId);
             }
             
             // Cancel existing active subscription

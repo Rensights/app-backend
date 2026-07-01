@@ -95,7 +95,9 @@ cors:
     - PATCH
     - OPTIONS
   headers:
-    - "*"
+    - Authorization
+    - Content-Type
+    - X-Requested-With
   exposedHeaders:
     - Authorization
     - Content-Type

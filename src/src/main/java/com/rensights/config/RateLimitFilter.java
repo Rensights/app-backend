@@ -83,21 +83,24 @@ public class RateLimitFilter extends OncePerRequestFilter {
     }
     
     private String getClientIpAddress(HttpServletRequest request) {
-        // Check X-Forwarded-For header first (for proxies/load balancers)
-        String xForwardedFor = request.getHeader("X-Forwarded-For");
-        if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
-            // Take the first IP if there's a comma-separated list
-            return xForwardedFor.split(",")[0].trim();
+        String remoteAddr = request.getRemoteAddr();
+        // Only trust X-Forwarded-For if connection comes from a private/loopback address (i.e., a proxy)
+        if (isPrivateOrLoopback(remoteAddr)) {
+            String xForwardedFor = request.getHeader("X-Forwarded-For");
+            if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
+                return xForwardedFor.split(",")[0].trim();
+            }
+            String xRealIp = request.getHeader("X-Real-IP");
+            if (xRealIp != null && !xRealIp.isEmpty()) {
+                return xRealIp;
+            }
         }
-        
-        // Check X-Real-IP header
-        String xRealIp = request.getHeader("X-Real-IP");
-        if (xRealIp != null && !xRealIp.isEmpty()) {
-            return xRealIp;
-        }
-        
-        // Fallback to remote address
-        return request.getRemoteAddr();
+        return remoteAddr;
+    }
+
+    private boolean isPrivateOrLoopback(String ip) {
+        return ip.startsWith("10.") || ip.startsWith("192.168.") || ip.startsWith("172.")
+                || ip.equals("127.0.0.1") || ip.equals("::1") || ip.equals("0:0:0:0:0:0:0:1");
     }
 }
 

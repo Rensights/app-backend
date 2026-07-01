@@ -12,6 +12,8 @@ spring:
       maximum-pool-size: 10
       minimum-idle: 5
       connection-timeout: 30000
+      max-lifetime: 600000
+      idle-timeout: 300000
 
   # JPA Configuration - using custom datasources
   jpa:
@@ -56,7 +58,7 @@ spring:
           timeout: 30000
           writetimeout: 30000
           ssl:
-            trust: "*"
+            trust: "smtp.office365.com"
           socketFactory:
             class: javax.net.ssl.SSLSocketFactory
   

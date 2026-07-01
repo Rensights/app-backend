@@ -9,7 +9,10 @@ spec:
   replicas: {{ .Values.replicaCount }}
   {{- end }}
   strategy:
-    type: Recreate
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
   selector:
     matchLabels:
       {{- include "backend.selectorLabels" . | nindent 6 }}
@@ -134,8 +137,10 @@ spec:
                   key: GOOGLE_CLIENT_ID
                   optional: true
             {{- end }}
+            {{- if .Values.extraEnv.APP_MAIN_BACKEND_URL }}
             - name: APP_MAIN_BACKEND_URL
               value: {{ .Values.extraEnv.APP_MAIN_BACKEND_URL | quote }}
+            {{- end }}
             - name: REPORTS_STORAGE_PATH
               value: {{ .Values.reports.storage.path | quote }}
             {{- if .Values.extraEnv }}
