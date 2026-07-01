@@ -49,7 +49,7 @@ spec:
           args:
             - |
               export DATABASE_URL="jdbc:postgresql://${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DATABASE}"
-              exec java -Xshare:off -javaagent:/app/opentelemetry-javaagent.jar -jar app.jar
+              exec java -Xshare:off -jar app.jar
           env:
             - name: SPRING_PROFILES_ACTIVE
               value: {{ .Values.extraEnv.SPRING_PROFILES_ACTIVE | quote }}

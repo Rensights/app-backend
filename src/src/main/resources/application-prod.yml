@@ -86,15 +86,3 @@ management:
   health:
     mail:
       enabled: ${EMAIL_ENABLED:false}
-  metrics:
-    export:
-      otlp:
-        enabled: true
-        url: ${MANAGEMENT_OTLP_METRICS_EXPORT_URL:http://signoz-otel-collector.platform.svc.cluster.local:4318/v1/metrics}
-        step: 30s
-  tracing:
-    sampling:
-      probability: 1.0
-  otlp:
-    tracing:
-      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://signoz-otel-collector.platform.svc.cluster.local:4318/v1/traces}
