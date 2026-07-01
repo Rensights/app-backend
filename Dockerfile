@@ -27,6 +27,15 @@ COPY src ./src
 WORKDIR /app/src
 RUN mvn clean package -DskipTests -B
 
+# Build a no-op OTel agent stub JAR so the JVM can load -javaagent without crashing
+# (some cluster-level tooling injects -javaagent:/app/opentelemetry-javaagent.jar unconditionally)
+RUN mkdir -p /tmp/noop/src/noop /tmp/noop/out && \
+    printf 'package noop;\nimport java.lang.instrument.Instrumentation;\npublic class Agent { public static void premain(String a, Instrumentation i) {} }\n' \
+      > /tmp/noop/src/noop/Agent.java && \
+    javac /tmp/noop/src/noop/Agent.java -d /tmp/noop/out && \
+    printf 'Manifest-Version: 1.0\nPremain-Class: noop.Agent\n\n' > /tmp/noop/MANIFEST.MF && \
+    jar cfm /tmp/noop-agent.jar /tmp/noop/MANIFEST.MF -C /tmp/noop/out .
+
 # Stage 3: Runtime image
 FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app
@@ -36,6 +45,9 @@ RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
 # Copy built JAR from builder
 COPY --from=builder /app/src/target/*.jar app.jar
+
+# Place the no-op stub at the exact path the cluster injects as -javaagent
+COPY --from=builder /tmp/noop-agent.jar /app/opentelemetry-javaagent.jar
 
 # SECURITY: Change ownership to non-root user
 RUN chown -R appuser:appgroup /app
