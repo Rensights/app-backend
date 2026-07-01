@@ -25,6 +25,7 @@ spec:
         reloader.stakater.com/auto: "true"
         deployment.kubernetes.io/revision: "{{ .Release.Revision }}"
         kubectl.kubernetes.io/restartedAt: "{{ now | date "2006-01-02T15:04:05Z07:00" }}"
+        instrumentation.opentelemetry.io/inject-java: "false"
       labels:
         {{- include "backend.selectorLabels" . | nindent 8 }}
     spec:
