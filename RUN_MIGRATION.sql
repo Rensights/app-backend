@@ -31,3 +31,4 @@ CREATE INDEX IF NOT EXISTS idx_invoices_invoice_date ON invoices(invoice_date DE
 -- Verify the table was created
 SELECT 'invoices table created successfully' AS status;
 \d invoices;
+
