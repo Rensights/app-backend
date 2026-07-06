@@ -550,6 +550,14 @@ public class DealController {
                     : "N/A";
             dto.put("priceVsEstimations", priceVsMarket);
 
+            // Market gap (percentage + direction, from AI model)
+            dto.put("marketGapPercentage", apiResponse.has("market_gap_percentage")
+                ? apiResponse.get("market_gap_percentage").asText() : "N/A");
+            dto.put("marketDirection", apiResponse.has("market_direction")
+                ? apiResponse.get("market_direction").asText() : "");
+            dto.put("marketDirectionLabel", apiResponse.has("market_direction_label")
+                ? apiResponse.get("market_direction_label").asText() : "");
+
             // Price per sqft
             long pricePerSqft = apiResponse.has("price_per_sqft")
                 ? Long.parseLong(apiResponse.get("price_per_sqft").asText().replace(",", ""))
