@@ -68,9 +68,15 @@ public class User {
         
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
-    
+
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
+
+    // Bumped only by the heartbeat endpoint via a direct UPDATE query (see
+    // UserRepository.updateLastSeenAt) - never via entity save, so it doesn't
+    // touch updatedAt (which should only reflect real profile changes).
+    @Column(name = "last_seen_at")
+    private LocalDateTime lastSeenAt;
     
     @PrePersist
     protected void onCreate() {

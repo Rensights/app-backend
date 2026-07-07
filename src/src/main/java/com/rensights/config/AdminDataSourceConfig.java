@@ -17,6 +17,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 import org.springframework.beans.factory.annotation.Value;
 
+import com.rensights.model.ActivityEvent;
 import com.rensights.model.AnalysisRequest;
 import com.rensights.model.AppSetting;
 import com.rensights.model.Article;
@@ -77,7 +78,7 @@ public class AdminDataSourceConfig {
         
         return builder
             .dataSource(dataSource)
-            .packages(User.class, Device.class, Subscription.class, AnalysisRequest.class, Invoice.class, Deal.class, DealTranslation.class, LandingPageContent.class, Article.class, AppSetting.class, LoginEvent.class)
+            .packages(User.class, Device.class, Subscription.class, AnalysisRequest.class, Invoice.class, Deal.class, DealTranslation.class, LandingPageContent.class, Article.class, AppSetting.class, LoginEvent.class, ActivityEvent.class)
             .persistenceUnit("admin")
             .properties(properties)
             .build();

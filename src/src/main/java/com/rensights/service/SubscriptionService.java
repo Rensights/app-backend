@@ -34,6 +34,9 @@ public class SubscriptionService {
     
     @Autowired
     private StripeService stripeService;
+
+    @Autowired
+    private AnalyticsService analyticsService;
     
     @Value("${stripe.premium-price-id:}")
     private String premiumPriceId;
@@ -252,6 +255,10 @@ public class SubscriptionService {
 
         logger.info("Marked subscription {} as cancel-at-period-end (period end: {})",
                 subscription.getId(), subscription.getEndDate());
+
+        if (subscription.getUser() != null) {
+            analyticsService.recordEvent(subscription.getUser().getId(), "SUBSCRIPTION_CANCELLATION_SCHEDULED", null);
+        }
     }
     
     /**
@@ -294,9 +301,11 @@ public class SubscriptionService {
         User user = subscription.getUser();
         user.setUserTier(UserTier.FREE);
         userRepository.save(user);
-        
-        logger.info("Payment failure handled: User {} downgraded to FREE tier, subscription {} cancelled", 
+
+        logger.info("Payment failure handled: User {} downgraded to FREE tier, subscription {} cancelled",
                    user.getId(), subscription.getId());
+
+        analyticsService.recordEvent(user.getId(), "SUBSCRIPTION_DOWNGRADED_TO_FREE", null);
     }
     
     /**
@@ -463,9 +472,12 @@ public class SubscriptionService {
             // Update user tier
             user.setUserTier(planType);
             userRepository.save(user);
-            
-            logger.info("✅ Payment success handled: User {} upgraded to {} tier, subscription {} activated", 
+
+            logger.info("✅ Payment success handled: User {} upgraded to {} tier, subscription {} activated",
                        user.getId(), planType, subscription.getId());
+
+            analyticsService.recordEvent(user.getId(), "SUBSCRIPTION_ACTIVATED",
+                    "{\"planType\":\"" + planType + "\"}");
         } catch (Exception e) {
             logger.error("Error handling payment success: {}", e.getMessage(), e);
             throw new RuntimeException("Failed to handle payment success", e);
