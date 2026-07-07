@@ -42,7 +42,10 @@ public class AuthService {
     
     @Autowired
     private DeviceService deviceService;
-    
+
+    @Autowired
+    private LoginEventService loginEventService;
+
     @Autowired
     private StripeService stripeService;
 
@@ -171,7 +174,8 @@ public class AuthService {
             
             // Generate token
             String token = jwtService.generateToken(savedUser.getId(), savedUser.getEmail());
-            
+            loginEventService.recordLogin(savedUser.getId(), httpRequest);
+
             // Optimized: Use method references in builder
             return AuthResponse.builder()
                     .token(token)
@@ -206,7 +210,8 @@ public class AuthService {
         
         // Generate token
         String token = jwtService.generateToken(savedUser.getId(), savedUser.getEmail());
-        
+        loginEventService.recordLogin(savedUser.getId(), httpRequest);
+
         return AuthResponse.builder()
                 .token(token)
                 .email(savedUser.getEmail())
@@ -214,7 +219,7 @@ public class AuthService {
                 .lastName(savedUser.getLastName())
                 .build();
     }
-    
+
     /**
      * Login - checks device and requires verification for new devices
      * Optimized: Reduced database queries and improved flow
@@ -355,6 +360,7 @@ public class AuthService {
             }
 
             String token = jwtService.generateToken(userForLambda.getId(), userForLambda.getEmail());
+            loginEventService.recordLogin(userForLambda.getId(), httpRequest);
 
             return LoginResponse.builder()
                     .requiresVerification(false)
@@ -416,10 +422,11 @@ public class AuthService {
 
         // Register the new device
         deviceService.registerDevice(user.getId(), deviceFingerprint, httpRequest);
-        
+
         // Generate token
         String token = jwtService.generateToken(user.getId(), user.getEmail());
-        
+        loginEventService.recordLogin(user.getId(), httpRequest);
+
         return AuthResponse.builder()
                 .token(token)
                 .email(user.getEmail())
