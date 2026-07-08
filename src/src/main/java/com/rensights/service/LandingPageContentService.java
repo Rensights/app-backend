@@ -6,6 +6,7 @@ import com.rensights.repository.LandingPageContentRepository;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,10 +17,11 @@ import java.util.Map;
 @Service
 @RequiredArgsConstructor
 public class LandingPageContentService {
-    
+
     private final LandingPageContentRepository repository;
     private final ObjectMapper objectMapper = new ObjectMapper();
-    
+
+    @Cacheable(cacheNames = "landingSection", key = "#section + ':' + #languageCode")
     @Transactional(readOnly = true)
     public LandingPageSectionDTO getSectionContent(String section, String languageCode) {
         List<LandingPageContent> contents = repository
@@ -38,6 +40,7 @@ public class LandingPageContentService {
             .build();
     }
     
+    @Cacheable(cacheNames = "landingAll", key = "#languageCode")
     @Transactional(readOnly = true)
     public Map<String, LandingPageSectionDTO> getAllSections(String languageCode) {
         List<String> sections = List.of("hero", "why-invest", "solutions", "how-it-works", "pricing", "footer");

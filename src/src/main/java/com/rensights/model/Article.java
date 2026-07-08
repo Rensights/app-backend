@@ -5,6 +5,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
@@ -19,6 +20,8 @@ import lombok.NoArgsConstructor;
 @Entity
 @Table(name = "articles", uniqueConstraints = {
     @UniqueConstraint(columnNames = {"slug"})
+}, indexes = {
+    @Index(name = "idx_articles_active_published", columnList = "is_active, published_at")
 })
 @Data
 @Builder

@@ -4,6 +4,7 @@ import com.rensights.dto.TranslationsResponse;
 import com.rensights.model.Translation;
 import com.rensights.repository.TranslationRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,9 +15,10 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class TranslationService {
-    
+
     private final TranslationRepository translationRepository;
-    
+
+    @Cacheable(cacheNames = "translations", key = "#languageCode + ':' + #namespace")
     @Transactional(readOnly = true)
     public TranslationsResponse getTranslationsByLanguageAndNamespace(String languageCode, String namespace) {
         List<Translation> translations = translationRepository.findByLanguageCodeAndNamespace(languageCode, namespace);

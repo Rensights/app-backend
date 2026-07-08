@@ -41,7 +41,10 @@ public class AnalysisRequestService {
     
     @Autowired(required = false)
     private EmailService emailService;
-    
+
+    @Autowired
+    private RestTemplate restTemplate;
+
     @Value("${app.admin.email:admin@rensights.com}")
     private String adminEmail;
 
@@ -217,7 +220,6 @@ public class AnalysisRequestService {
     }
 
     private String submitExternalAnalysis(AnalysisRequest request) {
-        RestTemplate restTemplate = new RestTemplate();
         String url = analysisApiUrl + "/analysis_request";
 
         Map<String, Object> payload = new LinkedHashMap<>();

@@ -12,6 +12,8 @@ import java.util.UUID;
 @Entity
 @Table(name = "translations", uniqueConstraints = {
     @UniqueConstraint(columnNames = {"language_code", "translation_key", "namespace"})
+}, indexes = {
+    @Index(name = "idx_translations_lang_namespace", columnList = "language_code, namespace")
 })
 @Data
 @Builder

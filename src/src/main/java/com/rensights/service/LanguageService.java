@@ -4,6 +4,7 @@ import com.rensights.dto.LanguageDTO;
 import com.rensights.model.Language;
 import com.rensights.repository.LanguageRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -13,16 +14,18 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class LanguageService {
-    
+
     private final LanguageRepository languageRepository;
-    
+
+    @Cacheable(cacheNames = "languagesEnabled", key = "'enabled'")
     @Transactional(readOnly = true)
     public List<LanguageDTO> getEnabledLanguages() {
         return languageRepository.findByEnabledTrueOrderByNameAsc().stream()
             .map(this::toDTO)
             .collect(Collectors.toList());
     }
-    
+
+    @Cacheable(cacheNames = "languageByCode", key = "#code")
     @Transactional(readOnly = true)
     public LanguageDTO getLanguageByCode(String code) {
         return languageRepository.findByCode(code)

@@ -10,7 +10,9 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "report_sections")
+@Table(name = "report_sections", indexes = {
+    @Index(name = "idx_report_sections_lang_active_order", columnList = "language_code, is_active, display_order")
+})
 @Data
 @Builder
 @NoArgsConstructor

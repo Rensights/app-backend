@@ -2,6 +2,7 @@ package com.rensights.service;
 
 import com.rensights.repository.AppSettingRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -13,6 +14,7 @@ public class WeeklyDealsSettingsService {
 
     private final AppSettingRepository appSettingRepository;
 
+    @Cacheable(cacheNames = "killSwitches", key = "'weeklyDeals'")
     @Transactional(readOnly = true)
     public boolean isWeeklyDealsEnabled() {
         return appSettingRepository.findById(WEEKLY_DEALS_ENABLED_KEY)

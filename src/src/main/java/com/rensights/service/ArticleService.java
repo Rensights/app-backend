@@ -8,6 +8,7 @@ import com.rensights.repository.ArticleRepository;
 import java.util.List;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,6 +21,7 @@ public class ArticleService {
     private final ArticleRepository articleRepository;
     private final AppSettingRepository appSettingRepository;
 
+    @Cacheable(cacheNames = "articlesList", key = "'all'")
     @Transactional(readOnly = true)
     public List<ArticleDTO> listPublic() {
         if (!isArticlesEnabled()) {
@@ -30,6 +32,7 @@ public class ArticleService {
             .collect(Collectors.toList());
     }
 
+    @Cacheable(cacheNames = "articleBySlug", key = "#slug")
     @Transactional(readOnly = true)
     public ArticleDTO getPublicBySlug(String slug) {
         if (!isArticlesEnabled()) {
@@ -40,6 +43,7 @@ public class ArticleService {
             .orElse(null);
     }
 
+    @Cacheable(cacheNames = "killSwitches", key = "'articles'")
     @Transactional(readOnly = true)
     public boolean isArticlesEnabled() {
         return appSettingRepository.findById(ARTICLES_ENABLED_KEY)

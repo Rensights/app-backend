@@ -62,4 +62,4 @@ ENV JAVA_TOOL_OPTIONS="" \
     _JAVA_OPTIONS="" \
     JDK_JAVA_OPTIONS=""
 
-ENTRYPOINT ["java", "-Xshare:off", "-jar", "app.jar"]
+ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75.0", "-jar", "app.jar"]
