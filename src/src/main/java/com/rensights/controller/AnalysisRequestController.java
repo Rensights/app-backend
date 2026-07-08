@@ -199,7 +199,7 @@ public class AnalysisRequestController {
             
             List<AnalysisRequest> requests = analysisRequestService.getRequestsByUserId(userId);
             List<AnalysisRequestResponse> response = requests.stream()
-                .map(request -> toResponse(request, request.getStatus() == AnalysisRequest.AnalysisRequestStatus.COMPLETED))
+                .map(request -> toResponse(request, false))
                 .collect(Collectors.toList());
             logger.info("✅ Retrieved {} analysis requests for user: {}", response.size(), userId);
             return ResponseEntity.ok(response);

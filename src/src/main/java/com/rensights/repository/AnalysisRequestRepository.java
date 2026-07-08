@@ -18,6 +18,8 @@ public interface AnalysisRequestRepository extends JpaRepository<AnalysisRequest
     List<AnalysisRequest> findByUserIdOrderByCreatedAtDesc(UUID userId);
     
     long countByStatus(AnalysisRequest.AnalysisRequestStatus status);
+
+    long countByUserIdAndCreatedAtAfter(UUID userId, java.time.LocalDateTime createdAt);
 }
 
 

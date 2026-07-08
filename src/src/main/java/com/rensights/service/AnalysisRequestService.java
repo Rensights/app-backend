@@ -326,10 +326,7 @@ public class AnalysisRequestService {
         }
         
         java.time.LocalDateTime oneMonthAgo = java.time.LocalDateTime.now().minusMonths(1);
-        long reportsThisMonth = analysisRequestRepository.findByUserIdOrderByCreatedAtDesc(userId)
-            .stream()
-            .filter(req -> req.getCreatedAt() != null && req.getCreatedAt().isAfter(oneMonthAgo))
-            .count();
+        long reportsThisMonth = analysisRequestRepository.countByUserIdAndCreatedAtAfter(userId, oneMonthAgo);
         
         int maxReports;
         if (user.getUserTier() == com.rensights.model.UserTier.FREE) {
