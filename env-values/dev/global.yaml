@@ -5,16 +5,6 @@ global:
   env: dev
   certIssuer: letsencrypt-staging
   
-  # General DB configuration (shared between dev and prod)
-  generalDb:
-    host: postgres-general.platform.svc.cluster.local
-    port: 5432
-    db: postgres
-    sslmode: require
-    usernameSecret: general-dev-user
-    passwordSecret: general-dev-password
-    schema: dev_general
-  
   # Admin database (dev-specific)
   adminDb:
     host: postgres-admin.dev.svc.cluster.local
