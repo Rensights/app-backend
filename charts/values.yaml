@@ -110,8 +110,9 @@ secrets:
   jwtSecret: jwt-secret
   stripeSecrets: stripe-secrets
   microsoftGraphSecrets: microsoft-graph-credentials
-  # When set (non-empty), GOOGLE_CLIENT_ID is read from this Secret key GOOGLE_CLIENT_ID (Google OAuth Web client ID).
-  googleOauthCredentials: ""
+  # Shared, deduplicated cross-app values (GOOGLE_CLIENT_ID, STRIPE_PUBLISHABLE_KEY).
+  # Single source of truth for all apps; managed in Portainer.
+  sharedConfig: dev-shared-config
 
 serviceAccount:
   create: true

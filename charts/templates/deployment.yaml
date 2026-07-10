@@ -98,8 +98,8 @@ spec:
             - name: STRIPE_PUBLISHABLE_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.secrets.stripeSecrets }}
-                  key: stripe-publishable-key
+                  name: {{ .Values.secrets.sharedConfig }}
+                  key: STRIPE_PUBLISHABLE_KEY
             - name: STRIPE_WEBHOOK_SECRET
               valueFrom:
                 secretKeyRef:
@@ -130,14 +130,12 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.secrets.microsoftGraphSecrets }}
                   key: client-secret
-            {{- if .Values.secrets.googleOauthCredentials }}
             - name: GOOGLE_CLIENT_ID
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.secrets.googleOauthCredentials }}
+                  name: {{ .Values.secrets.sharedConfig }}
                   key: GOOGLE_CLIENT_ID
                   optional: true
-            {{- end }}
             {{- if .Values.extraEnv.APP_MAIN_BACKEND_URL }}
             - name: APP_MAIN_BACKEND_URL
               value: {{ .Values.extraEnv.APP_MAIN_BACKEND_URL | quote }}

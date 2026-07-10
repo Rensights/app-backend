@@ -20,7 +20,6 @@ database:
 # Main app DB env comes from admin DB credentials secret.
 secrets:
   dbCredentials: admin-db-credentials
-  googleOauthCredentials: google-oauth-credentials
 
 resources:
   requests:
@@ -58,7 +57,7 @@ extraEnv:
   SPRING_PROFILES_ACTIVE: "dev"
   SERVER_PORT: "8080"
   CORS_ORIGINS: "http://dev.72.62.40.154.nip.io:31416,http://dev.72.62.40.154.nip.io,http://dev-admin.72.62.40.154.nip.io:31416,http://dev-admin.72.62.40.154.nip.io,http://localhost:3000,http://localhost:3001"
-REPORTS_STORAGE_PATH: "/data/reports"
+  REPORTS_STORAGE_PATH: "/data/reports"
   # Email configuration (Microsoft Graph API)
   EMAIL_ENABLED: "true"
   EMAIL_USE_GRAPH_API: "true"
