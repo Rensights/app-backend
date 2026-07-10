@@ -9,4 +9,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface ArticleRepository extends JpaRepository<Article, UUID> {
     Optional<Article> findBySlugAndIsActiveTrue(String slug);
     List<Article> findByIsActiveTrueOrderByPublishedAtDesc();
+    boolean existsByIsActiveTrue();
 }

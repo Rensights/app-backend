@@ -33,6 +33,11 @@ server:
   port: ${SERVER_PORT:8080}
   # SECURITY: Request size limits to prevent DoS attacks
   max-http-header-size: 8KB
+  # Compress large JSON responses (e.g. public articles list) over the wire.
+  compression:
+    enabled: true
+    mime-types: application/json,application/xml,text/html,text/xml,text/plain,text/css,application/javascript
+    min-response-size: 1024
 
 jwt:
   secret: ${JWT_SECRET:dev-secret-key-change-in-production-minimum-32-characters-long}
