@@ -49,6 +49,9 @@ COPY --from=builder /app/src/target/*.jar app.jar
 # Place the no-op stub at the exact path the cluster injects as -javaagent
 COPY --from=builder /tmp/noop-agent.jar /app/opentelemetry-javaagent.jar
 
+# Grafana OpenTelemetry Java agent (application observability -> Grafana)
+ADD https://github.com/grafana/grafana-opentelemetry-java/releases/latest/download/grafana-opentelemetry-java.jar /app/
+
 # SECURITY: Change ownership to non-root user
 RUN chown -R appuser:appgroup /app
 
@@ -57,9 +60,13 @@ USER appuser
 
 EXPOSE 8080
 
-# Explicitly clear JVM agent env vars so any cluster-level injection is neutralized
-ENV JAVA_TOOL_OPTIONS="" \
+# Load the Grafana OpenTelemetry Java agent via JAVA_TOOL_OPTIONS.
+# (_JAVA_OPTIONS / JDK_JAVA_OPTIONS stay cleared so any cluster-level injection into
+# those channels is still neutralized.)
+ENV JAVA_TOOL_OPTIONS="-javaagent:/app/grafana-opentelemetry-java.jar" \
     _JAVA_OPTIONS="" \
     JDK_JAVA_OPTIONS=""
+ENV GRAFANA_OTEL_APPLICATION_OBSERVABILITY_METRICS=true
+ENV OTEL_SERVICE_NAME=app-backend
 
 ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75.0", "-jar", "app.jar"]

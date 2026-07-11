@@ -50,7 +50,9 @@ spec:
           args:
             - |
               export DATABASE_URL="jdbc:postgresql://${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DATABASE}"
-              exec env -u JAVA_TOOL_OPTIONS -u _JAVA_OPTIONS -u JDK_JAVA_OPTIONS java -Xshare:off -jar app.jar
+              # Keep JAVA_TOOL_OPTIONS so the Grafana OTel agent (baked into the image) loads;
+              # still neutralize _JAVA_OPTIONS / JDK_JAVA_OPTIONS against cluster-level injection.
+              exec env -u _JAVA_OPTIONS -u JDK_JAVA_OPTIONS java -Xshare:off -jar app.jar
           env:
             - name: SPRING_PROFILES_ACTIVE
               valueFrom:
@@ -169,6 +171,23 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.secrets.sharedConfig }}
                   key: REPORTS_STORAGE_PATH
+            # Grafana OpenTelemetry exporter config (OTel agent is baked into the image;
+            # OTEL_EXPORTER_OTLP_HEADERS holds the Grafana Cloud auth token, kept in the secret).
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.sharedConfig }}
+                  key: OTEL_EXPORTER_OTLP_ENDPOINT
+            - name: OTEL_EXPORTER_OTLP_PROTOCOL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.sharedConfig }}
+                  key: OTEL_EXPORTER_OTLP_PROTOCOL
+            - name: OTEL_EXPORTER_OTLP_HEADERS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.sharedConfig }}
+                  key: OTEL_EXPORTER_OTLP_HEADERS
           {{- if .Values.livenessProbe }}
           livenessProbe:
             {{- toYaml .Values.livenessProbe | nindent 12 }}
