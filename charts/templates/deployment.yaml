@@ -162,9 +162,13 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.secrets.sharedConfig }}
                   key: APP_FRONTEND_URL
-            # REPORTS_STORAGE_PATH stays chart-derived (matches the PVC mount path).
+            # REPORTS_STORAGE_PATH env comes from the secret. NOTE: the PVC mount path
+            # (reports.storage.path) is set at render time and must be kept equal to it.
             - name: REPORTS_STORAGE_PATH
-              value: {{ .Values.reports.storage.path | quote }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.sharedConfig }}
+                  key: REPORTS_STORAGE_PATH
           {{- if .Values.livenessProbe }}
           livenessProbe:
             {{- toYaml .Values.livenessProbe | nindent 12 }}
