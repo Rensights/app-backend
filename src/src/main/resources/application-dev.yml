@@ -131,6 +131,8 @@ logging:
     org.springframework.security.web.authentication: WARN
     org.springframework.security.web.authentication.AnonymousAuthenticationFilter: WARN
     org.springframework.mail: DEBUG
+    # Fully disable Hibernate logging (including warnings/errors)
+    org.hibernate: OFF
     org.hibernate.SQL: OFF
     org.hibernate.type.descriptor.sql.BasicBinder: OFF
   pattern:
