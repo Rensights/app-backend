@@ -242,9 +242,20 @@ public class DealController {
                         }
                     }
                     
-                    // Bedroom count filter
+                    // Bedroom count filter. The upstream sends values like "1 BR" /
+                    // "Studio", so compare on the parsed integer rather than raw strings
+                    // (a plain equals never matched). The UI's top option ("5") means "5+".
                     if (bedroomCount != null && !bedroomCount.isEmpty()) {
-                        if (!deal.get("bedroomCount").toString().equals(bedroomCount)) {
+                        Integer wanted = parseBedroomCount(bedroomCount);
+                        Object rawActual = deal.get("bedroomCount");
+                        Integer actual = parseBedroomCount(rawActual == null ? null : rawActual.toString());
+                        if (wanted == null || actual == null) {
+                            return false;
+                        }
+                        boolean matches = wanted >= MAX_BEDROOM_FILTER
+                            ? actual >= wanted
+                            : actual.intValue() == wanted.intValue();
+                        if (!matches) {
                             return false;
                         }
                     }
@@ -287,6 +298,29 @@ public class DealController {
             return ResponseEntity.status(500)
                 .body(Map.of("error", "Failed to process deals. Please try again later."));
         }
+    }
+
+    // The deals UI's highest bedroom option ("5") means "5 or more".
+    private static final int MAX_BEDROOM_FILTER = 5;
+    private static final java.util.regex.Pattern BEDROOM_DIGITS = java.util.regex.Pattern.compile("\\d+");
+
+    /**
+     * Parse a bedroom count from the upstream's free-form values ("1", "1 BR",
+     * "2 Bedrooms", "Studio"). Returns 0 for studios, null when no count is present.
+     */
+    private Integer parseBedroomCount(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        String s = raw.trim().toLowerCase();
+        if (s.isEmpty() || s.equals("n/a")) {
+            return null;
+        }
+        if (s.startsWith("studio")) {
+            return 0;
+        }
+        java.util.regex.Matcher m = BEDROOM_DIGITS.matcher(s);
+        return m.find() ? Integer.parseInt(m.group()) : null;
     }
 
     // Helper method to normalize city names
