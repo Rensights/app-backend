@@ -10,16 +10,8 @@ service:
   type: ClusterIP
   port: 8080
 
-database:
-  host: ""  # Will be set from service IP in CI/CD
-  port: 5432
-  name: admin_db_dev
-  usernameSecret: admin-db-user
-  passwordSecret: admin-db-password
-
-# Main app DB env comes from admin DB credentials secret.
-secrets:
-  dbCredentials: admin-db-credentials
+# All app config (DB, JWT, Stripe, Microsoft, Google) comes from the single
+# Portainer-managed `dev-shared-config` secret (see chart default secrets.sharedConfig).
 
 resources:
   requests:

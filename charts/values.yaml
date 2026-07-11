@@ -106,12 +106,8 @@ cors:
   maxAge: 3600
 
 secrets:
-  dbCredentials: admin-db-credentials
-  jwtSecret: jwt-secret
-  stripeSecrets: stripe-secrets
-  microsoftGraphSecrets: microsoft-graph-credentials
-  # Shared, deduplicated cross-app values (GOOGLE_CLIENT_ID, STRIPE_PUBLISHABLE_KEY).
-  # Single source of truth for all apps; managed in Portainer.
+  # Single secret holding ALL app config for every app. Managed in Portainer.
+  # Keys: POSTGRES_*, JWT_SECRET, STRIPE_*, MICROSOFT_*, GOOGLE_CLIENT_ID, *_API_URL.
   sharedConfig: dev-shared-config
 
 serviceAccount:

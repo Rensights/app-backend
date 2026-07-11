@@ -61,40 +61,40 @@ spec:
             - name: POSTGRES_HOST
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.secrets.dbCredentials }}
-                  key: postgres-host
+                  name: {{ .Values.secrets.sharedConfig }}
+                  key: POSTGRES_HOST
             - name: POSTGRES_PORT
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.secrets.dbCredentials }}
-                  key: postgres-port
+                  name: {{ .Values.secrets.sharedConfig }}
+                  key: POSTGRES_PORT
             - name: POSTGRES_DATABASE
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.secrets.dbCredentials }}
-                  key: postgres-database
+                  name: {{ .Values.secrets.sharedConfig }}
+                  key: POSTGRES_DATABASE
             - name: POSTGRES_USERNAME
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.secrets.dbCredentials }}
-                  key: postgres-username
+                  name: {{ .Values.secrets.sharedConfig }}
+                  key: POSTGRES_USERNAME
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.secrets.dbCredentials }}
-                  key: postgres-password
+                  name: {{ .Values.secrets.sharedConfig }}
+                  key: POSTGRES_PASSWORD
             - name: DATABASE_URL
               value: "jdbc:postgresql://$(POSTGRES_HOST):$(POSTGRES_PORT)/$(POSTGRES_DATABASE)"
             - name: JWT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.secrets.jwtSecret }}
-                  key: jwt-secret
+                  name: {{ .Values.secrets.sharedConfig }}
+                  key: JWT_SECRET
             - name: STRIPE_SECRET_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.secrets.stripeSecrets }}
-                  key: stripe-secret-key
+                  name: {{ .Values.secrets.sharedConfig }}
+                  key: STRIPE_SECRET_KEY
             - name: STRIPE_PUBLISHABLE_KEY
               valueFrom:
                 secretKeyRef:
@@ -103,33 +103,33 @@ spec:
             - name: STRIPE_WEBHOOK_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.secrets.stripeSecrets }}
-                  key: stripe-webhook-secret
+                  name: {{ .Values.secrets.sharedConfig }}
+                  key: STRIPE_WEBHOOK_SECRET
             - name: STRIPE_PREMIUM_PRICE_ID
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.secrets.stripeSecrets }}
-                  key: stripe-premium-price-id
+                  name: {{ .Values.secrets.sharedConfig }}
+                  key: STRIPE_PREMIUM_PRICE_ID
             - name: STRIPE_PREMIUM_YEARLY_PRICE_ID
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.secrets.stripeSecrets }}
-                  key: stripe-premium-yearly-price-id
+                  name: {{ .Values.secrets.sharedConfig }}
+                  key: STRIPE_PREMIUM_YEARLY_PRICE_ID
             - name: MICROSOFT_TENANT_ID
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.secrets.microsoftGraphSecrets }}
-                  key: tenant-id
+                  name: {{ .Values.secrets.sharedConfig }}
+                  key: MICROSOFT_TENANT_ID
             - name: MICROSOFT_CLIENT_ID
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.secrets.microsoftGraphSecrets }}
-                  key: client-id
+                  name: {{ .Values.secrets.sharedConfig }}
+                  key: MICROSOFT_CLIENT_ID
             - name: MICROSOFT_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.secrets.microsoftGraphSecrets }}
-                  key: client-secret
+                  name: {{ .Values.secrets.sharedConfig }}
+                  key: MICROSOFT_CLIENT_SECRET
             - name: GOOGLE_CLIENT_ID
               valueFrom:
                 secretKeyRef:

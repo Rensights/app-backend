@@ -4,12 +4,4 @@ global:
   domain: 72.62.40.154.nip.io  # Your server domain
   env: dev
   certIssuer: letsencrypt-staging
-  
-  # Admin database (dev-specific)
-  adminDb:
-    host: postgres-admin.dev.svc.cluster.local
-    port: 5432
-    name: admin_db_dev
-    usernameSecret: admin-db-user
-    passwordSecret: admin-db-password
 
