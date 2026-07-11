@@ -53,9 +53,15 @@ spec:
               exec env -u JAVA_TOOL_OPTIONS -u _JAVA_OPTIONS -u JDK_JAVA_OPTIONS java -Xshare:off -jar app.jar
           env:
             - name: SPRING_PROFILES_ACTIVE
-              value: {{ .Values.extraEnv.SPRING_PROFILES_ACTIVE | quote }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.sharedConfig }}
+                  key: SPRING_PROFILES_ACTIVE
+            # SERVER_PORT stays chart-derived so it always matches containerPort/probes.
             - name: SERVER_PORT
-              value: {{ .Values.extraEnv.SERVER_PORT | quote }}
+              value: {{ .Values.service.port | quote }}
+            # CORS_ORIGINS stays chart-level: the Kong CORS plugin (a Helm-rendered
+            # manifest) reads it at render time, so it can't come from the secret.
             - name: CORS_ORIGINS
               value: {{ .Values.extraEnv.CORS_ORIGINS | quote }}
             - name: POSTGRES_HOST
@@ -83,8 +89,8 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.secrets.sharedConfig }}
                   key: POSTGRES_PASSWORD
-            - name: DATABASE_URL
-              value: "jdbc:postgresql://$(POSTGRES_HOST):$(POSTGRES_PORT)/$(POSTGRES_DATABASE)"
+            # DATABASE_URL is assembled at startup from POSTGRES_* in the container
+            # command (see args above); no separate env definition needed.
             - name: JWT_SECRET
               valueFrom:
                 secretKeyRef:
@@ -136,20 +142,29 @@ spec:
                   name: {{ .Values.secrets.sharedConfig }}
                   key: GOOGLE_CLIENT_ID
                   optional: true
-            {{- if .Values.extraEnv.APP_MAIN_BACKEND_URL }}
-            - name: APP_MAIN_BACKEND_URL
-              value: {{ .Values.extraEnv.APP_MAIN_BACKEND_URL | quote }}
-            {{- end }}
+            - name: EMAIL_ENABLED
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.sharedConfig }}
+                  key: BACKEND_EMAIL_ENABLED
+            - name: EMAIL_USE_GRAPH_API
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.sharedConfig }}
+                  key: BACKEND_EMAIL_USE_GRAPH_API
+            - name: MICROSOFT_FROM_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.sharedConfig }}
+                  key: BACKEND_MICROSOFT_FROM_EMAIL
+            - name: APP_FRONTEND_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.sharedConfig }}
+                  key: APP_FRONTEND_URL
+            # REPORTS_STORAGE_PATH stays chart-derived (matches the PVC mount path).
             - name: REPORTS_STORAGE_PATH
               value: {{ .Values.reports.storage.path | quote }}
-            {{- if .Values.extraEnv }}
-            {{- range $key, $value := .Values.extraEnv }}
-            {{- if and $value (not (eq $key "SPRING_PROFILES_ACTIVE")) (not (eq $key "SERVER_PORT")) (not (eq $key "CORS_ORIGINS")) (not (eq $key "APP_MAIN_BACKEND_URL")) (not (eq $key "REPORTS_STORAGE_PATH")) (not (eq $key "STRIPE_PREMIUM_PRICE_ID")) (not (eq $key "STRIPE_PREMIUM_YEARLY_PRICE_ID")) (not (eq $key "MICROSOFT_TENANT_ID")) (not (eq $key "MICROSOFT_CLIENT_ID")) (not (eq $key "MICROSOFT_CLIENT_SECRET")) }}
-            - name: {{ $key }}
-              value: {{ $value | quote }}
-            {{- end }}
-            {{- end }}
-            {{- end }}
           {{- if .Values.livenessProbe }}
           livenessProbe:
             {{- toYaml .Values.livenessProbe | nindent 12 }}

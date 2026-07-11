@@ -45,21 +45,14 @@ ingress:
     konghq.com/upstream-keepalive-requests: "1000"
     konghq.com/upstream-keepalive-timeout: "60"
 
+# Nearly all config comes from the single Portainer-managed `dev-shared-config` secret
+# (SPRING_PROFILES_ACTIVE, BACKEND_EMAIL_*, BACKEND_MICROSOFT_FROM_EMAIL, APP_FRONTEND_URL,
+# plus the DB/JWT/Stripe/Microsoft/Google secrets). SERVER_PORT is derived from service.port
+# and REPORTS_STORAGE_PATH from reports.storage.path (structural, chart-owned).
+# CORS_ORIGINS stays here because the Kong CORS plugin (00-kongplugin-cors.yaml) needs it at
+# Helm render time — a secret value (read only at pod runtime) can't feed a rendered manifest.
 extraEnv:
-  SPRING_PROFILES_ACTIVE: "dev"
-  SERVER_PORT: "8080"
   CORS_ORIGINS: "http://dev.72.62.40.154.nip.io:31416,http://dev.72.62.40.154.nip.io,http://dev-admin.72.62.40.154.nip.io:31416,http://dev-admin.72.62.40.154.nip.io,http://localhost:3000,http://localhost:3001"
-  REPORTS_STORAGE_PATH: "/data/reports"
-  # Email configuration (Microsoft Graph API)
-  EMAIL_ENABLED: "true"
-  EMAIL_USE_GRAPH_API: "true"
-  # Microsoft tenant/client id come from microsoft-graph-credentials secret (see deployment env)
-  MICROSOFT_FROM_EMAIL: "no-reply@rensights.com"
-  # Stripe configuration (Test Mode)
-  STRIPE_PREMIUM_PRICE_ID: "price_1TQvdyCasMqex534MIsois4P"
-  STRIPE_PREMIUM_YEARLY_PRICE_ID: "price_1TQvevCasMqex534epj5JFrl"
-  # Frontend URL (for Stripe redirect URLs)
-  APP_FRONTEND_URL: "https://rensights.com"
 
 reports:
   storage:
