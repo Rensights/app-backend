@@ -49,8 +49,15 @@ COPY --from=builder /app/src/target/*.jar app.jar
 # Place the no-op stub at the exact path the cluster injects as -javaagent
 COPY --from=builder /tmp/noop-agent.jar /app/opentelemetry-javaagent.jar
 
-# Grafana OpenTelemetry Java agent (application observability -> Grafana)
-ADD https://github.com/grafana/grafana-opentelemetry-java/releases/latest/download/grafana-opentelemetry-java.jar /app/
+# Grafana OpenTelemetry Java agent (application observability -> Grafana).
+# Download with curl (follows redirects; -f fails the build on any HTTP error) and
+# verify the result is really a zip/jar. Plain `ADD <url>` silently saved a redirect/
+# error page as the "jar", which crashed the JVM at startup ("JAR manifest missing").
+RUN apk add --no-cache curl && \
+    curl -fSL -o /app/grafana-opentelemetry-java.jar \
+      https://github.com/grafana/grafana-opentelemetry-java/releases/latest/download/grafana-opentelemetry-java.jar && \
+    head -c 2 /app/grafana-opentelemetry-java.jar | grep -q 'PK' && \
+    apk del curl
 
 # SECURITY: Change ownership to non-root user
 RUN chown -R appuser:appgroup /app
