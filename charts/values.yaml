@@ -27,7 +27,7 @@ resources:
     cpu: "250m"
     memory: "512Mi"
   limits:
-    cpu: "500m"
+    cpu: "1"          # was 500m — agent-instrumented JVM boot was CPU-throttled
     memory: "1Gi"
 
 autoscaling:
@@ -55,11 +55,22 @@ securityContext:
 
 podAnnotations: {}
 
+# Slow JVM boot (~90s, longer with the OTel agent) is covered by this startupProbe.
+# Until it succeeds, liveness/readiness are suspended — so a slow agent boot can't get
+# the pod killed mid-start or fail the rollout. Window = periodSeconds * failureThreshold = 300s.
+startupProbe:
+  httpGet:
+    path: /actuator/health
+    port: http
+  periodSeconds: 10
+  timeoutSeconds: 10
+  failureThreshold: 30
+
 livenessProbe:
   httpGet:
     path: /actuator/health
     port: http
-  initialDelaySeconds: 120
+  initialDelaySeconds: 30
   periodSeconds: 10
   timeoutSeconds: 10
   failureThreshold: 5
@@ -68,7 +79,7 @@ readinessProbe:
   httpGet:
     path: /actuator/health
     port: http
-  initialDelaySeconds: 90
+  initialDelaySeconds: 10
   periodSeconds: 5
   timeoutSeconds: 10
   failureThreshold: 5
