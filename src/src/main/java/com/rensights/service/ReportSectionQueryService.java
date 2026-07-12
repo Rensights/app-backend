@@ -59,6 +59,11 @@ public class ReportSectionQueryService {
         }
 
         return sections.stream()
+            // Enterprise sections stay fully hidden until the caller is Enterprise —
+            // not even a locked stub. Premium sections are still returned (stubbed) so
+            // lower tiers see the upgrade shadow.
+            .filter(section -> section.getAccessTier() != UserTier.ENTERPRISE
+                || tier == UserTier.ENTERPRISE)
             .map(section -> toSectionDTO(section, allowed.contains(section.getAccessTier())))
             .collect(Collectors.toList());
     }
