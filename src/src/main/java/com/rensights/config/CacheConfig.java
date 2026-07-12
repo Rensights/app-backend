@@ -33,9 +33,11 @@ public class CacheConfig {
                 .expireAfterWrite(Duration.ofMinutes(5))
                 .maximumSize(100));
 
-        // Localized UI translations, keyed by language + namespace.
+        // Localized UI translations, keyed by language + namespace. Short TTL so
+        // edits made in the admin translation editor propagate to the public site
+        // within seconds (app-backend can't be evicted by admin-backend, the writer).
         manager.registerCustomCache("translations", Caffeine.newBuilder()
-                .expireAfterWrite(Duration.ofMinutes(10))
+                .expireAfterWrite(Duration.ofSeconds(30))
                 .maximumSize(200)
                 .build());
 
