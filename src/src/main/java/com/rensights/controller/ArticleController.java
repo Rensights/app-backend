@@ -22,6 +22,10 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class ArticleController {
 
+    // Pulls the filename out of a self-hosted article image URL (absolute or relative).
+    private static final java.util.regex.Pattern IMAGE_FILE_PATTERN =
+        java.util.regex.Pattern.compile("/api/articles/images/([A-Za-z0-9._-]+)");
+
     private final ArticleService articleService;
     private final ArticleImageStorageService articleImageStorageService;
 
@@ -60,6 +64,29 @@ public class ArticleController {
         String dataUri = articleService.getCoverImage(slug);
         if (dataUri == null || dataUri.isBlank()) {
             return ResponseEntity.notFound().build();
+        }
+        // Cover stored as a file on the reports PVC (a .../api/articles/images/{filename}
+        // URL) rather than a base64 data URI: stream the file. Keeps stale HTML/CDN
+        // entries that still point at this legacy endpoint working after migration.
+        java.util.regex.Matcher fileMatch = IMAGE_FILE_PATTERN.matcher(dataUri);
+        if (fileMatch.find()) {
+            String filename = fileMatch.group(1);
+            Resource resource = articleImageStorageService.loadAsResource(filename);
+            if (!resource.exists() || !resource.isReadable()) {
+                return ResponseEntity.notFound().build();
+            }
+            String ct = URLConnection.guessContentTypeFromName(filename);
+            MediaType mt = ct != null ? MediaType.parseMediaType(ct) : MediaType.APPLICATION_OCTET_STREAM;
+            byte[] fileBytes;
+            try {
+                fileBytes = resource.getInputStream().readAllBytes();
+            } catch (java.io.IOException e) {
+                return ResponseEntity.notFound().build();
+            }
+            return ResponseEntity.ok()
+                .contentType(mt)
+                .header(HttpHeaders.CACHE_CONTROL, "public, max-age=31536000, immutable")
+                .body(fileBytes);
         }
         // Expected form: data:<mime>;base64,<payload>
         if (!dataUri.startsWith("data:")) {

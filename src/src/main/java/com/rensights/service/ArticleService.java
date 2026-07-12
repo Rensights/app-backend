@@ -7,6 +7,8 @@ import com.rensights.repository.AppSettingRepository;
 import com.rensights.repository.ArticleRepository;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.Cacheable;
@@ -18,6 +20,11 @@ import org.springframework.transaction.annotation.Transactional;
 public class ArticleService {
 
     public static final String ARTICLES_ENABLED_KEY = "articles.enabled";
+
+    // Pulls the filename out of a self-hosted article image URL (absolute or
+    // relative), e.g. https://site/api/articles/images/abc.png -> abc.png.
+    private static final Pattern IMAGE_FILE_PATTERN =
+        Pattern.compile("/api/articles/images/([A-Za-z0-9._-]+)");
 
     private final ArticleRepository articleRepository;
     private final AppSettingRepository appSettingRepository;
@@ -112,9 +119,23 @@ public class ArticleService {
         if (cover == null || cover.isBlank()) {
             return null;
         }
-        long version = article.getUpdatedAt() != null
-            ? article.getUpdatedAt().toEpochSecond(ZoneOffset.UTC)
-            : 0L;
-        return "/api/articles/cover/" + article.getSlug() + "?v=" + version;
+        // Cover stored as a file on the reports PVC (absolute or relative
+        // .../api/articles/images/{filename}) -> point straight at the file
+        // endpoint, which streams it from disk. A relative path is resolved
+        // against the API base by the client's resolveApiUrl().
+        Matcher fileMatch = IMAGE_FILE_PATTERN.matcher(cover);
+        if (fileMatch.find()) {
+            return "/api/articles/images/" + fileMatch.group(1);
+        }
+        // Legacy base64 data: URI -> decode route, versioned by updatedAt so a
+        // new upload busts the immutable browser cache.
+        if (cover.startsWith("data:")) {
+            long version = article.getUpdatedAt() != null
+                ? article.getUpdatedAt().toEpochSecond(ZoneOffset.UTC)
+                : 0L;
+            return "/api/articles/cover/" + article.getSlug() + "?v=" + version;
+        }
+        // Any other absolute URL -> hand it to the client unchanged.
+        return cover;
     }
 }
