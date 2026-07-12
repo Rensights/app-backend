@@ -47,31 +47,40 @@ public class ReportSectionQueryService {
             allowed.add(UserTier.ENTERPRISE);
         }
 
+        // Return ALL active sections so the client can render the paid ones behind an
+        // upgrade shadow. Sections the caller's tier can't access are returned as locked
+        // stubs (metadata only, no documents) so no file URLs/ids leak to the browser.
         List<ReportSection> sections = sectionRepository
-            .findByLanguageCodeAndIsActiveTrueAndAccessTierInOrderByDisplayOrderAsc(languageCode, allowed);
+            .findByLanguageCodeAndIsActiveTrueOrderByDisplayOrderAsc(languageCode);
 
         if (sections.isEmpty() && !"en".equalsIgnoreCase(languageCode)) {
             sections = sectionRepository
-                .findByLanguageCodeAndIsActiveTrueAndAccessTierInOrderByDisplayOrderAsc("en", allowed);
+                .findByLanguageCodeAndIsActiveTrueOrderByDisplayOrderAsc("en");
         }
 
-        return sections.stream().map(this::toSectionDTO).collect(Collectors.toList());
+        return sections.stream()
+            .map(section -> toSectionDTO(section, allowed.contains(section.getAccessTier())))
+            .collect(Collectors.toList());
     }
 
-    private ReportSectionDTO toSectionDTO(ReportSection section) {
-        List<ReportDocumentDTO> docs = documentRepository
-            .findBySectionIdAndIsActiveTrueOrderByDisplayOrderAsc(section.getId())
-            .stream()
-            .map(doc -> ReportDocumentDTO.builder()
-                .id(doc.getId().toString())
-                .title(doc.getTitle())
-                .description(doc.getDescription())
-                .fileUrl("/api/reports/documents/" + doc.getId() + "/file")
-                .displayOrder(doc.getDisplayOrder())
-                .languageCode(doc.getLanguageCode())
-                .updatedAt(doc.getUpdatedAt())
-                .build())
-            .collect(Collectors.toList());
+    private ReportSectionDTO toSectionDTO(ReportSection section, boolean unlocked) {
+        // Locked sections expose no documents at all: no file ids/urls reach the client,
+        // so the ungated /documents/{id}/file endpoint can't be hit for premium content.
+        List<ReportDocumentDTO> docs = unlocked
+            ? documentRepository
+                .findBySectionIdAndIsActiveTrueOrderByDisplayOrderAsc(section.getId())
+                .stream()
+                .map(doc -> ReportDocumentDTO.builder()
+                    .id(doc.getId().toString())
+                    .title(doc.getTitle())
+                    .description(doc.getDescription())
+                    .fileUrl("/api/reports/documents/" + doc.getId() + "/file")
+                    .displayOrder(doc.getDisplayOrder())
+                    .languageCode(doc.getLanguageCode())
+                    .updatedAt(doc.getUpdatedAt())
+                    .build())
+                .collect(Collectors.toList())
+            : List.of();
 
         return ReportSectionDTO.builder()
             .id(section.getId().toString())
