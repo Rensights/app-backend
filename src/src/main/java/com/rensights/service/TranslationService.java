@@ -8,6 +8,7 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -28,11 +29,16 @@ public class TranslationService {
                 Translation::getTranslationKey,
                 Translation::getTranslationValue
             ));
-        
+
+        // Real "last updated" = the updated_at column, bumped by the admin save
+        // path on every change (read straight from the DB).
+        LocalDateTime latestUpdatedAt = translationRepository.findLatestUpdatedAt(languageCode, namespace);
+
         return TranslationsResponse.builder()
             .languageCode(languageCode)
             .namespace(namespace)
             .translations(translationMap)
+            .updatedAt(latestUpdatedAt != null ? latestUpdatedAt.toString() : null)
             .build();
     }
 }

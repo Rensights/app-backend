@@ -15,6 +15,7 @@ public class TranslationsResponse {
     private String languageCode;
     private String namespace;
     private Map<String, String> translations; // key -> value mapping
+    private String updatedAt; // ISO-8601 of the most recent save in this namespace
 }
 
 
