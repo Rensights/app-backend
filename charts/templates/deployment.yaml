@@ -50,6 +50,13 @@ spec:
           args:
             - |
               export DATABASE_URL="jdbc:postgresql://${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DATABASE}"
+              # Cap OpenTelemetry HTTP server-metric cardinality: keep only low-cardinality
+              # attributes on http.server.request.duration so the instrument stops overflowing its
+              # 2000-series limit. The overflow was corrupting the p95 latency histogram and firing
+              # false "High P95 Latency" alerts. High-cardinality attributes (server.address from the
+              # Host header, url.scheme, server.port, network.protocol.version) are dropped.
+              printf '%s\n' '- selector:' '    instrument_name: http.server.request.duration' '  view:' '    attribute_keys:' '      - http.request.method' '      - http.response.status_code' '      - http.route' '      - error.type' > /tmp/otel-metric-views.yaml
+              export OTEL_EXPERIMENTAL_METRICS_VIEW_CONFIG=/tmp/otel-metric-views.yaml
               # Keep JAVA_TOOL_OPTIONS so the Grafana OTel agent (baked into the image) loads;
               # still neutralize _JAVA_OPTIONS / JDK_JAVA_OPTIONS against cluster-level injection.
               exec env -u _JAVA_OPTIONS -u JDK_JAVA_OPTIONS java -Xshare:off -jar app.jar
