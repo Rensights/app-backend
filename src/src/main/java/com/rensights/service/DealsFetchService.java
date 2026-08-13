@@ -75,14 +75,13 @@ public class DealsFetchService {
         for (JsonNode item : dataArray) {
             Map<String, Object> deal = new HashMap<>();
 
-            // Extract property information
+            // Per the agreed mapping these live on the row itself (data[].building_name,
+            // data[].area, data[].building_status). Older payloads nested them under
+            // "property", so that shape is still accepted as a fallback.
             JsonNode property = item.get("property");
-            String buildingName = property != null && !property.isNull() && property.has("building_name")
-                ? property.get("building_name").asText() : "";
-            String dealArea = property != null && !property.isNull() && property.has("area")
-                ? property.get("area").asText() : (item.has("area") ? item.get("area").asText() : "");
-            String dealBuildingStatus = property != null && !property.isNull() && property.has("building_status")
-                ? property.get("building_status").asText() : (item.has("building_status") ? item.get("building_status").asText() : "");
+            String buildingName = itemText(item, property, "building_name", "");
+            String dealArea = itemText(item, property, "area", "");
+            String dealBuildingStatus = itemText(item, property, "building_status", "");
 
             // Map API fields to your DTO structure
             deal.put("id", item.has("listing_id") ? item.get("listing_id").asText() : UUID.randomUUID().toString());
@@ -130,11 +129,25 @@ public class DealsFetchService {
             }
 
             deal.put("pricePerSqftVsMarket", item.has("price_vs_market") ? item.get("price_vs_market").asText() : "N/A");
+
+            // Market gap: the percentage and the "Below Market" / "Above Market" wording that
+            // the deals table shows next to it. Previously list rows carried neither — only
+            // the detail endpoint did — so the table had nothing to render.
+            deal.put("marketGapPercentage", item.has("market_gap_percentage")
+                ? item.get("market_gap_percentage").asText() : "N/A");
+            deal.put("marketDirection", item.has("market_direction")
+                ? item.get("market_direction").asText() : "");
+            deal.put("marketDirectionLabel", item.has("market_direction_label")
+                ? item.get("market_direction_label").asText() : "");
+            deal.put("valuationConfidence", item.has("valuation_confidence")
+                ? item.get("valuation_confidence").asText() : "");
+
             deal.put("propertyDescription", "");
             deal.put("buildingFeatures", "");
             deal.put("serviceCharge", "");
             deal.put("developer", "");
-            deal.put("propertyLink", "");
+            deal.put("propertyLink", item.has("link_for_property")
+                ? item.get("link_for_property").asText() : "");
             deal.put("propertyId", item.has("listing_id") ? item.get("listing_id").asText() : "");
 
             allDeals.add(deal);
@@ -187,6 +200,20 @@ public class DealsFetchService {
         // drops it. Kept as specified in the agreed mapping.
         summary.put("bestPerformingArea", rawValue(summaryNode.get("best_performing_area_display")));
         return summary;
+    }
+
+    /**
+     * Text field of a deal row, read from the row itself and falling back to the legacy
+     * nested {@code property} object when the row does not carry it.
+     */
+    private String itemText(JsonNode item, JsonNode property, String field, String fallback) {
+        if (item.has(field) && !item.get(field).isNull()) {
+            return item.get(field).asText();
+        }
+        if (property != null && !property.isNull() && property.has(field) && !property.get(field).isNull()) {
+            return property.get(field).asText();
+        }
+        return fallback;
     }
 
     /** The JSON value as-is: a number stays numeric, a string stays a string, absent -> null. */

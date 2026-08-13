@@ -348,7 +348,9 @@ public class DealController {
         }
 
         summary.put("availableDeals", filteredDeals.size());
-        summary.put("avgPriceVsMarket", formatPercent(averagePercent(filteredDeals, "priceVsEstimations")));
+        // Same source the "Price vs. Market" column reads, so card and column agree.
+        summary.put("avgPriceVsMarket",
+            formatPercent(averagePercent(filteredDeals, "marketGapPercentage", "priceVsEstimations")));
         summary.put("avgGrossRentalYield", formatPercent(averagePercent(filteredDeals, "rentalYield")));
         return summary;
     }
@@ -359,17 +361,22 @@ public class DealController {
     }
 
     /**
-     * Mean of a per-deal percentage field. Deals whose value carries no number ("N/A", empty)
-     * are skipped; negatives count normally, so a below-market listing pulls the average down
-     * instead of being dropped. Returns {@code null} when no deal in the set has a usable value.
+     * Mean of a per-deal percentage. {@code fields} are tried in order and the first one that
+     * carries a number wins for that deal, so a preferred field can fall back to an older one.
+     * Deals with no usable value ("N/A", empty) are skipped; negatives count normally, so a
+     * below-market listing pulls the average down instead of being dropped. Returns
+     * {@code null} when no deal in the set has a usable value.
      */
-    private Double averagePercent(List<Map<String, Object>> deals, String field) {
+    private Double averagePercent(List<Map<String, Object>> deals, String... fields) {
         List<Double> values = new ArrayList<>();
         for (Map<String, Object> deal : deals) {
-            Object raw = deal.get(field);
-            Double parsed = DealsFetchService.parsePercentText(raw == null ? null : raw.toString());
-            if (parsed != null) {
-                values.add(parsed);
+            for (String field : fields) {
+                Object raw = deal.get(field);
+                Double parsed = DealsFetchService.parsePercentText(raw == null ? null : raw.toString());
+                if (parsed != null) {
+                    values.add(parsed);
+                    break;
+                }
             }
         }
         if (values.isEmpty()) {
