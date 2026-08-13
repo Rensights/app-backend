@@ -372,7 +372,7 @@ public class DealController {
         for (Map<String, Object> deal : deals) {
             for (String field : fields) {
                 Object raw = deal.get(field);
-                Double parsed = DealsFetchService.parsePercentText(raw == null ? null : raw.toString());
+                Double parsed = DealsFetchService.parseNumberText(raw == null ? null : raw.toString());
                 if (parsed != null) {
                     values.add(parsed);
                     break;

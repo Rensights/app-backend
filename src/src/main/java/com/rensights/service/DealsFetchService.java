@@ -92,10 +92,8 @@ public class DealsFetchService {
             deal.put("bedrooms", item.has("bedrooms") ? item.get("bedrooms").asText() : "N/A");
             deal.put("bedroomCount", item.has("bedrooms") ? item.get("bedrooms").asText() : "N/A");
 
-            // Handle size - API may return very large numbers, normalize to reasonable sqft
-            int rawSize = item.has("size") ? item.get("size").asInt() : 0;
-            int normalizedSize = rawSize > 50000 ? rawSize / 1000 : rawSize;
-            deal.put("size", normalizedSize);
+            int sizeSqft = parseSize(item.get("size"));
+            deal.put("size", sizeSqft);
 
             String listedPriceStr = item.has("listed_price") ? item.get("listed_price").asText() : "0";
             long listedPrice = parsePrice(listedPriceStr);
@@ -121,8 +119,8 @@ public class DealsFetchService {
             deal.put("priceVsEstimations", item.has("price_vs_market") ? item.get("price_vs_market").asText() : "N/A");
 
             // Calculate price per sqft using normalized size
-            if (normalizedSize > 0) {
-                long pricePerSqft = listedPrice / normalizedSize;
+            if (sizeSqft > 0) {
+                long pricePerSqft = listedPrice / sizeSqft;
                 deal.put("pricePerSqft", pricePerSqft);
             } else {
                 deal.put("pricePerSqft", 0);
@@ -202,6 +200,11 @@ public class DealsFetchService {
         return summary;
     }
 
+    /** Text field of a detail response; an absent or null key yields an empty string. */
+    private String detailText(JsonNode node, String field) {
+        return node.has(field) && !node.get(field).isNull() ? node.get(field).asText() : "";
+    }
+
     /**
      * Text field of a deal row, read from the row itself and falling back to the legacy
      * nested {@code property} object when the row does not carry it.
@@ -237,13 +240,14 @@ public class DealsFetchService {
         java.util.regex.Pattern.compile("-?\\d+(?:\\.\\d+)?");
 
     /**
-     * Parse a percentage out of free-form text, preserving an explicit sign.
+     * First number in free-form text, preserving an explicit sign.
      *
-     * <p>Used by {@code DealController} when a filter narrows the deal set and the summary's
-     * averages have to be recomputed from the per-deal strings ({@code "12.4%"},
-     * {@code "-3.1%"}, {@code "N/A"}). Returns {@code null} when the text carries no number.
+     * <p>Used for percentages by {@code DealController} when a filter narrows the deal set and
+     * the summary's averages have to be recomputed from the per-deal strings ({@code "12.4%"},
+     * {@code "-3.1%"}, {@code "N/A"}), and for sizes by {@link #parseSize}. Returns
+     * {@code null} when the text carries no number.
      */
-    public static Double parsePercentText(String text) {
+    public static Double parseNumberText(String text) {
         if (text == null) {
             return null;
         }
@@ -280,10 +284,8 @@ public class DealsFetchService {
         dto.put("bedrooms", apiResponse.has("bedrooms") ? apiResponse.get("bedrooms").asText() : "0");
         dto.put("bedroomCount", apiResponse.has("bedrooms") ? apiResponse.get("bedrooms").asText() : "0");
 
-        // Size - normalize if needed
-        int rawSize = apiResponse.has("size_sqft") ? apiResponse.get("size_sqft").asInt() : 0;
-        int normalizedSize = rawSize > 50000 ? rawSize / 1000 : rawSize;
-        dto.put("size", normalizedSize);
+        int sizeSqft = parseSize(apiResponse.get("size_sqft"));
+        dto.put("size", sizeSqft);
 
         // Price information
         long listedPrice = apiResponse.has("listed_price_aed")
@@ -301,10 +303,12 @@ public class DealsFetchService {
         dto.put("estimateMax", estimateValues.get("max"));
         dto.put("estimateRange", estimate);
 
-        // Discount/Savings
+        // Potential savings. "discount" is the legacy name the UI still reads; both carry the
+        // module's potential_savings verbatim.
         String discount = apiResponse.has("potential_savings")
             ? apiResponse.get("potential_savings").asText()
             : "N/A";
+        dto.put("potentialSavings", discount);
         dto.put("discount", discount);
 
         // Rental yield
@@ -315,6 +319,8 @@ public class DealsFetchService {
                 : "N/A";
         dto.put("rentalYield", rentalYield);
         dto.put("grossRentalYield", rentalYield);
+        dto.put("annualRentEstimate", detailText(apiResponse, "annual_rent_estimate"));
+        dto.put("averageMarketYield", detailText(apiResponse, "average_market_yield_estimate"));
 
         // Building status
         String buildingStatus = apiResponse.has("building_status")
@@ -322,13 +328,12 @@ public class DealsFetchService {
             : "";
         dto.put("buildingStatus", buildingStatus);
 
-        // Property type
-        String propertyType = apiResponse.has("property_type")
-            ? apiResponse.get("property_type").asText()
-            : "";
-        if (apiResponse.has("property_sub_type")) {
-            propertyType += " - " + apiResponse.get("property_sub_type").asText();
-        }
+        // Property type. The mapping asks for property_sub_type alone ("Apartments"); the
+        // broader property_type is only a fallback when the module omits the sub type. It is
+        // no longer concatenated ("Residential - Apartments" was never a wanted label).
+        String propertyType = apiResponse.has("property_sub_type")
+            ? apiResponse.get("property_sub_type").asText()
+            : detailText(apiResponse, "property_type");
         dto.put("propertyType", propertyType);
 
         // Price vs market
@@ -346,12 +351,17 @@ public class DealsFetchService {
             ? apiResponse.get("market_direction").asText() : "");
         dto.put("marketDirectionLabel", apiResponse.has("market_direction_label")
             ? apiResponse.get("market_direction_label").asText() : "");
+        dto.put("priceVsEstimateRange", detailText(apiResponse, "price_vs_estimate_range_display"));
 
-        // Price per sqft
-        long pricePerSqft = apiResponse.has("price_per_sqft")
-            ? Long.parseLong(apiResponse.get("price_per_sqft").asText().replace(",", ""))
-            : (normalizedSize > 0 ? listedPrice / normalizedSize : 0);
-        dto.put("pricePerSqft", pricePerSqft);
+        // Price per sqft, handed through as the module sends it ("AED 1,394/sq ft"). Only when
+        // the module omits it do we fall back to a computed figure. The previous
+        // Long.parseLong() blew up on anything but bare digits, which is exactly what a
+        // display string like "AED 1,394/sq ft" is.
+        dto.put("pricePerSqft", apiResponse.has("price_per_sqft")
+            ? rawValue(apiResponse.get("price_per_sqft"))
+            : (sizeSqft > 0 ? listedPrice / sizeSqft : 0));
+        dto.put("marketAveragePricePerSqft",
+            rawValue(apiResponse.get("market_average_price_per_sqft")));
         dto.put("pricePerSqftVsMarket", priceVsMarket);
 
         // Additional details
@@ -368,67 +378,112 @@ public class DealsFetchService {
         dto.put("propertyId", apiResponse.get("listing_id").asText());
 
         // Additional fields from API
-        if (apiResponse.has("view")) {
-            dto.put("view", apiResponse.get("view").asText());
-        }
-        if (apiResponse.has("furnishing")) {
-            dto.put("furnishing", apiResponse.get("furnishing").asText());
-        }
-        if (apiResponse.has("rensights_score")) {
-            dto.put("rensightsScore", apiResponse.get("rensights_score").asText());
-        }
-        if (apiResponse.has("investment_appeal")) {
-            dto.put("investmentAppeal", apiResponse.get("investment_appeal").asText());
-        }
-        if (apiResponse.has("market_position")) {
-            dto.put("marketPosition", apiResponse.get("market_position").asText());
-        }
-        if (apiResponse.has("nearest_landmark")) {
-            dto.put("nearestLandmark", apiResponse.get("nearest_landmark").asText());
-        }
+        dto.put("view", detailText(apiResponse, "view"));
+        dto.put("furnishing", detailText(apiResponse, "furnishing"));
+        dto.put("valuationConfidence", detailText(apiResponse, "valuation_confidence"));
+        dto.put("marketPosition", detailText(apiResponse, "market_position"));
+        dto.put("dubaiComparison", detailText(apiResponse, "dubai_comparison"));
+        dto.put("nearestLandmark", detailText(apiResponse, "nearest_landmark"));
 
-        // Parse comparables (listing_comparables)
-        if (apiResponse.has("listing_comparables")) {
-            try {
-                String comparablesJson = apiResponse.get("listing_comparables").asText();
-                ObjectMapper mapper = new ObjectMapper();
-                List<Map<String, Object>> comparables = mapper.readValue(
-                    comparablesJson,
-                    new TypeReference<List<Map<String, Object>>>() {}
-                );
-                dto.put("listedDeals", comparables);
-            } catch (Exception e) {
-                logger.warn("Failed to parse listing_comparables: {}", e.getMessage());
-                dto.put("listedDeals", new ArrayList<>());
-            }
-        }
+        // Scores
+        dto.put("rensightsScore", detailText(apiResponse, "rensights_score"));
+        dto.put("locationTransportScore", detailText(apiResponse, "location_transport_score"));
+        dto.put("liquidityScore", detailText(apiResponse, "liquidity_score"));
 
-        // Parse transaction comparables (transaction_comparables)
-        if (apiResponse.has("transaction_comparables")) {
-            try {
-                String transactionsJson = apiResponse.get("transaction_comparables").asText();
-                ObjectMapper mapper = new ObjectMapper();
-                List<Map<String, Object>> transactions = mapper.readValue(
-                    transactionsJson,
-                    new TypeReference<List<Map<String, Object>>>() {}
-                );
-                dto.put("recentSales", transactions);
-            } catch (Exception e) {
-                logger.warn("Failed to parse transaction_comparables: {}", e.getMessage());
-                dto.put("recentSales", new ArrayList<>());
-            }
-        }
+        // investment_appeal is retired: the "Excellent / Good / Fair Investment Opportunity"
+        // subtitle is derived on the frontend from the market gap, so the module's value is
+        // deliberately not mapped here.
+
+        dto.put("listedDeals", parseComparables(apiResponse.get("listing_comparables"), "listing_comparables"));
+        dto.put("recentSales", parseComparables(apiResponse.get("transaction_comparables"), "transaction_comparables"));
 
         return dto;
     }
 
-    // Helper method to parse price strings (e.g., "36,000,000" -> 36000000)
-    private long parsePrice(String priceStr) {
+    /**
+     * Comparables list. The module sends these either as a real JSON array or as a string
+     * holding encoded JSON, so both shapes are accepted. Anything unparseable logs and yields
+     * an empty list rather than failing the whole detail response.
+     */
+    private List<Map<String, Object>> parseComparables(JsonNode node, String field) {
+        if (node == null || node.isNull()) {
+            return new ArrayList<>();
+        }
         try {
-            return Long.parseLong(priceStr.replace(",", ""));
-        } catch (NumberFormatException e) {
+            ObjectMapper mapper = new ObjectMapper();
+            TypeReference<List<Map<String, Object>>> listType = new TypeReference<>() {};
+            return node.isArray()
+                ? mapper.convertValue(node, listType)
+                : mapper.readValue(node.asText(), listType);
+        } catch (Exception e) {
+            logger.warn("Failed to parse {}: {}", field, e.getMessage());
+            return new ArrayList<>();
+        }
+    }
+
+    private static final java.util.regex.Pattern PRICE = java.util.regex.Pattern.compile(
+        "(\\d+(?:\\.\\d+)?)\\s*([kKmMbB])?");
+
+    /**
+     * Price in AED from whatever the module sends.
+     *
+     * <p>Previously this was a bare {@code Long.parseLong(s.replace(",", ""))}, which only ever
+     * succeeded on pure digits — {@code "AED 650,000"} and {@code "AED 650k"} both fell into
+     * the catch and became {@code 0}, so the table showed "AED 0". Now the currency prefix,
+     * separators and a k/m/b suffix are all handled:
+     *
+     * <pre>
+     *   "650000"       -> 650000
+     *   "650,000"      -> 650000
+     *   "AED 650,000"  -> 650000
+     *   "AED 650k"     -> 650000
+     *   "AED 1.2m"     -> 1200000
+     * </pre>
+     *
+     * <p>Returns 0 when the text carries no number at all.
+     */
+    private long parsePrice(String priceStr) {
+        if (priceStr == null) {
             return 0;
         }
+        java.util.regex.Matcher m = PRICE.matcher(priceStr.replace(",", "").trim());
+        if (!m.find()) {
+            return 0;
+        }
+        double value = Double.parseDouble(m.group(1));
+        String suffix = m.group(2);
+        if (suffix != null) {
+            switch (Character.toLowerCase(suffix.charAt(0))) {
+                case 'k' -> value *= 1_000d;
+                case 'm' -> value *= 1_000_000d;
+                case 'b' -> value *= 1_000_000_000d;
+                default -> { /* no scaling */ }
+            }
+        }
+        return Math.round(value);
+    }
+
+    /**
+     * Size in sqft from either a JSON number or a display string ("466 sq ft", "1,250").
+     *
+     * <p>{@code asInt()} used to be called straight on the node, and Jackson returns 0 for any
+     * text that is not a bare integer — so a module sending {@code "466 sq ft"} produced a
+     * size of 0, which the UI rendered as "N/A" (and which also zeroed the price-per-sqft
+     * calculation that divides by it).
+     *
+     * <p>The module's value is taken as given. An earlier version divided anything above
+     * 50,000 by 1000 to undo a suspected upstream scaling bug; that guess also shrank
+     * genuinely large units by 1000x, so it is gone.
+     */
+    private int parseSize(JsonNode node) {
+        if (node == null || node.isNull()) {
+            return 0;
+        }
+        if (node.isNumber()) {
+            return node.asInt();
+        }
+        Double parsed = parseNumberText(node.asText());
+        return parsed == null ? 0 : (int) Math.round(parsed);
     }
 
     // Helper method to parse estimate range (e.g., "AED 523,799,490 - 556,199,459")
