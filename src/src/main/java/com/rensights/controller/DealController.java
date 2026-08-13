@@ -304,14 +304,30 @@ public class DealController {
     }
 
     /**
+     * Summary fields that describe the whole market rather than the requested page, so they
+     * are passed through from the valuation module untouched even when a filter is active:
+     * the /deals liquid-size-range card and the four /weekly-deals highlights.
+     */
+    private static final List<String> DATASET_LEVEL_SUMMARY_FIELDS = List.of(
+        "mostLiquidSizeRange",
+        "totalActiveDeals",
+        "topAreas",
+        "hottestArea",
+        "bestDiscountDisplay",
+        "bestPerformingArea"
+    );
+
+    /**
      * Build the {@code summary} block backing the four stat cards above the deals table.
      *
      * <p>The upstream summary describes the whole dataset, so it is only correct verbatim
      * when the request selected every deal. As soon as a filter narrows the set, the count
      * and the two averages are recomputed over the filtered rows so the cards agree with the
-     * table underneath them. "Most liquid size range" is a market characteristic that cannot
-     * be derived from a filtered subset, so it always comes from upstream and is {@code null}
-     * when upstream omits it.
+     * table underneath them.
+     *
+     * <p>{@link #DATASET_LEVEL_SUMMARY_FIELDS} are market-wide characteristics (the weekly
+     * highlights, the liquid size range) that cannot be derived from a filtered subset, so
+     * they always come from upstream and are {@code null} when upstream omits them.
      *
      * <p>Recomputed percentages are rendered in the module's own format ({@code "19.9%"}) so a
      * consumer sees the same value shape whether the block came from upstream or from here.
@@ -320,8 +336,9 @@ public class DealController {
                                              List<Map<String, Object>> filteredDeals,
                                              boolean narrowed) {
         Map<String, Object> summary = new HashMap<>();
-        summary.put("mostLiquidSizeRange",
-            upstreamSummary == null ? null : upstreamSummary.get("mostLiquidSizeRange"));
+        for (String field : DATASET_LEVEL_SUMMARY_FIELDS) {
+            summary.put(field, upstreamSummary == null ? null : upstreamSummary.get(field));
+        }
 
         if (!narrowed && upstreamSummary != null) {
             summary.put("availableDeals", upstreamSummary.get("availableDeals"));

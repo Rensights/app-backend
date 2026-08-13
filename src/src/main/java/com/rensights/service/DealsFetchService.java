@@ -148,11 +148,21 @@ public class DealsFetchService {
      * exposes. This is a rename, not a reformat — values are handed through exactly as the
      * valuation module sends them:
      *
+     * <p>The /deals stat cards:
      * <pre>
      *   available_deals        -> availableDeals        454
      *   avg_price_vs_market    -> avgPriceVsMarket      "19.9%"
      *   most_liquid_size_range -> mostLiquidSizeRange   "600-909 sq ft"
      *   avg_gross_rental_yield -> avgGrossRentalYield    "6.9%"
+     * </pre>
+     *
+     * <p>The /weekly-deals highlights:
+     * <pre>
+     *   total_active_deals           -> totalActiveDeals     454
+     *   top_areas                    -> topAreas             [{area, count}]
+     *   hottest_area                 -> hottestArea          "Business Bay"
+     *   best_discount_display        -> bestDiscountDisplay  "30.9% below market"
+     *   best_performing_area_display -> bestPerformingArea   "Jumeirah Village (JVC/JVT) & ..."
      * </pre>
      *
      * <p>A key the module omits comes through as {@code null} so the UI can show "N/A"
@@ -168,6 +178,14 @@ public class DealsFetchService {
         summary.put("avgPriceVsMarket", rawValue(summaryNode.get("avg_price_vs_market")));
         summary.put("mostLiquidSizeRange", rawValue(summaryNode.get("most_liquid_size_range")));
         summary.put("avgGrossRentalYield", rawValue(summaryNode.get("avg_gross_rental_yield")));
+
+        summary.put("totalActiveDeals", rawValue(summaryNode.get("total_active_deals")));
+        summary.put("topAreas", rawValue(summaryNode.get("top_areas")));
+        summary.put("hottestArea", rawValue(summaryNode.get("hottest_area")));
+        summary.put("bestDiscountDisplay", rawValue(summaryNode.get("best_discount_display")));
+        // Note the asymmetry: the module's key keeps the _display suffix, the website field
+        // drops it. Kept as specified in the agreed mapping.
+        summary.put("bestPerformingArea", rawValue(summaryNode.get("best_performing_area_display")));
         return summary;
     }
 
