@@ -394,31 +394,74 @@ public class DealsFetchService {
         // subtitle is derived on the frontend from the market gap, so the module's value is
         // deliberately not mapped here.
 
-        dto.put("listedDeals", parseComparables(apiResponse.get("listing_comparables"), "listing_comparables"));
-        dto.put("recentSales", parseComparables(apiResponse.get("transaction_comparables"), "transaction_comparables"));
+        dto.put("listedDeals", parseComparables(
+            apiResponse.get("listing_comparables"), "listing_comparables", LISTING_COMPARABLE_FIELDS));
+        dto.put("recentSales", parseComparables(
+            apiResponse.get("transaction_comparables"), "transaction_comparables", TRANSACTION_COMPARABLE_FIELDS));
 
         return dto;
     }
 
+    /** listing_comparables[] -> the "Similar Deals" card shape. */
+    private static final Map<String, String> LISTING_COMPARABLE_FIELDS = Map.of(
+        "id", "id",
+        "building_name", "name",
+        "area", "area",
+        "bedrooms", "bedrooms",
+        "size_display", "sizeDisplay",
+        "listed_price_display", "listedPrice",
+        "price_per_sqft_display", "pricePerSqft",
+        "listing_date", "date",
+        "url", "url"
+    );
+
+    /** transaction_comparables[] -> the "Recent Sales" card shape. */
+    private static final Map<String, String> TRANSACTION_COMPARABLE_FIELDS = Map.of(
+        "id", "id",
+        "building_name", "name",
+        "area", "area",
+        "bedrooms", "bedrooms",
+        "size_display", "sizeDisplay",
+        "sale_price_display", "salePrice",
+        "price_per_sqft_display", "pricePerSqft",
+        "transaction_date", "date"
+    );
+
     /**
-     * Comparables list. The module sends these either as a real JSON array or as a string
-     * holding encoded JSON, so both shapes are accepted. Anything unparseable logs and yields
-     * an empty list rather than failing the whole detail response.
+     * Comparables list, with each entry's keys renamed to the card shape the UI consumes.
+     *
+     * <p>The module sends the list either as a real JSON array or as a string holding encoded
+     * JSON, so both shapes are accepted. The entries carry display-ready values
+     * ({@code size_display}, {@code listed_price_display}, {@code price_per_sqft_display}) and
+     * are passed through as such — nothing is recomputed here. A key the module omits lands as
+     * {@code null}. Anything unparseable logs and yields an empty list rather than failing the
+     * whole detail response.
      */
-    private List<Map<String, Object>> parseComparables(JsonNode node, String field) {
+    private List<Map<String, Object>> parseComparables(JsonNode node, String field,
+                                                       Map<String, String> fieldMap) {
         if (node == null || node.isNull()) {
             return new ArrayList<>();
         }
+
+        List<Map<String, Object>> raw;
         try {
             ObjectMapper mapper = new ObjectMapper();
             TypeReference<List<Map<String, Object>>> listType = new TypeReference<>() {};
-            return node.isArray()
+            raw = node.isArray()
                 ? mapper.convertValue(node, listType)
                 : mapper.readValue(node.asText(), listType);
         } catch (Exception e) {
             logger.warn("Failed to parse {}: {}", field, e.getMessage());
             return new ArrayList<>();
         }
+
+        List<Map<String, Object>> cards = new ArrayList<>();
+        for (Map<String, Object> entry : raw) {
+            Map<String, Object> card = new HashMap<>();
+            fieldMap.forEach((from, to) -> card.put(to, entry.get(from)));
+            cards.add(card);
+        }
+        return cards;
     }
 
     private static final java.util.regex.Pattern PRICE = java.util.regex.Pattern.compile(
