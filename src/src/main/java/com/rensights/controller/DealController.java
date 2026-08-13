@@ -211,9 +211,9 @@ public class DealController {
         
         try {
             // Fetch + normalize from third-party API (cached; per-request filter/paginate below).
-            List<Map<String, Object>> allDeals;
+            DealsFetchService.DealsPayload payload;
             try {
-                allDeals = dealsFetchService.getAllDeals();
+                payload = dealsFetchService.getDealsPayload();
             } catch (HttpClientErrorException | HttpServerErrorException e) {
                 logger.error("Error fetching deals from API: {}", e.getMessage());
                 return ResponseEntity.status(e.getStatusCode())
@@ -223,6 +223,8 @@ public class DealController {
                 return ResponseEntity.status(500)
                     .body(Map.of("error", "Failed to connect to deals API"));
             }
+
+            List<Map<String, Object>> allDeals = payload.deals();
 
             // Apply filters
             List<Map<String, Object>> filteredDeals = allDeals.stream()
@@ -290,7 +292,8 @@ public class DealController {
             response.put("totalPages", totalPages);
             response.put("size", size);
             response.put("number", page);
-            
+            response.put("summary", buildSummary(payload.summary(), filteredDeals, totalElements != allDeals.size()));
+
             return ResponseEntity.ok(response);
             
         } catch (Exception e) {
@@ -298,6 +301,64 @@ public class DealController {
             return ResponseEntity.status(500)
                 .body(Map.of("error", "Failed to process deals. Please try again later."));
         }
+    }
+
+    /**
+     * Build the {@code summary} block backing the four stat cards above the deals table.
+     *
+     * <p>The upstream summary describes the whole dataset, so it is only correct verbatim
+     * when the request selected every deal. As soon as a filter narrows the set, the count
+     * and the two averages are recomputed over the filtered rows so the cards agree with the
+     * table underneath them. "Most liquid size range" is a market characteristic that cannot
+     * be derived from a filtered subset, so it always comes from upstream and is {@code null}
+     * when upstream omits it.
+     *
+     * <p>Recomputed percentages are rendered in the module's own format ({@code "19.9%"}) so a
+     * consumer sees the same value shape whether the block came from upstream or from here.
+     */
+    private Map<String, Object> buildSummary(Map<String, Object> upstreamSummary,
+                                             List<Map<String, Object>> filteredDeals,
+                                             boolean narrowed) {
+        Map<String, Object> summary = new HashMap<>();
+        summary.put("mostLiquidSizeRange",
+            upstreamSummary == null ? null : upstreamSummary.get("mostLiquidSizeRange"));
+
+        if (!narrowed && upstreamSummary != null) {
+            summary.put("availableDeals", upstreamSummary.get("availableDeals"));
+            summary.put("avgPriceVsMarket", upstreamSummary.get("avgPriceVsMarket"));
+            summary.put("avgGrossRentalYield", upstreamSummary.get("avgGrossRentalYield"));
+            return summary;
+        }
+
+        summary.put("availableDeals", filteredDeals.size());
+        summary.put("avgPriceVsMarket", formatPercent(averagePercent(filteredDeals, "priceVsEstimations")));
+        summary.put("avgGrossRentalYield", formatPercent(averagePercent(filteredDeals, "rentalYield")));
+        return summary;
+    }
+
+    /** One-decimal percentage string matching the module's format ("19.9%"); null stays null. */
+    private String formatPercent(Double value) {
+        return value == null ? null : String.format(java.util.Locale.ROOT, "%.1f%%", value);
+    }
+
+    /**
+     * Mean of a per-deal percentage field. Deals whose value carries no number ("N/A", empty)
+     * are skipped; negatives count normally, so a below-market listing pulls the average down
+     * instead of being dropped. Returns {@code null} when no deal in the set has a usable value.
+     */
+    private Double averagePercent(List<Map<String, Object>> deals, String field) {
+        List<Double> values = new ArrayList<>();
+        for (Map<String, Object> deal : deals) {
+            Object raw = deal.get(field);
+            Double parsed = DealsFetchService.parsePercentText(raw == null ? null : raw.toString());
+            if (parsed != null) {
+                values.add(parsed);
+            }
+        }
+        if (values.isEmpty()) {
+            return null;
+        }
+        return values.stream().mapToDouble(Double::doubleValue).sum() / values.size();
     }
 
     // The deals UI's highest bedroom option ("5") means "5 or more".

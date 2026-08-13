@@ -42,7 +42,15 @@ public class DealsFetchService {
     }
 
     /**
-     * Fetch + normalize the full deals list (post-transform, PRE-filter, PRE-paginate).
+     * The full upstream {@code GET /deals} payload: the normalized deals list plus the
+     * upstream {@code summary} object that backs the four headline stat cards.
+     *
+     * <p>{@code summary} is {@code null} when upstream sends no summary object.
+     */
+    public record DealsPayload(List<Map<String, Object>> deals, Map<String, Object> summary) {}
+
+    /**
+     * Fetch + normalize the full upstream payload (post-transform, PRE-filter, PRE-paginate).
      *
      * <p>Cached under {@code dealsAll:'all'}. If the upstream call throws
      * (HttpClientErrorException / HttpServerErrorException / connectivity), the exception
@@ -50,12 +58,17 @@ public class DealsFetchService {
      * with no {@code data} array yields an empty list (matching the previous empty-page behavior).
      */
     @Cacheable(cacheNames = "dealsAll", key = "'all'")
-    public List<Map<String, Object>> getAllDeals() {
+    public DealsPayload getDealsPayload() {
         JsonNode apiResponse = restTemplate.getForObject(dealsApiUrl, JsonNode.class);
 
         List<Map<String, Object>> allDeals = new ArrayList<>();
-        if (apiResponse == null || !apiResponse.has("data")) {
-            return allDeals;
+        if (apiResponse == null) {
+            return new DealsPayload(allDeals, null);
+        }
+
+        Map<String, Object> summary = parseSummary(apiResponse.get("summary"));
+        if (!apiResponse.has("data")) {
+            return new DealsPayload(allDeals, summary);
         }
 
         JsonNode dataArray = apiResponse.get("data");
@@ -127,7 +140,70 @@ public class DealsFetchService {
             allDeals.add(deal);
         }
 
-        return allDeals;
+        return new DealsPayload(allDeals, summary);
+    }
+
+    /**
+     * Map the upstream {@code summary} object onto the camelCase names the website backend
+     * exposes. This is a rename, not a reformat — values are handed through exactly as the
+     * valuation module sends them:
+     *
+     * <pre>
+     *   available_deals        -> availableDeals        454
+     *   avg_price_vs_market    -> avgPriceVsMarket      "19.9%"
+     *   most_liquid_size_range -> mostLiquidSizeRange   "600-909 sq ft"
+     *   avg_gross_rental_yield -> avgGrossRentalYield    "6.9%"
+     * </pre>
+     *
+     * <p>A key the module omits comes through as {@code null} so the UI can show "N/A"
+     * instead of a fabricated value.
+     */
+    private Map<String, Object> parseSummary(JsonNode summaryNode) {
+        if (summaryNode == null || summaryNode.isNull() || !summaryNode.isObject()) {
+            return null;
+        }
+
+        Map<String, Object> summary = new HashMap<>();
+        summary.put("availableDeals", rawValue(summaryNode.get("available_deals")));
+        summary.put("avgPriceVsMarket", rawValue(summaryNode.get("avg_price_vs_market")));
+        summary.put("mostLiquidSizeRange", rawValue(summaryNode.get("most_liquid_size_range")));
+        summary.put("avgGrossRentalYield", rawValue(summaryNode.get("avg_gross_rental_yield")));
+        return summary;
+    }
+
+    /** The JSON value as-is: a number stays numeric, a string stays a string, absent -> null. */
+    private Object rawValue(JsonNode node) {
+        if (node == null || node.isNull()) {
+            return null;
+        }
+        if (node.isNumber()) {
+            return node.numberValue();
+        }
+        if (node.isBoolean()) {
+            return node.booleanValue();
+        }
+        if (node.isTextual()) {
+            return node.asText();
+        }
+        return node; // object/array: pass the structure through untouched
+    }
+
+    private static final java.util.regex.Pattern SIGNED_NUMBER =
+        java.util.regex.Pattern.compile("-?\\d+(?:\\.\\d+)?");
+
+    /**
+     * Parse a percentage out of free-form text, preserving an explicit sign.
+     *
+     * <p>Used by {@code DealController} when a filter narrows the deal set and the summary's
+     * averages have to be recomputed from the per-deal strings ({@code "12.4%"},
+     * {@code "-3.1%"}, {@code "N/A"}). Returns {@code null} when the text carries no number.
+     */
+    public static Double parsePercentText(String text) {
+        if (text == null) {
+            return null;
+        }
+        java.util.regex.Matcher m = SIGNED_NUMBER.matcher(text.replace(",", ""));
+        return m.find() ? Double.parseDouble(m.group()) : null;
     }
 
     /**
