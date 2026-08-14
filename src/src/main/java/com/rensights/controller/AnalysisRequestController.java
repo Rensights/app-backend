@@ -2,6 +2,7 @@ package com.rensights.controller;
 
 import com.rensights.model.AnalysisRequest;
 import com.rensights.service.AnalysisRequestService;
+import com.rensights.service.AnalysisResultMapper;
 import com.rensights.service.FileStorageService;
 import com.rensights.util.InputValidationUtil;
 import jakarta.servlet.http.HttpServletRequest;
@@ -23,6 +24,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -37,7 +39,10 @@ public class AnalysisRequestController {
     
     @Autowired
     private FileStorageService fileStorageService;
-    
+
+    @Autowired
+    private AnalysisResultMapper analysisResultMapper;
+
     @PostMapping(consumes = {"multipart/form-data"})
     public ResponseEntity<?> submitAnalysisRequest(
             @RequestParam("email") String email,
@@ -277,6 +282,9 @@ public class AnalysisRequestController {
             .filePaths(request.getFilePaths())
             .status(request.getStatus() != null ? request.getStatus().name() : "PENDING")
             .analysisResult(includeResult ? request.getAnalysisResult() : null)
+            // The mapped, display-ready view of the same payload. `analysisResult` stays raw so
+            // nothing that already reads it breaks; the report screen consumes `analysis`.
+            .analysis(includeResult ? analysisResultMapper.toReportView(request.getAnalysisResult()) : null)
             .createdAt(request.getCreatedAt() != null ? request.getCreatedAt().toString() : "")
             .updatedAt(request.getUpdatedAt() != null ? request.getUpdatedAt().toString() : "")
             .build();
@@ -315,6 +323,7 @@ public class AnalysisRequestController {
         private List<String> filePaths;
         private String status;
         private Object analysisResult;
+        private Map<String, Object> analysis;
         private String createdAt;
         private String updatedAt;
     }
