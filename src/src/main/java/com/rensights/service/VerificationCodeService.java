@@ -17,7 +17,8 @@ public class VerificationCodeService {
 
     private static final Logger logger = LoggerFactory.getLogger(VerificationCodeService.class);
     private static final int CODE_LENGTH = 6;
-    private static final int CODE_EXPIRY_MINUTES = 5;
+    /** Public so the verification email states the real expiry instead of duplicating it. */
+    public static final int CODE_EXPIRY_MINUTES = 5;
     private static final SecureRandom random = new SecureRandom();
     private static final int MAX_VERIFICATION_ATTEMPTS = 5;
     private static final int MAX_CODE_GENERATION_PER_EMAIL = 5; // Max 5 codes per email per hour

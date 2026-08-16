@@ -12,6 +12,8 @@ import org.springframework.stereotype.Service;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 
+import java.util.Map;
+
 @Service
 public class EmailService {
     
@@ -20,7 +22,10 @@ public class EmailService {
     
     @Autowired(required = false)
     private MicrosoftGraphEmailService graphEmailService;
-    
+
+    @Autowired
+    private EmailTemplateService emailTemplateService;
+
     @Value("${spring.mail.from:no-reply@rensights.com}")
     private String fromEmail;
     
@@ -43,15 +48,12 @@ public class EmailService {
             return;
         }
         
-        String subject = "Rensights - Device Verification Code";
-        String body = String.join("\n",
-            "Your verification code is: " + code,
-            "",
-            "This code will expire in 5 minutes.",
-            "",
-            "If you didn't request this code, please ignore this email."
-        );
-        
+        String subject = "Rensights - Email Verification Code";
+        String body = emailTemplateService.render("verification-code", Map.of(
+            "CODE", code,
+            "EXPIRY_MINUTES", String.valueOf(VerificationCodeService.CODE_EXPIRY_MINUTES)
+        ));
+
         // Use Microsoft Graph API (required - no SMTP fallback)
         if (!useGraphApi || graphEmailService == null) {
             logger.error("Microsoft Graph API is not configured! Email cannot be sent.");
@@ -59,7 +61,7 @@ public class EmailService {
         }
 
         try {
-            graphEmailService.sendEmail(toEmail, subject, body);
+            graphEmailService.sendEmail(toEmail, subject, body, true);
             logger.info("✅ Email sent successfully via Microsoft Graph to: {}", toEmail);
         } catch (Exception e) {
             logger.error("❌ Failed to send email via Microsoft Graph to: {}", toEmail, e);
@@ -81,16 +83,11 @@ public class EmailService {
         }
         
         String subject = "Rensights - Password Reset Code";
-        String body = String.join("\n",
-            "Your password reset code is: " + code,
-            "",
-            "This code will expire in 5 minutes.",
-            "",
-            "If you didn't request this code, please ignore this email.",
-            "",
-            "For security reasons, please do not share this code with anyone."
-        );
-        
+        String body = emailTemplateService.render("password-reset-code", Map.of(
+            "CODE", code,
+            "EXPIRY_MINUTES", String.valueOf(VerificationCodeService.CODE_EXPIRY_MINUTES)
+        ));
+
         // Use Microsoft Graph API (required - no SMTP fallback)
         if (!useGraphApi || graphEmailService == null) {
             logger.error("Microsoft Graph API is not configured! Password reset email cannot be sent.");
@@ -99,7 +96,7 @@ public class EmailService {
 
         try {
             logger.info("Sending password reset email via Microsoft Graph API to: {}", toEmail);
-            graphEmailService.sendEmail(toEmail, subject, body);
+            graphEmailService.sendEmail(toEmail, subject, body, true);
             logger.info("✅ Password reset email sent successfully via Microsoft Graph API to: {}", toEmail);
         } catch (Exception e) {
             logger.error("❌ Failed to send password reset email via Microsoft Graph API to: {}", toEmail, e);
