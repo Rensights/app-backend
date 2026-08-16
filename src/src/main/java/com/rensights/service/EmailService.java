@@ -9,6 +9,8 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
+import org.springframework.web.util.HtmlUtils;
+
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 
@@ -34,7 +36,12 @@ public class EmailService {
     
     @Value("${app.email.use-graph-api:true}")
     private boolean useGraphApi;
-    
+
+    // Where replies to the welcome email land. It invites a reply, so it must not bounce
+    // off the no-reply mailbox everything else is sent from.
+    @Value("${app.email.reply-to:info@rensights.com}")
+    private String replyToEmail;
+
     public void sendVerificationCode(String toEmail, String code) {
         logger.info("=== EmailService.sendVerificationCode called ===");
         logger.info("Email enabled: {}", emailEnabled);
@@ -69,6 +76,41 @@ public class EmailService {
         }
     }
     
+    /**
+     * Welcome the user a few minutes after their account is created (see WelcomeEmailScheduler).
+     *
+     * <p>Unlike the other messages here this one asks for a reply, so it carries a Reply-To
+     * pointing at a monitored mailbox. Throws on failure so the scheduler leaves the account
+     * unstamped and retries on the next run.
+     */
+    public void sendWelcomeEmail(String toEmail, String firstName) {
+        if (!emailEnabled) {
+            logger.warn("Email is disabled. Skipping welcome email for {}", toEmail);
+            return;
+        }
+
+        if (!useGraphApi || graphEmailService == null) {
+            logger.error("Microsoft Graph API is not configured! Welcome email cannot be sent.");
+            throw new RuntimeException("Microsoft Graph API is required for email sending.");
+        }
+
+        // Falls back to a neutral greeting rather than "Hi ," when we have no name on file.
+        String greetingName = firstName != null && !firstName.isBlank() ? firstName.trim() : "there";
+        String subject = "Welcome to Rensights";
+        // The name is user-submitted, so it is escaped before it lands in the markup.
+        String body = emailTemplateService.render("welcome", Map.of(
+            "first_name", HtmlUtils.htmlEscape(greetingName)
+        ));
+
+        try {
+            graphEmailService.sendEmail(toEmail, subject, body, true, replyToEmail);
+            logger.info("✅ Welcome email sent to: {}", toEmail);
+        } catch (Exception e) {
+            logger.error("❌ Failed to send welcome email to: {}", toEmail, e);
+            throw new RuntimeException("Failed to send welcome email: " + e.getMessage(), e);
+        }
+    }
+
     public void sendPasswordResetCode(String toEmail, String code) {
         logger.info("=== EmailService.sendPasswordResetCode called ===");
         logger.info("Email enabled: {}", emailEnabled);

@@ -84,6 +84,19 @@ app:
   google:
     client-id: ${GOOGLE_CLIENT_ID:}
 
+  email:
+    # The welcome email invites a reply, so it carries a Reply-To pointing at a monitored
+    # mailbox (everything else is sent from the no-reply address).
+    reply-to: ${EMAIL_REPLY_TO:info@rensights.com}
+
+  # Welcome email, sent a few minutes after sign-up by WelcomeEmailScheduler.
+  welcome-email:
+    enabled: ${WELCOME_EMAIL_ENABLED:true}
+    delay-minutes: ${WELCOME_EMAIL_DELAY_MINUTES:7}
+    # Accounts older than this are never welcomed - keeps the first run after deploy from
+    # mailing the entire back catalogue, and bounds retries for a failing address.
+    max-age-hours: ${WELCOME_EMAIL_MAX_AGE_HOURS:24}
+
 logging:
   level:
     root: INFO

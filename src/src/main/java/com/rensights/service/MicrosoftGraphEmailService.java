@@ -101,6 +101,18 @@ public class MicrosoftGraphEmailService {
      */
     @CircuitBreaker(name = "microsoft-graph", fallbackMethod = "sendEmailHtmlFallback")
     public void sendEmail(String toEmail, String subject, String body, boolean isHtml) {
+        sendEmail(toEmail, subject, body, isHtml, null);
+    }
+
+    /**
+     * Send email using Microsoft Graph API, with an optional Reply-To address.
+     *
+     * <p>Mail goes out from the no-reply mailbox, so any email that invites a reply (the welcome
+     * email does) has to point replies somewhere monitored. A null or blank {@code replyToEmail}
+     * leaves the header off and behaves exactly like the other overloads.
+     */
+    @CircuitBreaker(name = "microsoft-graph", fallbackMethod = "sendEmailReplyToFallback")
+    public void sendEmail(String toEmail, String subject, String body, boolean isHtml, String replyToEmail) {
         if (!emailEnabled) {
             logger.warn("Email is disabled. Email to {}: [REDACTED]", toEmail);
             return;
@@ -137,7 +149,17 @@ public class MicrosoftGraphEmailService {
             recipient.emailAddress = emailAddress;
             toRecipients.add(recipient);
             message.toRecipients = toRecipients;
-            
+
+            if (replyToEmail != null && !replyToEmail.isBlank()) {
+                List<Recipient> replyTo = new LinkedList<>();
+                Recipient replyRecipient = new Recipient();
+                EmailAddress replyAddress = new EmailAddress();
+                replyAddress.address = replyToEmail;
+                replyRecipient.emailAddress = replyAddress;
+                replyTo.add(replyRecipient);
+                message.replyTo = replyTo;
+            }
+
             // Send email from the specified mailbox
             // Format: users/{email} or users/{userId}
             String userPrincipalName = fromEmail;
@@ -165,6 +187,12 @@ public class MicrosoftGraphEmailService {
     private void sendEmailFallback(String toEmail, String subject, String body, Exception ex) {
         logger.error("Microsoft Graph circuit breaker open - email to {} with subject '{}' could not be sent: {}",
                 toEmail, subject, ex.getMessage());
+    }
+
+    // Fallback for sendEmail(String toEmail, String subject, String body, boolean isHtml, String replyToEmail)
+    private void sendEmailReplyToFallback(String toEmail, String subject, String body, boolean isHtml,
+                                          String replyToEmail, Exception ex) {
+        sendEmailHtmlFallback(toEmail, subject, body, isHtml, ex);
     }
 
     // Fallback for sendEmail(String toEmail, String subject, String body, boolean isHtml)

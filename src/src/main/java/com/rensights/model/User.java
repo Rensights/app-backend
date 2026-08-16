@@ -77,6 +77,11 @@ public class User {
     // touch updatedAt (which should only reflect real profile changes).
     @Column(name = "last_seen_at")
     private LocalDateTime lastSeenAt;
+
+    // Stamped once the welcome email goes out, a few minutes after sign-up
+    // (see WelcomeEmailScheduler). Null means it is still pending or was never due.
+    @Column(name = "welcome_email_sent_at")
+    private LocalDateTime welcomeEmailSentAt;
     
     @PrePersist
     protected void onCreate() {
