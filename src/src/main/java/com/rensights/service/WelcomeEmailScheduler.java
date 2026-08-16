@@ -20,11 +20,14 @@ import java.util.List;
  * after the user has had a first look around. The due state lives in the database
  * ({@code users.welcome_email_sent_at}), so a restart costs nothing.
  *
+ * <p><b>Exactly once.</b> Each account is welcomed at most once, ever. The scheduler claims the
+ * account with a conditional UPDATE before sending (see
+ * {@link UserRepository#claimWelcomeEmail}); losing the claim means someone else already sent it.
+ *
  * <p><b>Window.</b> An account qualifies once its email is verified, it is older than
  * {@code delay-minutes}, and it is younger than {@code max-age-hours}. The upper bound is the
  * safety catch: without it, the first run after this feature ships would mail every account ever
- * created. It also bounds retries — a permanently failing address stops being retried once it
- * ages out.
+ * created.
  *
  * <p>Note that the age is measured from sign-up, not from verification, so someone who verifies
  * more than {@code max-age-hours} after registering is never welcomed. Verification normally
@@ -78,13 +81,19 @@ public class WelcomeEmailScheduler {
 
         logger.info("Welcome email: {} account(s) due", due.size());
         for (User user : due) {
+            // Claim before sending: the conditional UPDATE is atomic, so exactly one caller
+            // ever wins a given account and no one can be welcomed twice.
+            if (userRepository.claimWelcomeEmail(user.getId(), LocalDateTime.now()) == 0) {
+                continue;
+            }
+
             try {
                 emailService.sendWelcomeEmail(user.getEmail(), user.getFirstName());
-                // Stamped only after a successful send, so a transient failure is retried
-                // on the next run instead of silently swallowing the email.
-                userRepository.markWelcomeEmailSent(user.getId(), LocalDateTime.now());
             } catch (Exception e) {
-                logger.error("Welcome email failed for user {} - will retry: {}",
+                // The claim deliberately stands. Retrying would risk a second copy for anyone
+                // whose send actually went through before failing, and a duplicate welcome is
+                // worse than a missing one. Loud log so a real outage is visible.
+                logger.error("Welcome email failed for user {} - not retried, claim stands: {}",
                     user.getId(), e.getMessage());
             }
         }

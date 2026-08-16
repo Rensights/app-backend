@@ -45,11 +45,20 @@ public interface UserRepository extends JpaRepository<User, UUID> {
                                              @Param("sendAfter") LocalDateTime sendAfter,
                                              org.springframework.data.domain.Pageable pageable);
 
-    // Direct UPDATE so stamping the welcome email never bumps updatedAt.
+    /**
+     * Claim the welcome email for an account: stamps it only if it is still unstamped, and
+     * reports whether this caller won the claim (1) or someone already had it (0).
+     *
+     * <p>This is what keeps the email to exactly one per account. The scheduler claims before
+     * sending, so a crash between the two, a second replica polling the same rows, or a retry
+     * after an ambiguous send failure can never produce a second email. Direct UPDATE, so it
+     * never bumps updatedAt.
+     */
     @Modifying
     @Transactional
-    @Query("UPDATE User u SET u.welcomeEmailSentAt = :sentAt WHERE u.id = :userId")
-    void markWelcomeEmailSent(@Param("userId") UUID userId, @Param("sentAt") LocalDateTime sentAt);
+    @Query("UPDATE User u SET u.welcomeEmailSentAt = :sentAt "
+        + "WHERE u.id = :userId AND u.welcomeEmailSentAt IS NULL")
+    int claimWelcomeEmail(@Param("userId") UUID userId, @Param("sentAt") LocalDateTime sentAt);
 
     /**
      * Accounts whose getting-started email is due. Same shape as
@@ -63,9 +72,10 @@ public interface UserRepository extends JpaRepository<User, UUID> {
                                                     @Param("sendAfter") LocalDateTime sendAfter,
                                                     org.springframework.data.domain.Pageable pageable);
 
-    // Direct UPDATE so stamping the getting-started email never bumps updatedAt.
+    /** Claim the getting-started email; see {@link #claimWelcomeEmail} for why claim-then-send. */
     @Modifying
     @Transactional
-    @Query("UPDATE User u SET u.gettingStartedEmailSentAt = :sentAt WHERE u.id = :userId")
-    void markGettingStartedEmailSent(@Param("userId") UUID userId, @Param("sentAt") LocalDateTime sentAt);
+    @Query("UPDATE User u SET u.gettingStartedEmailSentAt = :sentAt "
+        + "WHERE u.id = :userId AND u.gettingStartedEmailSentAt IS NULL")
+    int claimGettingStartedEmail(@Param("userId") UUID userId, @Param("sentAt") LocalDateTime sentAt);
 }

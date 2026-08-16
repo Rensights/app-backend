@@ -20,11 +20,13 @@ import java.util.List;
  * stamps its own column. The loop is short enough that keeping them separate reads better than
  * a shared abstraction over which query and which stamp to use.
  *
+ * <p><b>Exactly once.</b> Each account receives this at most once, ever — the scheduler claims
+ * the account with a conditional UPDATE before sending, exactly as the welcome email does.
+ *
  * <p><b>Window.</b> An account qualifies once its email is verified, it is older than
  * {@code delay-hours}, and it is younger than {@code max-age-hours}. The upper bound must stay
  * comfortably above the delay — with both at 24h the window would be empty and nothing would
- * ever send. It also stops the first run after deploy from mailing the back catalogue, and
- * bounds retries for an address that keeps failing.
+ * ever send. It also stops the first run after deploy from mailing the back catalogue.
  */
 @Component
 public class GettingStartedEmailScheduler {
@@ -79,13 +81,15 @@ public class GettingStartedEmailScheduler {
 
         logger.info("Getting-started email: {} account(s) due", due.size());
         for (User user : due) {
+            // Claim before sending - see WelcomeEmailScheduler for the reasoning.
+            if (userRepository.claimGettingStartedEmail(user.getId(), LocalDateTime.now()) == 0) {
+                continue;
+            }
+
             try {
                 emailService.sendGettingStartedEmail(user.getEmail(), user.getFirstName());
-                // Stamped only after a successful send, so a transient failure is retried
-                // on the next run instead of silently swallowing the email.
-                userRepository.markGettingStartedEmailSent(user.getId(), LocalDateTime.now());
             } catch (Exception e) {
-                logger.error("Getting-started email failed for user {} - will retry: {}",
+                logger.error("Getting-started email failed for user {} - not retried, claim stands: {}",
                     user.getId(), e.getMessage());
             }
         }
