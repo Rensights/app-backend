@@ -78,4 +78,23 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     @Query("UPDATE User u SET u.gettingStartedEmailSentAt = :sentAt "
         + "WHERE u.id = :userId AND u.gettingStartedEmailSentAt IS NULL")
     int claimGettingStartedEmail(@Param("userId") UUID userId, @Param("sentAt") LocalDateTime sentAt);
+
+    /**
+     * Accounts whose feedback check-in is due. Same shape as {@link #findWelcomeEmailDue},
+     * on its own stamp and a much longer delay.
+     */
+    @Query("SELECT u FROM User u WHERE u.feedbackEmailSentAt IS NULL "
+        + "AND u.emailVerified = TRUE "
+        + "AND u.createdAt <= :sendBefore AND u.createdAt >= :sendAfter "
+        + "ORDER BY u.createdAt ASC")
+    java.util.List<User> findFeedbackEmailDue(@Param("sendBefore") LocalDateTime sendBefore,
+                                              @Param("sendAfter") LocalDateTime sendAfter,
+                                              org.springframework.data.domain.Pageable pageable);
+
+    /** Claim the feedback check-in; see {@link #claimWelcomeEmail} for why claim-then-send. */
+    @Modifying
+    @Transactional
+    @Query("UPDATE User u SET u.feedbackEmailSentAt = :sentAt "
+        + "WHERE u.id = :userId AND u.feedbackEmailSentAt IS NULL")
+    int claimFeedbackEmail(@Param("userId") UUID userId, @Param("sentAt") LocalDateTime sentAt);
 }

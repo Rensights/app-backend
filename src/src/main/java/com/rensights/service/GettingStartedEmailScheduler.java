@@ -35,6 +35,7 @@ public class GettingStartedEmailScheduler {
 
     private final UserRepository userRepository;
     private final EmailService emailService;
+    private final LifecycleEmailRunner runner;
 
     @Value("${app.getting-started-email.enabled:true}")
     private boolean enabled;
@@ -51,9 +52,11 @@ public class GettingStartedEmailScheduler {
     @Value("${app.getting-started-email.batch-size:50}")
     private int batchSize;
 
-    public GettingStartedEmailScheduler(UserRepository userRepository, EmailService emailService) {
+    public GettingStartedEmailScheduler(UserRepository userRepository, EmailService emailService,
+                                        LifecycleEmailRunner runner) {
         this.userRepository = userRepository;
         this.emailService = emailService;
+        this.runner = runner;
     }
 
     @Scheduled(fixedDelayString = "${app.getting-started-email.poll-interval-ms:300000}",
@@ -75,23 +78,8 @@ public class GettingStartedEmailScheduler {
             now.minusHours(maxAgeHours),
             PageRequest.of(0, batchSize));
 
-        if (due.isEmpty()) {
-            return;
-        }
-
-        logger.info("Getting-started email: {} account(s) due", due.size());
-        for (User user : due) {
-            // Claim before sending - see WelcomeEmailScheduler for the reasoning.
-            if (userRepository.claimGettingStartedEmail(user.getId(), LocalDateTime.now()) == 0) {
-                continue;
-            }
-
-            try {
-                emailService.sendGettingStartedEmail(user.getEmail(), user.getFirstName());
-            } catch (Exception e) {
-                logger.error("Getting-started email failed for user {} - not retried, claim stands: {}",
-                    user.getId(), e.getMessage());
-            }
-        }
+        runner.run("Getting-started email", due,
+            userRepository::claimGettingStartedEmail,
+            user -> emailService.sendGettingStartedEmail(user.getEmail(), user.getFirstName()));
     }
 }

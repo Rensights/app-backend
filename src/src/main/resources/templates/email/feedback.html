@@ -1,0 +1,268 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office" lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="x-apple-disable-message-reformatting" />
+  <meta name="color-scheme" content="light dark" />
+  <meta name="supported-color-schemes" content="light dark" />
+  <title>How has your experience been?</title>
+
+  <!--
+    ===========================================================================
+    RENSIGHTS  ·  FEEDBACK REQUEST EMAIL
+    ---------------------------------------------------------------------------
+    Same shell and palette as welcome.html / getting-started.html.
+
+    NO CTA BUTTON — deliberate.
+    The only action this email asks for is a reply. A button would compete with
+    that ask and make a personal note read as a campaign. The amber therefore
+    appears only in the logo mark here. If you want a button, the natural one is
+    a mailto: to the monitored sending address — but mailto: support is patchy
+    across clients and "just reply" already works everywhere.
+
+    PALETTE
+      Main text        #17202A
+      Secondary text   #475467
+      Page background  #F5F6F7
+      Content area     #FFFFFF
+      Muted footer     #98A2B3
+      Hairline rule    #E7E9EC
+      Brand amber      #F6B042   (logo mark only, in this email)
+
+    TEMPLATE VARIABLE:  {{first_name}}
+
+    SENDING REQUIREMENT — CRITICAL FOR THIS ONE
+      This email exists solely to collect replies. If it is sent from
+      no-reply@rensights.com, every response is lost and the promise "we read
+      every response" becomes false. Send from a monitored mailbox, or set a
+      Reply-To: header to one, and make sure someone is actually watching it.
+      There is deliberately no "please do not reply" line in the footer.
+      -> Handled: EmailService.sendFeedbackEmail sets Reply-To from
+         app.email.reply-to (default info@rensights.com). Someone has to watch
+         that mailbox for this email to keep its promise.
+
+    Sent by FeedbackEmailScheduler, ~10 days after the account is created
+    (app.feedback-email.delay-hours), once per account.
+    ===========================================================================
+  -->
+
+  <!--[if mso]>
+  <noscript>
+    <xml>
+      <o:OfficeDocumentSettings>
+        <o:PixelsPerInch>96</o:PixelsPerInch>
+      </o:OfficeDocumentSettings>
+    </xml>
+  </noscript>
+  <![endif]-->
+
+  <style type="text/css">
+    /* ---------- Client resets ---------- */
+    html, body { margin:0 !important; padding:0 !important; height:100% !important; width:100% !important; }
+    * { -ms-text-size-adjust:100%; -webkit-text-size-adjust:100%; }
+    table, td { mso-table-lspace:0pt !important; mso-table-rspace:0pt !important; border-collapse:collapse !important; }
+    img { -ms-interpolation-mode:bicubic; border:0; height:auto; line-height:100%; outline:none; text-decoration:none; display:block; }
+    a { text-decoration:none; }
+    a[x-apple-data-detectors], u + #body a, #MessageViewBody a {
+      color:inherit !important; text-decoration:none !important; font-size:inherit !important;
+      font-family:inherit !important; font-weight:inherit !important; line-height:inherit !important;
+    }
+
+    /* ---------- Mobile ---------- */
+    @media screen and (max-width:600px) {
+      .sm-w-full { width:100% !important; }
+      .sm-px     { padding-left:22px !important; padding-right:22px !important; }
+      .sm-pt     { padding-top:34px !important; }
+      .sm-pb     { padding-bottom:34px !important; }
+      .sm-h1     { font-size:25px !important; line-height:33px !important; }
+      .sm-body   { font-size:16px !important; line-height:26px !important; }
+    }
+
+    /* ---------- Dark mode (prevents harsh forced inversion) ---------- */
+    @media (prefers-color-scheme: dark) {
+      .dm-bg-page   { background-color:#111418 !important; }
+      .dm-bg-card   { background-color:#1A1E24 !important; }
+      .dm-text      { color:#F2F4F7 !important; }
+      .dm-text-body { color:#C3CAD4 !important; }
+      .dm-text-mute { color:#8A93A0 !important; }
+      .dm-rule      { background-color:#2A2F37 !important; }
+    }
+  </style>
+</head>
+
+<body id="body" style="margin:0; padding:0; width:100%; background-color:#F5F6F7;" class="dm-bg-page">
+
+  <!-- ======================= PREHEADER (hidden) ======================= -->
+  <div style="display:none; font-size:1px; color:#F5F6F7; line-height:1px; max-height:0; max-width:0; opacity:0; overflow:hidden; mso-hide:all;">
+    We&rsquo;d love to hear how Rensights has been working for you.
+    &#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;
+  </div>
+
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#F5F6F7;" class="dm-bg-page">
+    <tr>
+      <td align="center" style="padding:40px 12px;">
+
+        <!--[if mso]>
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" align="center"><tr><td>
+        <![endif]-->
+
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" class="sm-w-full" style="width:100%; max-width:600px;">
+
+          <!-- ======================= CONTENT AREA ======================= -->
+          <tr>
+            <td class="dm-bg-card" style="background-color:#FFFFFF; border-radius:10px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+
+                <!-- ---------------------- LOGO AREA ----------------------
+                     No hosted logo asset exists in the frontend repo
+                     (src/public/ contains only Next.js defaults), so a text
+                     wordmark is used.
+
+                     TO USE THE REAL LOGO: host the artwork at a public HTTPS
+                     URL and replace the lockup below with:
+
+                     <img src="https://rensights.com/email/rensights-logo.png"
+                          width="140" height="36" alt="Rensights"
+                          style="display:block; width:140px; max-width:140px; height:auto; border:0;" />
+
+                     Export at 2x (280px wide) for retina. Do not use a data:
+                     URI — Gmail strips them.
+
+                     The 24px #F6B042 rounded square below mirrors the site
+                     header (Header.tsx:124). Remove it if you swap in a logo
+                     image that already contains the mark.
+                ------------------------------------------------------------ -->
+                <tr>
+                  <td class="sm-px sm-pt" style="padding:48px 48px 0 48px;">
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        <td style="padding-right:9px; vertical-align:middle; font-size:0; line-height:0;">
+                          <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="24" height="24" style="width:24px; height:24px; background-color:#F6B042; border-radius:7px;">
+                            <tr><td height="24" style="height:24px; font-size:0; line-height:0;">&nbsp;</td></tr>
+                          </table>
+                        </td>
+                        <td class="dm-text" style="vertical-align:middle; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,Helvetica,sans-serif; font-size:19px; font-weight:600; letter-spacing:-0.3px; color:#17202A;">Rensights</td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+
+                <!-- Hairline under the wordmark -->
+                <tr>
+                  <td class="sm-px" style="padding:20px 48px 0 48px;">
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                      <tr><td height="1" class="dm-rule" style="height:1px; line-height:1px; font-size:0; background-color:#E7E9EC;">&nbsp;</td></tr>
+                    </table>
+                  </td>
+                </tr>
+
+                <!-- ---------------------- MAIN CONTENT ---------------------- -->
+
+                <!-- Headline — drawn from the copy's own opening line -->
+                <tr>
+                  <td class="sm-px" style="padding:36px 48px 0 48px;">
+                    <h1 class="sm-h1 dm-text" style="margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,Helvetica,sans-serif; font-size:28px; line-height:36px; font-weight:600; letter-spacing:-0.5px; color:#17202A;">
+                      How has your experience been?
+                    </h1>
+                  </td>
+                </tr>
+
+                <!-- Greeting -->
+                <tr>
+                  <td class="sm-px" style="padding:26px 48px 0 48px;">
+                    <p class="sm-body dm-text-body" style="margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,Helvetica,sans-serif; font-size:16px; line-height:26px; color:#475467;">
+                      Hi {{first_name}},
+                    </p>
+                  </td>
+                </tr>
+
+                <!-- Body copy -->
+                <tr>
+                  <td class="sm-px" style="padding:20px 48px 0 48px;">
+                    <p class="sm-body dm-text-body" style="margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,Helvetica,sans-serif; font-size:16px; line-height:26px; color:#475467;">
+                      You&rsquo;ve had some time to explore Rensights, and we&rsquo;d love to hear how your experience has been so far.
+                    </p>
+                  </td>
+                </tr>
+
+                <tr>
+                  <td class="sm-px" style="padding:20px 48px 0 48px;">
+                    <p class="sm-body dm-text-body" style="margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,Helvetica,sans-serif; font-size:16px; line-height:26px; color:#475467;">
+                      Is there anything you particularly like? Something you&rsquo;d like to see improved? Or a feature or insight that would make Rensights more useful for you?
+                    </p>
+                  </td>
+                </tr>
+
+                <tr>
+                  <td class="sm-px" style="padding:20px 48px 0 48px;">
+                    <p class="sm-body dm-text-body" style="margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,Helvetica,sans-serif; font-size:16px; line-height:26px; color:#475467;">
+                      Just reply to this email and let us know &mdash; even a few words are helpful. We read every response, and your feedback helps us decide what to improve and build next.
+                    </p>
+                  </td>
+                </tr>
+
+                <!-- ---------------------- SIGN-OFF ---------------------- -->
+                <tr>
+                  <td class="sm-px" style="padding:26px 48px 0 48px;">
+                    <p class="sm-body dm-text-body" style="margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,Helvetica,sans-serif; font-size:16px; line-height:26px; color:#475467;">
+                      Thanks for being part of Rensights.
+                    </p>
+                  </td>
+                </tr>
+
+                <tr>
+                  <td class="sm-px sm-pb" style="padding:20px 48px 48px 48px;">
+                    <p class="sm-body dm-text" style="margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,Helvetica,sans-serif; font-size:16px; line-height:26px; font-weight:600; color:#17202A;">
+                      The Rensights Team
+                    </p>
+                  </td>
+                </tr>
+
+              </table>
+            </td>
+          </tr>
+
+          <!-- ======================= FOOTER ======================= -->
+          <tr>
+            <td align="center" class="sm-px" style="padding:28px 48px 0 48px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,Helvetica,sans-serif;">
+              <p class="dm-text-mute" style="margin:0 0 4px 0; font-size:12px; line-height:19px; color:#98A2B3;">
+                Rensights, Inc.
+              </p>
+              <p class="dm-text-mute" style="margin:0; font-size:12px; line-height:19px; color:#98A2B3;">
+                Real estate intelligence for smarter investment decisions
+              </p>
+
+              <!-- ============================================================
+                   UNSUBSCRIBE / LEGAL PLACEHOLDER
+                   Insert your ESP's merge tags here if required, e.g.:
+
+                   <p style="margin:12px 0 0 0; font-size:11px; line-height:18px; color:#98A2B3;">
+                     <a href="[unsubscribe url]" style="color:#98A2B3; text-decoration:underline;">Unsubscribe</a>
+                     &nbsp;&middot;&nbsp;
+                     <a href="https://rensights.com/privacy-terms" style="color:#98A2B3; text-decoration:underline;">Privacy &amp; Terms</a>
+                   </p>
+                   <p style="margin:8px 0 0 0; font-size:11px; line-height:18px; color:#98A2B3;">
+                     [POSTAL ADDRESS — required by CAN-SPAM and most ESPs]
+                   </p>
+
+                   NOTE: "Rensights, Inc." is carried over from welcome.html and
+                   has not been verified against the registered entity name.
+              ============================================================ -->
+
+            </td>
+          </tr>
+
+        </table>
+
+        <!--[if mso]>
+        </td></tr></table>
+        <![endif]-->
+
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>

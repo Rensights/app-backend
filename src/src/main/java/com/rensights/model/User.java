@@ -87,6 +87,11 @@ public class User {
     // (see GettingStartedEmailScheduler). Null means it is still pending or was never due.
     @Column(name = "getting_started_email_sent_at")
     private LocalDateTime gettingStartedEmailSentAt;
+
+    // Stamped once the feedback check-in goes out, ~10 days after sign-up
+    // (see FeedbackEmailScheduler). Null means it is still pending or was never due.
+    @Column(name = "feedback_email_sent_at")
+    private LocalDateTime feedbackEmailSentAt;
     
     @PrePersist
     protected void onCreate() {

@@ -37,10 +37,9 @@ import java.util.List;
 @Component
 public class WelcomeEmailScheduler {
 
-    private static final Logger logger = LoggerFactory.getLogger(WelcomeEmailScheduler.class);
-
     private final UserRepository userRepository;
     private final EmailService emailService;
+    private final LifecycleEmailRunner runner;
 
     @Value("${app.welcome-email.enabled:true}")
     private boolean enabled;
@@ -57,9 +56,11 @@ public class WelcomeEmailScheduler {
     @Value("${app.welcome-email.batch-size:50}")
     private int batchSize;
 
-    public WelcomeEmailScheduler(UserRepository userRepository, EmailService emailService) {
+    public WelcomeEmailScheduler(UserRepository userRepository, EmailService emailService,
+                                 LifecycleEmailRunner runner) {
         this.userRepository = userRepository;
         this.emailService = emailService;
+        this.runner = runner;
     }
 
     @Scheduled(fixedDelayString = "${app.welcome-email.poll-interval-ms:60000}",
@@ -75,27 +76,8 @@ public class WelcomeEmailScheduler {
             now.minusHours(maxAgeHours),
             PageRequest.of(0, batchSize));
 
-        if (due.isEmpty()) {
-            return;
-        }
-
-        logger.info("Welcome email: {} account(s) due", due.size());
-        for (User user : due) {
-            // Claim before sending: the conditional UPDATE is atomic, so exactly one caller
-            // ever wins a given account and no one can be welcomed twice.
-            if (userRepository.claimWelcomeEmail(user.getId(), LocalDateTime.now()) == 0) {
-                continue;
-            }
-
-            try {
-                emailService.sendWelcomeEmail(user.getEmail(), user.getFirstName());
-            } catch (Exception e) {
-                // The claim deliberately stands. Retrying would risk a second copy for anyone
-                // whose send actually went through before failing, and a duplicate welcome is
-                // worse than a missing one. Loud log so a real outage is visible.
-                logger.error("Welcome email failed for user {} - not retried, claim stands: {}",
-                    user.getId(), e.getMessage());
-            }
-        }
+        runner.run("Welcome email", due,
+            userRepository::claimWelcomeEmail,
+            user -> emailService.sendWelcomeEmail(user.getEmail(), user.getFirstName()));
     }
 }

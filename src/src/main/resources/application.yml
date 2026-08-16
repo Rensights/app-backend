@@ -104,6 +104,13 @@ app:
     # Must stay above delay-hours or the window is empty and nothing is ever sent.
     max-age-hours: ${GETTING_STARTED_EMAIL_MAX_AGE_HOURS:96}
 
+  # Feedback check-in, sent ~10 days after sign-up by FeedbackEmailScheduler.
+  feedback-email:
+    enabled: ${FEEDBACK_EMAIL_ENABLED:true}
+    delay-hours: ${FEEDBACK_EMAIL_DELAY_HOURS:240}
+    # Must stay above delay-hours or the window is empty and nothing is ever sent.
+    max-age-hours: ${FEEDBACK_EMAIL_MAX_AGE_HOURS:480}
+
 logging:
   level:
     root: INFO

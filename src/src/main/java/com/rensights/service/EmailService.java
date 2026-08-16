@@ -144,6 +144,39 @@ public class EmailService {
         }
     }
 
+    /**
+     * Ask how the product is working out, ~10 days after sign-up (see FeedbackEmailScheduler).
+     *
+     * <p>This one exists purely to collect replies, so the Reply-To has to point at a mailbox
+     * someone actually reads. Throws on failure; the scheduler decides what that means.
+     */
+    public void sendFeedbackEmail(String toEmail, String firstName) {
+        if (!emailEnabled) {
+            logger.warn("Email is disabled. Skipping feedback email for {}", toEmail);
+            return;
+        }
+
+        if (!useGraphApi || graphEmailService == null) {
+            logger.error("Microsoft Graph API is not configured! Feedback email cannot be sent.");
+            throw new RuntimeException("Microsoft Graph API is required for email sending.");
+        }
+
+        String greetingName = firstName != null && !firstName.isBlank() ? firstName.trim() : "there";
+        String subject = "How is Rensights working for you?";
+        // The name is user-submitted, so it is escaped before it lands in the markup.
+        String body = emailTemplateService.render("feedback", Map.of(
+            "first_name", HtmlUtils.htmlEscape(greetingName)
+        ));
+
+        try {
+            graphEmailService.sendEmail(toEmail, subject, body, true, replyToEmail);
+            logger.info("✅ Feedback email sent to: {}", toEmail);
+        } catch (Exception e) {
+            logger.error("❌ Failed to send feedback email to: {}", toEmail, e);
+            throw new RuntimeException("Failed to send feedback email: " + e.getMessage(), e);
+        }
+    }
+
     public void sendPasswordResetCode(String toEmail, String code) {
         logger.info("=== EmailService.sendPasswordResetCode called ===");
         logger.info("Email enabled: {}", emailEnabled);
