@@ -97,6 +97,13 @@ app:
     # mailing the entire back catalogue, and bounds retries for a failing address.
     max-age-hours: ${WELCOME_EMAIL_MAX_AGE_HOURS:24}
 
+  # Getting-started email, sent a day after sign-up by GettingStartedEmailScheduler.
+  getting-started-email:
+    enabled: ${GETTING_STARTED_EMAIL_ENABLED:true}
+    delay-hours: ${GETTING_STARTED_EMAIL_DELAY_HOURS:24}
+    # Must stay above delay-hours or the window is empty and nothing is ever sent.
+    max-age-hours: ${GETTING_STARTED_EMAIL_MAX_AGE_HOURS:96}
+
 logging:
   level:
     root: INFO

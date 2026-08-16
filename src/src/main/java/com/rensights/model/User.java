@@ -82,6 +82,11 @@ public class User {
     // (see WelcomeEmailScheduler). Null means it is still pending or was never due.
     @Column(name = "welcome_email_sent_at")
     private LocalDateTime welcomeEmailSentAt;
+
+    // Stamped once the getting-started email goes out, a day after sign-up
+    // (see GettingStartedEmailScheduler). Null means it is still pending or was never due.
+    @Column(name = "getting_started_email_sent_at")
+    private LocalDateTime gettingStartedEmailSentAt;
     
     @PrePersist
     protected void onCreate() {

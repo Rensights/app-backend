@@ -111,6 +111,39 @@ public class EmailService {
         }
     }
 
+    /**
+     * Introduce the product a day after sign-up (see GettingStartedEmailScheduler).
+     *
+     * <p>Like the welcome email it invites a reply, so it carries the same Reply-To. Throws on
+     * failure so the scheduler leaves the account unstamped and retries on the next run.
+     */
+    public void sendGettingStartedEmail(String toEmail, String firstName) {
+        if (!emailEnabled) {
+            logger.warn("Email is disabled. Skipping getting-started email for {}", toEmail);
+            return;
+        }
+
+        if (!useGraphApi || graphEmailService == null) {
+            logger.error("Microsoft Graph API is not configured! Getting-started email cannot be sent.");
+            throw new RuntimeException("Microsoft Graph API is required for email sending.");
+        }
+
+        String greetingName = firstName != null && !firstName.isBlank() ? firstName.trim() : "there";
+        String subject = "A quick introduction to Rensights";
+        // The name is user-submitted, so it is escaped before it lands in the markup.
+        String body = emailTemplateService.render("getting-started", Map.of(
+            "first_name", HtmlUtils.htmlEscape(greetingName)
+        ));
+
+        try {
+            graphEmailService.sendEmail(toEmail, subject, body, true, replyToEmail);
+            logger.info("✅ Getting-started email sent to: {}", toEmail);
+        } catch (Exception e) {
+            logger.error("❌ Failed to send getting-started email to: {}", toEmail, e);
+            throw new RuntimeException("Failed to send getting-started email: " + e.getMessage(), e);
+        }
+    }
+
     public void sendPasswordResetCode(String toEmail, String code) {
         logger.info("=== EmailService.sendPasswordResetCode called ===");
         logger.info("Email enabled: {}", emailEnabled);

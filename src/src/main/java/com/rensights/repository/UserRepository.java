@@ -50,4 +50,22 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     @Transactional
     @Query("UPDATE User u SET u.welcomeEmailSentAt = :sentAt WHERE u.id = :userId")
     void markWelcomeEmailSent(@Param("userId") UUID userId, @Param("sentAt") LocalDateTime sentAt);
+
+    /**
+     * Accounts whose getting-started email is due. Same shape as
+     * {@link #findWelcomeEmailDue}, on its own stamp and its own (longer) delay.
+     */
+    @Query("SELECT u FROM User u WHERE u.gettingStartedEmailSentAt IS NULL "
+        + "AND u.emailVerified = TRUE "
+        + "AND u.createdAt <= :sendBefore AND u.createdAt >= :sendAfter "
+        + "ORDER BY u.createdAt ASC")
+    java.util.List<User> findGettingStartedEmailDue(@Param("sendBefore") LocalDateTime sendBefore,
+                                                    @Param("sendAfter") LocalDateTime sendAfter,
+                                                    org.springframework.data.domain.Pageable pageable);
+
+    // Direct UPDATE so stamping the getting-started email never bumps updatedAt.
+    @Modifying
+    @Transactional
+    @Query("UPDATE User u SET u.gettingStartedEmailSentAt = :sentAt WHERE u.id = :userId")
+    void markGettingStartedEmailSent(@Param("userId") UUID userId, @Param("sentAt") LocalDateTime sentAt);
 }
