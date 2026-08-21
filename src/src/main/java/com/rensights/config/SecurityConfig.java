@@ -73,6 +73,11 @@ public class SecurityConfig {
                 // Allow both with and without trailing slash
                 .requestMatchers(HttpMethod.POST, "/api/webhooks/stripe").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/webhooks/stripe/").permitAll()
+                // SECURITY: Service-to-service calls from the admin backend. Let through here
+                // because the app's user filter cannot read an admin token; InternalAdminController
+                // verifies the admin JWT itself and rejects anything else, exactly as the Stripe
+                // webhook above verifies its own signature.
+                .requestMatchers("/api/internal/admin/**").permitAll()
                 // SECURITY FIX: Require authentication for file access to prevent unauthorized access
                 .requestMatchers("/api/analysis-requests/files/**").authenticated()
                 .requestMatchers("/api/analysis-requests/my-requests").authenticated() // User's own requests require auth

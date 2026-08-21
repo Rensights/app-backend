@@ -92,6 +92,12 @@ public class User {
     // (see FeedbackEmailScheduler). Null means it is still pending or was never due.
     @Column(name = "feedback_email_sent_at")
     private LocalDateTime feedbackEmailSentAt;
+
+    // Set when the account is erased on request (see AccountDeletionService). The row survives
+    // because invoices reference it and have to be kept for accounting, but everything
+    // identifying is stripped. A non-null value means "this is a tombstone, not a person".
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
     
     @PrePersist
     protected void onCreate() {

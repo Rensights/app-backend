@@ -22,8 +22,13 @@ public interface DeviceRepository extends JpaRepository<Device, UUID> {
      */
     @Modifying
     @Query("UPDATE Device d SET d.lastUsedAt = :lastUsedAt WHERE d.userId = :userId AND d.deviceFingerprint = :deviceFingerprint")
-    int updateLastUsedAt(@Param("userId") UUID userId, 
-                        @Param("deviceFingerprint") String deviceFingerprint, 
+    int updateLastUsedAt(@Param("userId") UUID userId,
+                        @Param("deviceFingerprint") String deviceFingerprint,
                         @Param("lastUsedAt") LocalDateTime lastUsedAt);
+
+    /** Erasure: a device fingerprint identifies a person's hardware, so none of it survives. */
+    @Modifying
+    @Query("DELETE FROM Device d WHERE d.userId = :userId")
+    int deleteByUserId(@Param("userId") UUID userId);
 }
 

@@ -224,6 +224,38 @@ public class StripeService {
     }
 
     /**
+     * Cancel a subscription right now, ending billing immediately.
+     *
+     * <p>Used by account deletion: {@link #cancelSubscription} only schedules the cancellation
+     * for the end of the period, which would keep charging a customer whose account no longer
+     * exists. No proration is requested, so the remainder of the paid period is not refunded.
+     */
+    @CircuitBreaker(name = "stripe", fallbackMethod = "cancelSubscriptionFallback")
+    public Subscription cancelSubscriptionImmediately(String subscriptionId) throws StripeException {
+        Subscription subscription = Subscription.retrieve(subscriptionId).cancel();
+        logger.info("Cancelled Stripe subscription {} immediately", subscriptionId);
+        return subscription;
+    }
+
+    /**
+     * Delete the Stripe customer, removing their details from Stripe and stopping any remaining
+     * billing on that customer.
+     *
+     * <p>Part of honouring an erasure request: the customer object holds the email and name we
+     * sent to Stripe. Stripe retains the issued invoices for its own compliance obligations,
+     * which is the same reason we keep ours.
+     */
+    @CircuitBreaker(name = "stripe", fallbackMethod = "deleteCustomerFallback")
+    public void deleteCustomer(String customerId) throws StripeException {
+        Customer.retrieve(customerId).delete();
+        logger.info("Deleted Stripe customer {}", customerId);
+    }
+
+    private void deleteCustomerFallback(String customerId, Exception ex) {
+        throw new RuntimeException("Stripe service temporarily unavailable. Please try again later.", ex);
+    }
+
+    /**
      * Get subscription by ID.
      */
     @CircuitBreaker(name = "stripe", fallbackMethod = "getSubscriptionFallback")

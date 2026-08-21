@@ -8,6 +8,7 @@ import com.rensights.model.Subscription;
 import com.rensights.model.User;
 import com.rensights.repository.SubscriptionRepository;
 import com.rensights.repository.UserRepository;
+import com.rensights.service.AccountDeletionService;
 import com.rensights.service.JwtService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,6 +42,9 @@ public class UserController {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private AccountDeletionService accountDeletionService;
     
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
     
@@ -296,6 +300,53 @@ public class UserController {
         }
     }
     
+    /**
+     * Erase the caller's account (GDPR right to erasure).
+     *
+     * <p>Irreversible. The caller confirms by typing their own email address — not their
+     * password, because Google sign-ups never set one and must be able to exercise this too.
+     * Any subscription is cancelled immediately with no refund for the remainder of the paid
+     * period; the client states that before asking for confirmation.
+     */
+    @DeleteMapping("/me")
+    public ResponseEntity<?> deleteCurrentUser(
+            @RequestBody(required = false) DeleteAccountRequest request,
+            Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return ResponseEntity.status(401).body(new ErrorResponse("Unauthorized"));
+        }
+
+        try {
+            UUID userId = UUID.fromString(authentication.getName());
+            String confirmation = request != null ? request.getConfirmEmail() : null;
+            accountDeletionService.deleteAccount(userId, confirmation);
+            return ResponseEntity.ok(new MessageResponse("Your account has been deleted."));
+        } catch (AccountDeletionService.ConfirmationMismatchException e) {
+            return ResponseEntity.badRequest().body(new ErrorResponse(e.getMessage()));
+        } catch (AccountDeletionService.BillingCancellationException e) {
+            // 503: nothing was deleted, and retrying later is the right move.
+            return ResponseEntity.status(503).body(new ErrorResponse(e.getMessage()));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(401).body(new ErrorResponse("Invalid authentication"));
+        } catch (Exception e) {
+            logger.error("Error deleting account: {}", e.getMessage(), e);
+            return ResponseEntity.status(500)
+                .body(new ErrorResponse("Could not delete your account. Please try again later."));
+        }
+    }
+
+    @lombok.Data
+    public static class DeleteAccountRequest {
+        /** The account's own email address, retyped by the user as confirmation. */
+        private String confirmEmail;
+    }
+
+    @lombok.Data
+    @lombok.AllArgsConstructor
+    private static class MessageResponse {
+        private String message;
+    }
+
     private SubscriptionResponse toSubscriptionResponse(Subscription subscription) {
         return SubscriptionResponse.builder()
                 .id(subscription.getId().toString())
