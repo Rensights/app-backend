@@ -26,6 +26,6 @@ public class AreaController {
 
     @GetMapping
     public List<String> list() {
-        return areaRepository.findAllByOrderByNameAsc().stream().map(Area::getName).toList();
+        return areaRepository.findAllSorted().stream().map(Area::getName).toList();
     }
 }
