@@ -69,6 +69,9 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/early-access").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/early-access").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/analysis-requests").permitAll() // Allow submission without auth
+                // Building name suggestions: a public catalogue of tower names, and the form
+                // that uses it can itself be submitted without signing in.
+                .requestMatchers(HttpMethod.GET, "/api/buildings/search").permitAll()
                 // SECURITY: Webhook endpoint must be public for Stripe to call it, but signature verification is performed
                 // Allow both with and without trailing slash
                 .requestMatchers(HttpMethod.POST, "/api/webhooks/stripe").permitAll()
