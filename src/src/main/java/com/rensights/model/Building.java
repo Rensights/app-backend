@@ -12,16 +12,16 @@ import java.util.UUID;
 /**
  * A building the user can pick from when requesting a property analysis.
  *
- * <p>The list is maintained by admins (CSV import) and read by the analysis request form as
- * type-ahead suggestions. It is a suggestion list, not a constraint: the form still accepts a
- * building that is not here, so a missing row never blocks a request.
+ * <p>Names only, on purpose: the form needs a name to suggest and nothing else, so there is no
+ * area, city or developer to keep accurate. Maintained by admins (CSV import or typed in) and
+ * read by the analysis request form as type-ahead suggestions. It is a suggestion list, not a
+ * constraint: the form still accepts a building that is not here.
  *
  * <p>Lives in the shared database, written by the admin service and read by this one.
  */
 @Entity
 @Table(name = "buildings", indexes = {
-    @Index(name = "idx_buildings_name", columnList = "name"),
-    @Index(name = "idx_buildings_area", columnList = "area")
+    @Index(name = "idx_buildings_name", columnList = "name")
 })
 @Data
 @Builder
@@ -35,16 +35,6 @@ public class Building {
 
     @Column(name = "name", nullable = false, length = 300)
     private String name;
-
-    /** Community / district, when the import provides one. Used to disambiguate same-name towers. */
-    @Column(name = "area", length = 200)
-    private String area;
-
-    @Column(name = "city", length = 100)
-    private String city;
-
-    @Column(name = "developer", length = 200)
-    private String developer;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

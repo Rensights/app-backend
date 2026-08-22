@@ -25,11 +25,4 @@ public interface BuildingRepository extends JpaRepository<Building, UUID> {
     @Query("SELECT b FROM Building b WHERE LOWER(b.name) LIKE CONCAT('%', :query, '%') "
         + "ORDER BY CASE WHEN LOWER(b.name) LIKE CONCAT(:query, '%') THEN 0 ELSE 1 END, b.name ASC")
     List<Building> search(@Param("query") String query, Pageable pageable);
-
-    /** Same lookup narrowed to one area, for when the form already knows the district. */
-    @Query("SELECT b FROM Building b WHERE LOWER(b.name) LIKE CONCAT('%', :query, '%') "
-        + "AND LOWER(b.area) = :area "
-        + "ORDER BY CASE WHEN LOWER(b.name) LIKE CONCAT(:query, '%') THEN 0 ELSE 1 END, b.name ASC")
-    List<Building> searchInArea(@Param("query") String query, @Param("area") String area,
-                                Pageable pageable);
 }
