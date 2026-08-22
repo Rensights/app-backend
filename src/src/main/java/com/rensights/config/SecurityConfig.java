@@ -72,6 +72,8 @@ public class SecurityConfig {
                 // Building name suggestions: a public catalogue of tower names, and the form
                 // that uses it can itself be submitted without signing in.
                 .requestMatchers(HttpMethod.GET, "/api/buildings/search").permitAll()
+                // Area dropdown for the same form: a public list of district names.
+                .requestMatchers(HttpMethod.GET, "/api/areas").permitAll()
                 // SECURITY: Webhook endpoint must be public for Stripe to call it, but signature verification is performed
                 // Allow both with and without trailing slash
                 .requestMatchers(HttpMethod.POST, "/api/webhooks/stripe").permitAll()
