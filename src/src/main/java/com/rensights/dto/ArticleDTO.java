@@ -1,6 +1,7 @@
 package com.rensights.dto;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -19,4 +20,6 @@ public class ArticleDTO {
     private String coverImage;
     private LocalDateTime publishedAt;
     private boolean isActive;
+    /** Empty when the article has not been filed under any category yet. */
+    private List<ArticleCategoryDTO> categories;
 }

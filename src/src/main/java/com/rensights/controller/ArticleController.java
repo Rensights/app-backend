@@ -38,6 +38,12 @@ public class ArticleController {
         return ResponseEntity.ok(articles);
     }
 
+    /** The categories behind the Insights filter pills, in the order admins arranged them. */
+    @GetMapping("/articles/categories")
+    public ResponseEntity<List<com.rensights.dto.ArticleCategoryDTO>> listCategories() {
+        return ResponseEntity.ok(articleService.listCategories());
+    }
+
     @GetMapping("/articles/slug/{slug}")
     public ResponseEntity<ArticleDTO> getPublicBySlug(@PathVariable String slug) {
         ArticleDTO article = articleService.getPublicBySlug(slug);

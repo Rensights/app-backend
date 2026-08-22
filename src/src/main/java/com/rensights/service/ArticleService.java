@@ -1,9 +1,12 @@
 package com.rensights.service;
 
+import com.rensights.dto.ArticleCategoryDTO;
 import com.rensights.dto.ArticleDTO;
 import com.rensights.model.AppSetting;
 import com.rensights.model.Article;
+import com.rensights.model.ArticleCategory;
 import com.rensights.repository.AppSettingRepository;
+import com.rensights.repository.ArticleCategoryRepository;
 import com.rensights.repository.ArticleRepository;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -28,6 +31,7 @@ public class ArticleService {
 
     private final ArticleRepository articleRepository;
     private final AppSettingRepository appSettingRepository;
+    private final ArticleCategoryRepository articleCategoryRepository;
 
     @Cacheable(cacheNames = "articlesList", key = "'all'")
     @Transactional(readOnly = true)
@@ -82,6 +86,37 @@ public class ArticleService {
             .orElse(null);
     }
 
+    /**
+     * Every category, for the filter pills.
+     *
+     * <p>Returned in full rather than derived from the articles, so a category an admin has
+     * created but not used yet still appears (with a count of zero) instead of silently missing.
+     */
+    public List<ArticleCategoryDTO> listCategories() {
+        return articleCategoryRepository.findAllByOrderBySortOrderAscLabelAsc().stream()
+            .map(this::toCategoryDTO)
+            .collect(Collectors.toList());
+    }
+
+    private List<ArticleCategoryDTO> toCategoryDTOs(Article article) {
+        if (article.getCategories() == null) {
+            return List.of();
+        }
+        return article.getCategories().stream()
+            .map(this::toCategoryDTO)
+            .collect(Collectors.toList());
+    }
+
+    private ArticleCategoryDTO toCategoryDTO(ArticleCategory category) {
+        return ArticleCategoryDTO.builder()
+            .id(category.getId().toString())
+            .slug(category.getSlug())
+            .label(category.getLabel())
+            .color(category.getColor())
+            .sortOrder(category.getSortOrder())
+            .build();
+    }
+
     /** Full detail DTO: keeps content, but ships coverImage as a relative URL (no base64). */
     private ArticleDTO toDTO(Article article) {
         return ArticleDTO.builder()
@@ -93,6 +128,7 @@ public class ArticleService {
             .coverImage(coverImageUrl(article))
             .publishedAt(article.getPublishedAt())
             .isActive(Boolean.TRUE.equals(article.getIsActive()))
+            .categories(toCategoryDTOs(article))
             .build();
     }
 
@@ -107,6 +143,7 @@ public class ArticleService {
             .coverImage(coverImageUrl(article))
             .publishedAt(article.getPublishedAt())
             .isActive(Boolean.TRUE.equals(article.getIsActive()))
+            .categories(toCategoryDTOs(article))
             .build();
     }
 
